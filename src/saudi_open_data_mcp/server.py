@@ -10,6 +10,7 @@ from .resources.catalog import CatalogResource
 from .tools.health import DatasetHealthTool
 from .tools.metadata import DatasetMetadataTool
 from .tools.preview import DatasetPreviewTool
+from .tools.search import DatasetSearchTool
 
 
 def create_server(config: RuntimeConfig | None = None) -> FastMCP:
@@ -25,6 +26,7 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
     preview_tool = DatasetPreviewTool(
         SAMAConnector(base_url=runtime_config.source.base_url).fetch_dataset_payload
     )
+    search_tool = DatasetSearchTool(repository)
 
     app = FastMCP(runtime_config.app_name)
 
@@ -49,6 +51,13 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
     )
     def dataset_health(dataset_id: str) -> dict:
         return health_tool.get_dataset_health(dataset_id).model_dump(mode="json")
+
+    @app.tool(
+        name="search_datasets",
+        description="Search registry-backed datasets using deterministic substring matching.",
+    )
+    def search_datasets(query: str) -> dict:
+        return search_tool.search_datasets(query).model_dump(mode="json")
 
     @app.tool(
         name="preview_dataset",

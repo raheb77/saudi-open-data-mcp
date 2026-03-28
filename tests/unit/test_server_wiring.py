@@ -19,7 +19,7 @@ def _report_url() -> str:
 
 
 @respx.mock
-async def test_server_registers_catalog_resource_metadata_health_and_preview_tools(
+async def test_server_registers_catalog_resource_metadata_health_search_and_preview_tools(
     tmp_path: Path,
 ) -> None:
     respx.get(_report_url()).mock(
@@ -35,7 +35,12 @@ async def test_server_registers_catalog_resource_metadata_health_and_preview_too
     tools = await app.get_tools()
 
     assert set(resources) == {"resource://catalog"}
-    assert set(tools) == {"dataset_health", "dataset_metadata", "preview_dataset"}
+    assert set(tools) == {
+        "dataset_health",
+        "dataset_metadata",
+        "preview_dataset",
+        "search_datasets",
+    }
 
     catalog_payload = json.loads(await resources["resource://catalog"].read())
     assert catalog_payload["dataset_count"] == 3
@@ -53,6 +58,34 @@ async def test_server_registers_catalog_resource_metadata_health_and_preview_too
     assert health_result.structured_content["dataset_id"] == "sama-money-supply"
     assert health_result.structured_content["health_status"] == "unknown"
     assert health_result.structured_content["schema_version"] == "0.1.0"
+
+    search_result = await tools["search_datasets"].run({"query": "money"})
+    assert search_result.structured_content["query"] == "money"
+    assert search_result.structured_content["normalized_query"] == "money"
+    assert search_result.structured_content["mode"] == "filtered"
+    assert search_result.structured_content["match_count"] == 1
+    assert search_result.structured_content["matches"] == [
+        {
+            "dataset_id": "sama-money-supply",
+            "source": "sama",
+            "title": "Money Supply",
+            "update_frequency": "monthly",
+            "health_status": "unknown",
+        }
+    ]
+
+    all_datasets_result = await tools["search_datasets"].run({"query": "   "})
+    assert all_datasets_result.structured_content["query"] == "   "
+    assert all_datasets_result.structured_content["normalized_query"] == ""
+    assert all_datasets_result.structured_content["mode"] == "all_datasets"
+    assert all_datasets_result.structured_content["match_count"] == 3
+    assert [
+        match["dataset_id"] for match in all_datasets_result.structured_content["matches"]
+    ] == [
+        "sama-balance-of-payments",
+        "sama-interest-rates",
+        "sama-money-supply",
+    ]
 
     preview_result = await tools["preview_dataset"].run({"dataset_id": REPORT_LOCATOR})
     assert preview_result.structured_content["status"] == "record_derivable"
