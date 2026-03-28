@@ -18,6 +18,19 @@ class MappingBodyKind(StrEnum):
     TEXT = "text"
 
 
+class RecordExtractionShape(StrEnum):
+    """Supported canonical record extraction shapes for v0.1."""
+
+    NONE = "none"
+    TOP_LEVEL_OBJECT_LIST = "top_level_object_list"
+    ROWS_OBJECT_LIST = "rows_object_list"
+
+
+JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION = (
+    "json_body_requires_supported_object_list_shape_for_record_normalization"
+)
+
+
 class RawResponseMetadata(BaseModel):
     """Typed raw response metadata extracted from connector payload content."""
 
@@ -29,7 +42,11 @@ class RawResponseMetadata(BaseModel):
 
 
 class FieldMappingResult(BaseModel):
-    """Intermediate mapping result for later validation and pipeline steps."""
+    """Intermediate mapping result for later validation and pipeline steps.
+
+    JSON payloads may still be limited here when they are structured but do not
+    match a supported object-list shape for safe canonical record extraction.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -39,6 +56,7 @@ class FieldMappingResult(BaseModel):
     body_kind: MappingBodyKind
     raw_body: dict[str, Any] | list[Any] | str
     canonical_fields: dict[str, Any] = Field(default_factory=dict)
+    record_extraction_shape: RecordExtractionShape
     can_derive_records: bool
     limitations: tuple[str, ...] = Field(default_factory=tuple)
 
@@ -62,6 +80,7 @@ def get_field_mapping(raw_payload: RawPayload) -> FieldMappingResult:
     body_kind = _classify_body_kind(response_metadata.content_type, raw_body)
 
     if body_kind is MappingBodyKind.JSON:
+        record_extraction_shape = _detect_record_extraction_shape(raw_body)
         canonical_fields = {
             "dataset_locator": raw_payload.dataset_id,
             "response_url": response_metadata.url,
@@ -69,9 +88,14 @@ def get_field_mapping(raw_payload: RawPayload) -> FieldMappingResult:
             "response_content_type": response_metadata.content_type,
             "structured_body": raw_body,
         }
-        limitations: tuple[str, ...] = ()
-        can_derive_records = True
+        can_derive_records = record_extraction_shape is not RecordExtractionShape.NONE
+        limitations = (
+            ()
+            if can_derive_records
+            else (JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,)
+        )
     else:
+        record_extraction_shape = RecordExtractionShape.NONE
         canonical_fields = {
             "dataset_locator": raw_payload.dataset_id,
             "response_url": response_metadata.url,
@@ -90,6 +114,7 @@ def get_field_mapping(raw_payload: RawPayload) -> FieldMappingResult:
         body_kind=body_kind,
         raw_body=raw_body,
         canonical_fields=canonical_fields,
+        record_extraction_shape=record_extraction_shape,
         can_derive_records=can_derive_records,
         limitations=limitations,
     )
@@ -151,3 +176,20 @@ def _classify_body_kind(
             raise ValueError("text content_type requires a string body")
         return MappingBodyKind.TEXT
     raise ValueError(f"unsupported raw payload content_type: {content_type}")
+
+
+def _detect_record_extraction_shape(
+    raw_body: dict[str, Any] | list[Any],
+) -> RecordExtractionShape:
+    """Detect whether the current JSON body supports safe canonical record extraction."""
+
+    if isinstance(raw_body, list):
+        if all(isinstance(item, dict) for item in raw_body):
+            return RecordExtractionShape.TOP_LEVEL_OBJECT_LIST
+        return RecordExtractionShape.NONE
+
+    rows = raw_body.get("rows")
+    if isinstance(rows, list) and all(isinstance(item, dict) for item in rows):
+        return RecordExtractionShape.ROWS_OBJECT_LIST
+
+    return RecordExtractionShape.NONE

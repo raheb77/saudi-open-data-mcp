@@ -8,7 +8,11 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..connectors.base import RawPayload
-from .field_mapping import FieldMappingResult, get_field_mapping
+from .field_mapping import (
+    FieldMappingResult,
+    RecordExtractionShape,
+    get_field_mapping,
+)
 from .validators import (
     FieldMappingValidationResult,
     MappingValidationStatus,
@@ -18,10 +22,13 @@ from .validators import (
 
 
 class CanonicalRecord(BaseModel):
-    """Canonical normalized record placeholder."""
+    """Minimal canonical normalized record for supported simple JSON shapes."""
+
+    model_config = ConfigDict(extra="forbid")
 
     dataset_id: str
     source: str
+    record_index: int
     fields: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -38,6 +45,7 @@ class NormalizationFailureStage(StrEnum):
 
     MAPPING = "mapping"
     VALIDATION = "validation"
+    RECORD_EXTRACTION = "record_extraction"
 
 
 class NormalizationFailure(BaseModel):
@@ -99,9 +107,25 @@ class NormalizationPipeline:
             )
 
         status = _status_from_validation(validation_result.status)
+        try:
+            records = _build_canonical_records(validation_result)
+        except ValueError as exc:
+            return NormalizationResult(
+                dataset_id=dataset_id,
+                status=NormalizationPipelineStatus.FAILED,
+                mapping_result=mapping_result,
+                validation_result=validation_result,
+                failure=NormalizationFailure(
+                    stage=NormalizationFailureStage.RECORD_EXTRACTION,
+                    error_type=type(exc).__name__,
+                    message=str(exc),
+                ),
+            )
+
         return NormalizationResult(
             dataset_id=dataset_id,
             status=status,
+            records=records,
             mapping_result=mapping_result,
             validation_result=validation_result,
         )
@@ -115,3 +139,55 @@ def _status_from_validation(
     if validation_status is MappingValidationStatus.RECORD_DERIVABLE:
         return NormalizationPipelineStatus.RECORD_DERIVABLE
     return NormalizationPipelineStatus.LIMITED
+
+
+def _build_canonical_records(
+    validation_result: FieldMappingValidationResult,
+) -> tuple[CanonicalRecord, ...]:
+    """Build canonical records for the supported validated JSON shapes only."""
+
+    if validation_result.status is not MappingValidationStatus.RECORD_DERIVABLE:
+        return ()
+
+    structured_body = validation_result.canonical_fields["structured_body"]
+    if validation_result.record_extraction_shape is RecordExtractionShape.TOP_LEVEL_OBJECT_LIST:
+        if not isinstance(structured_body, list):
+            raise ValueError("top-level object list extraction requires a list structured_body")
+        rows = structured_body
+    elif (
+        validation_result.record_extraction_shape
+        is RecordExtractionShape.ROWS_OBJECT_LIST
+    ):
+        if not isinstance(structured_body, dict):
+            raise ValueError("rows object list extraction requires a dict structured_body")
+        rows = structured_body.get("rows")
+        if not isinstance(rows, list):
+            raise ValueError("rows object list extraction requires a rows list")
+    else:
+        raise ValueError(
+            "record-derivable validation result must declare a supported extraction shape"
+        )
+
+    return tuple(
+        CanonicalRecord(
+            dataset_id=validation_result.dataset_locator,
+            source=validation_result.source,
+            record_index=index,
+            fields=_copy_record_fields(record),
+        )
+        for index, record in enumerate(rows)
+    )
+
+
+def _copy_record_fields(record: Any) -> dict[str, Any]:
+    """Copy a raw object record into canonical fields without inventing semantics."""
+
+    if not isinstance(record, dict):
+        raise ValueError("canonical record extraction requires object records")
+
+    copied: dict[str, Any] = {}
+    for key, value in record.items():
+        if not isinstance(key, str):
+            raise ValueError("canonical record fields must use string keys")
+        copied[key] = value
+    return copied

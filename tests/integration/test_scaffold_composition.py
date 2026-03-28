@@ -21,7 +21,7 @@ def test_registry_and_normalization_scaffold_compose(tmp_path: Path) -> None:
             "url": "https://www.sama.gov.sa/en-US/EconomicReports/Pages/report.aspx?cid=55",
             "status_code": 200,
             "content_type": "application/json",
-            "body": {"rows": []},
+            "body": {"rows": [{"period": "2026-01", "value": 1}]},
         },
     )
 
@@ -32,5 +32,9 @@ def test_registry_and_normalization_scaffold_compose(tmp_path: Path) -> None:
     assert all(isinstance(item, DatasetDescriptor) for item in bootstrapped_descriptors)
     assert result.dataset_id == "report.aspx?cid=55"
     assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
-    assert result.records == ()
+    assert len(result.records) == 1
+    assert result.records[0].dataset_id == "report.aspx?cid=55"
+    assert result.records[0].source == "sama"
+    assert result.records[0].record_index == 0
+    assert result.records[0].fields == {"period": "2026-01", "value": 1}
     assert result.validation_result is not None
