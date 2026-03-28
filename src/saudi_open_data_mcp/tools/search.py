@@ -1,9 +1,121 @@
-"""Search tool scaffold."""
+"""Typed registry-backed dataset search."""
+
+from __future__ import annotations
+
+from enum import StrEnum
+from typing import Self
 
 from fastmcp import FastMCP
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from saudi_open_data_mcp.registry.models import (
+    DatasetDescriptor,
+    DatasetHealthStatus,
+    NonEmptyText,
+    UpdateFrequency,
+)
+from saudi_open_data_mcp.registry.repository import RegistryRepository
+
+
+class DatasetSearchMode(StrEnum):
+    """Registry search mode based on the applied query."""
+
+    FILTERED = "filtered"
+    ALL_DATASETS = "all_datasets"
+
+
+class DatasetSearchMatch(BaseModel):
+    """Concise registry-backed summary for a search hit."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    dataset_id: NonEmptyText
+    source: NonEmptyText
+    title: NonEmptyText
+    update_frequency: UpdateFrequency
+    health_status: DatasetHealthStatus
+
+    @classmethod
+    def from_descriptor(cls, descriptor: DatasetDescriptor) -> Self:
+        """Build a search summary from a registry descriptor."""
+
+        return cls(
+            dataset_id=descriptor.dataset_id,
+            source=descriptor.source,
+            title=descriptor.title,
+            update_frequency=descriptor.update_frequency,
+            health_status=descriptor.health_status,
+        )
+
+
+class DatasetSearchResult(BaseModel):
+    """Deterministic typed search output over registry metadata."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    query: str
+    normalized_query: str
+    mode: DatasetSearchMode
+    match_count: int = Field(ge=0)
+    matches: tuple[DatasetSearchMatch, ...] = Field(default_factory=tuple)
+
+    @model_validator(mode="after")
+    def _validate_consistency(self) -> Self:
+        if self.match_count != len(self.matches):
+            raise ValueError("match_count must equal the number of matches")
+
+        if self.normalized_query:
+            if self.mode is not DatasetSearchMode.FILTERED:
+                raise ValueError("non-empty normalized_query requires filtered search mode")
+        elif self.mode is not DatasetSearchMode.ALL_DATASETS:
+            raise ValueError("empty normalized_query requires all_datasets search mode")
+
+        return self
+
+    @classmethod
+    def from_descriptors(
+        cls,
+        *,
+        query: str,
+        descriptors: list[DatasetDescriptor],
+    ) -> Self:
+        """Build a typed search result from repository-ordered descriptors."""
+
+        normalized_query = query.strip()
+        mode = (
+            DatasetSearchMode.FILTERED
+            if normalized_query
+            else DatasetSearchMode.ALL_DATASETS
+        )
+        matches = tuple(
+            DatasetSearchMatch.from_descriptor(descriptor) for descriptor in descriptors
+        )
+        return cls(
+            query=query,
+            normalized_query=normalized_query,
+            mode=mode,
+            match_count=len(matches),
+            matches=matches,
+        )
+
+
+class DatasetSearchTool:
+    """Thin deterministic search layer over the registry repository."""
+
+    def __init__(self, repository: RegistryRepository) -> None:
+        self._repository = repository
+
+    def search_datasets(self, query: str) -> DatasetSearchResult:
+        """Search registry-backed datasets using repository substring matching."""
+
+        descriptors = self._repository.search_datasets(query)
+        return DatasetSearchResult.from_descriptors(
+            query=query,
+            descriptors=descriptors,
+        )
 
 
 def register(app: FastMCP) -> None:
-    """Register nothing until the search tool is implemented."""
+    """Defer FastMCP registration until server wiring expands to search support."""
 
     _ = app
