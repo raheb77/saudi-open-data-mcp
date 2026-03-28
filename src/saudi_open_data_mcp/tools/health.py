@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+from pathlib import Path
 from typing import Literal, Self
 
 from fastmcp import FastMCP
@@ -14,6 +16,11 @@ from saudi_open_data_mcp.registry.models import (
     SchemaVersion,
 )
 from saudi_open_data_mcp.registry.repository import RegistryRepository
+from saudi_open_data_mcp.storage.freshness import (
+    SnapshotFreshnessResult,
+    evaluate_snapshot_freshness,
+)
+from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 
 
 class DatasetHealthLookupResult(BaseModel):
@@ -27,6 +34,7 @@ class DatasetHealthLookupResult(BaseModel):
     schema_version: SchemaVersion | None = None
     caveats: tuple[RegistryNote, ...] = Field(default_factory=tuple)
     known_issues: tuple[RegistryNote, ...] = Field(default_factory=tuple)
+    freshness: SnapshotFreshnessResult | None = None
 
     @model_validator(mode="after")
     def _validate_consistency(self) -> Self:
@@ -47,6 +55,14 @@ class DatasetHealthLookupResult(BaseModel):
             raise ValueError("known_issues must be empty when status is 'missing'")
         return self
 
+    def model_dump(self, *args, **kwargs):  # type: ignore[override]
+        """Exclude absent freshness evidence while preserving other explicit nulls."""
+
+        exclude = kwargs.pop("exclude", None)
+        if self.freshness is None:
+            exclude = _merge_exclude(exclude, "freshness")
+        return super().model_dump(*args, exclude=exclude, **kwargs)
+
     @classmethod
     def found(
         cls,
@@ -56,6 +72,7 @@ class DatasetHealthLookupResult(BaseModel):
         schema_version: str,
         caveats: tuple[str, ...],
         known_issues: tuple[str, ...],
+        freshness: SnapshotFreshnessResult | None = None,
     ) -> Self:
         """Build a found health result from registry-backed metadata."""
 
@@ -66,6 +83,7 @@ class DatasetHealthLookupResult(BaseModel):
             schema_version=schema_version,
             caveats=caveats,
             known_issues=known_issues,
+            freshness=freshness,
         )
 
     @classmethod
@@ -78,10 +96,24 @@ class DatasetHealthLookupResult(BaseModel):
 class DatasetHealthTool:
     """Registry-backed health lookup without live connector probing."""
 
-    def __init__(self, repository: RegistryRepository) -> None:
+    def __init__(
+        self,
+        repository: RegistryRepository,
+        snapshot_store: SnapshotStore | Path | None = None,
+    ) -> None:
         self._repository = repository
+        self._snapshot_store = (
+            snapshot_store
+            if isinstance(snapshot_store, SnapshotStore) or snapshot_store is None
+            else SnapshotStore(snapshot_store)
+        )
 
-    def get_dataset_health(self, dataset_id: str) -> DatasetHealthLookupResult:
+    def get_dataset_health(
+        self,
+        dataset_id: str,
+        *,
+        reference_time: datetime | None = None,
+    ) -> DatasetHealthLookupResult:
         """Return exact-match dataset health from the registry."""
 
         descriptor = self._repository.get_dataset(dataset_id)
@@ -94,6 +126,17 @@ class DatasetHealthTool:
             if health_metadata is not None
             else descriptor.health_status
         )
+        freshness = (
+            evaluate_snapshot_freshness(
+                source=descriptor.source,
+                dataset_id=descriptor.dataset_id,
+                snapshot_store=self._snapshot_store,
+                reference_time=reference_time,
+                update_frequency=descriptor.update_frequency,
+            )
+            if self._snapshot_store is not None
+            else None
+        )
 
         return DatasetHealthLookupResult.found(
             dataset_id=descriptor.dataset_id,
@@ -101,6 +144,7 @@ class DatasetHealthTool:
             schema_version=descriptor.schema_version,
             caveats=descriptor.caveats,
             known_issues=descriptor.known_issues,
+            freshness=freshness,
         )
 
 
@@ -108,3 +152,17 @@ def register(app: FastMCP) -> None:
     """Defer FastMCP registration until server wiring expands to health support."""
 
     _ = app
+
+
+def _merge_exclude(exclude: object, field_name: str) -> object:
+    """Merge a field exclusion into an existing model_dump exclude value."""
+
+    if exclude is None:
+        return {field_name}
+    if isinstance(exclude, set):
+        return {*exclude, field_name}
+    if isinstance(exclude, dict):
+        merged = dict(exclude)
+        merged[field_name] = True
+        return merged
+    return exclude
