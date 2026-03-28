@@ -1,9 +1,190 @@
-"""Download tool scaffold."""
+"""Typed local artifact lookup over registry metadata and snapshot storage."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from enum import StrEnum
+from pathlib import Path
+from typing import Self
 
 from fastmcp import FastMCP
+from pydantic import BaseModel, ConfigDict, model_validator
+
+from saudi_open_data_mcp.registry.models import DatasetDescriptor, NonEmptyText
+from saudi_open_data_mcp.registry.repository import RegistryRepository
+from saudi_open_data_mcp.storage.freshness import (
+    SnapshotFreshnessResult,
+    SnapshotFreshnessStatus,
+    evaluate_snapshot_freshness,
+)
+from saudi_open_data_mcp.storage.snapshots import SnapshotStore
+
+
+class DatasetDownloadStatus(StrEnum):
+    """Local artifact availability state for a dataset."""
+
+    UNKNOWN_DATASET = "unknown_dataset"
+    ARTIFACT_MISSING = "artifact_missing"
+    AVAILABLE = "available"
+
+
+class DatasetDownloadReason(StrEnum):
+    """Explicit reason for the current local artifact state."""
+
+    DATASET_NOT_IN_REGISTRY = "dataset_not_in_registry"
+    NO_LOCAL_SNAPSHOT = "no_local_snapshot"
+    LOCAL_SNAPSHOT_AVAILABLE = "local_snapshot_available"
+
+
+class DatasetDownloadResult(BaseModel):
+    """Typed local artifact lookup result."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    dataset_id: NonEmptyText
+    status: DatasetDownloadStatus
+    reason: DatasetDownloadReason
+    local_snapshot_exists: bool
+    source: NonEmptyText | None = None
+    snapshot_path: Path | None = None
+    freshness: SnapshotFreshnessResult | None = None
+
+    @model_validator(mode="after")
+    def _validate_consistency(self) -> Self:
+        if self.status is DatasetDownloadStatus.UNKNOWN_DATASET:
+            if self.reason is not DatasetDownloadReason.DATASET_NOT_IN_REGISTRY:
+                raise ValueError("unknown_dataset results require dataset_not_in_registry")
+            if self.local_snapshot_exists:
+                raise ValueError("unknown_dataset results must not claim a local snapshot")
+            if (
+                self.source is not None
+                or self.snapshot_path is not None
+                or self.freshness is not None
+            ):
+                raise ValueError(
+                    "unknown_dataset results must not include source, snapshot_path, or freshness"
+                )
+            return self
+
+        if self.source is None or self.snapshot_path is None or self.freshness is None:
+            raise ValueError(
+                "known dataset download results must include source, snapshot_path, and freshness"
+            )
+
+        if self.freshness.dataset_id != self.dataset_id:
+            raise ValueError("freshness.dataset_id must match dataset_id")
+        if self.freshness.source != self.source:
+            raise ValueError("freshness.source must match source")
+        if self.freshness.snapshot_path != self.snapshot_path:
+            raise ValueError("freshness.snapshot_path must match snapshot_path")
+
+        if self.status is DatasetDownloadStatus.ARTIFACT_MISSING:
+            if self.reason is not DatasetDownloadReason.NO_LOCAL_SNAPSHOT:
+                raise ValueError("artifact_missing results require no_local_snapshot reason")
+            if self.local_snapshot_exists:
+                raise ValueError("artifact_missing results must not claim a local snapshot")
+            if self.freshness.status is not SnapshotFreshnessStatus.MISSING:
+                raise ValueError("artifact_missing results require missing freshness evidence")
+            return self
+
+        if self.reason is not DatasetDownloadReason.LOCAL_SNAPSHOT_AVAILABLE:
+            raise ValueError("available results require local_snapshot_available reason")
+        if not self.local_snapshot_exists:
+            raise ValueError("available results must claim a local snapshot")
+        if self.freshness.status is SnapshotFreshnessStatus.MISSING:
+            raise ValueError("available results must not carry missing freshness evidence")
+        return self
+
+    @classmethod
+    def unknown_dataset(cls, dataset_id: str) -> Self:
+        """Build an explicit unknown-dataset result."""
+
+        return cls(
+            dataset_id=dataset_id,
+            status=DatasetDownloadStatus.UNKNOWN_DATASET,
+            reason=DatasetDownloadReason.DATASET_NOT_IN_REGISTRY,
+            local_snapshot_exists=False,
+        )
+
+    @classmethod
+    def artifact_missing(
+        cls,
+        descriptor: DatasetDescriptor,
+        freshness: SnapshotFreshnessResult,
+    ) -> Self:
+        """Build a typed result for a known dataset without a local artifact."""
+
+        return cls(
+            dataset_id=descriptor.dataset_id,
+            status=DatasetDownloadStatus.ARTIFACT_MISSING,
+            reason=DatasetDownloadReason.NO_LOCAL_SNAPSHOT,
+            local_snapshot_exists=False,
+            source=descriptor.source,
+            snapshot_path=freshness.snapshot_path,
+            freshness=freshness,
+        )
+
+    @classmethod
+    def available(
+        cls,
+        descriptor: DatasetDescriptor,
+        freshness: SnapshotFreshnessResult,
+    ) -> Self:
+        """Build a typed result for a known dataset with a local artifact."""
+
+        return cls(
+            dataset_id=descriptor.dataset_id,
+            status=DatasetDownloadStatus.AVAILABLE,
+            reason=DatasetDownloadReason.LOCAL_SNAPSHOT_AVAILABLE,
+            local_snapshot_exists=True,
+            source=descriptor.source,
+            snapshot_path=freshness.snapshot_path,
+            freshness=freshness,
+        )
+
+
+class DatasetDownloadTool:
+    """Local artifact lookup layer over the registry and snapshot storage."""
+
+    def __init__(
+        self,
+        repository: RegistryRepository,
+        snapshot_store: SnapshotStore | Path,
+    ) -> None:
+        self._repository = repository
+        self._snapshot_store = (
+            snapshot_store
+            if isinstance(snapshot_store, SnapshotStore)
+            else SnapshotStore(snapshot_store)
+        )
+
+    def get_dataset_download(
+        self,
+        dataset_id: str,
+        *,
+        reference_time: datetime | None = None,
+    ) -> DatasetDownloadResult:
+        """Return local artifact state for an exact registry dataset identifier."""
+
+        descriptor = self._repository.get_dataset(dataset_id)
+        if descriptor is None:
+            return DatasetDownloadResult.unknown_dataset(dataset_id)
+
+        freshness = evaluate_snapshot_freshness(
+            source=descriptor.source,
+            dataset_id=descriptor.dataset_id,
+            snapshot_store=self._snapshot_store,
+            reference_time=reference_time,
+            update_frequency=descriptor.update_frequency,
+        )
+
+        if freshness.status is SnapshotFreshnessStatus.MISSING:
+            return DatasetDownloadResult.artifact_missing(descriptor, freshness)
+
+        return DatasetDownloadResult.available(descriptor, freshness)
 
 
 def register(app: FastMCP) -> None:
-    """Register nothing until the download tool is implemented."""
+    """Defer FastMCP registration until server wiring expands to download support."""
 
     _ = app
