@@ -8,6 +8,7 @@ from .registry.bootstrap import bootstrap_registry
 from .registry.repository import RegistryRepository
 from .resources.catalog import CatalogResource
 from .storage.snapshots import SnapshotStore
+from .tools.download import DatasetDownloadTool
 from .tools.health import DatasetHealthTool
 from .tools.metadata import DatasetMetadataTool
 from .tools.preview import DatasetPreviewTool
@@ -20,12 +21,14 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
     runtime_config = config or load_config()
     repository = RegistryRepository(runtime_config.registry_path)
     bootstrap_registry(repository)
+    snapshot_store = SnapshotStore(runtime_config.snapshot_dir)
 
     catalog_resource = CatalogResource(repository)
     health_tool = DatasetHealthTool(
         repository,
-        SnapshotStore(runtime_config.snapshot_dir),
+        snapshot_store,
     )
+    download_tool = DatasetDownloadTool(repository, snapshot_store)
     metadata_tool = DatasetMetadataTool(repository)
     preview_tool = DatasetPreviewTool(
         SAMAConnector(base_url=runtime_config.source.base_url).fetch_dataset_payload
@@ -55,6 +58,13 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
     )
     def dataset_health(dataset_id: str) -> dict:
         return health_tool.get_dataset_health(dataset_id).model_dump(mode="json")
+
+    @app.tool(
+        name="download_dataset",
+        description="Report local raw artifact availability for an exact dataset_id.",
+    )
+    def download_dataset(dataset_id: str) -> dict:
+        return download_tool.get_dataset_download(dataset_id).model_dump(mode="json")
 
     @app.tool(
         name="search_datasets",

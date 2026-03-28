@@ -14,6 +14,7 @@ from saudi_open_data_mcp.config import RuntimeConfig
 from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.server import create_server
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
+from saudi_open_data_mcp.tools import download as download_module
 from saudi_open_data_mcp.tools import health as health_module
 
 REPORT_LOCATOR = "report.aspx?cid=55"
@@ -31,7 +32,7 @@ def _runtime_config(tmp_path: Path) -> RuntimeConfig:
 
 
 @respx.mock
-async def test_server_registers_catalog_resource_metadata_health_search_and_preview_tools(
+async def test_server_registers_catalog_resource_metadata_health_search_preview_and_download_tools(
     tmp_path: Path,
 ) -> None:
     respx.get(_report_url()).mock(
@@ -48,6 +49,7 @@ async def test_server_registers_catalog_resource_metadata_health_search_and_prev
 
     assert set(resources) == {"resource://catalog"}
     assert set(tools) == {
+        "download_dataset",
         "dataset_health",
         "dataset_metadata",
         "preview_dataset",
@@ -72,6 +74,17 @@ async def test_server_registers_catalog_resource_metadata_health_search_and_prev
     assert health_result.structured_content["schema_version"] == "0.1.0"
     assert health_result.structured_content["freshness"]["status"] == "missing"
     assert health_result.structured_content["freshness"]["reason"] == "no_snapshot"
+
+    download_result = await tools["download_dataset"].run(
+        {"dataset_id": "sama-money-supply"}
+    )
+    assert download_result.structured_content["dataset_id"] == "sama-money-supply"
+    assert download_result.structured_content["status"] == "artifact_missing"
+    assert download_result.structured_content["reason"] == "no_local_snapshot"
+    assert download_result.structured_content["local_snapshot_exists"] is False
+    assert download_result.structured_content["source"] == "sama"
+    assert download_result.structured_content["freshness"]["status"] == "missing"
+    assert download_result.structured_content["freshness"]["reason"] == "no_snapshot"
 
     search_result = await tools["search_datasets"].run({"query": "money"})
     assert search_result.structured_content["query"] == "money"
@@ -118,6 +131,9 @@ async def test_server_metadata_and_health_lookup_keep_missing_dataset_explicit(
 
     metadata_result = await tools["dataset_metadata"].run({"dataset_id": "missing-dataset"})
     health_result = await tools["dataset_health"].run({"dataset_id": "missing-dataset"})
+    download_result = await tools["download_dataset"].run(
+        {"dataset_id": "missing-dataset"}
+    )
 
     assert metadata_result.structured_content == {
         "dataset_id": "missing-dataset",
@@ -131,6 +147,15 @@ async def test_server_metadata_and_health_lookup_keep_missing_dataset_explicit(
         "schema_version": None,
         "caveats": [],
         "known_issues": [],
+    }
+    assert download_result.structured_content == {
+        "dataset_id": "missing-dataset",
+        "status": "unknown_dataset",
+        "reason": "dataset_not_in_registry",
+        "local_snapshot_exists": False,
+        "source": None,
+        "snapshot_path": None,
+        "freshness": None,
     }
 
 
@@ -162,6 +187,49 @@ async def test_server_health_tool_can_expose_recent_snapshot_freshness(
     assert health_result.structured_content["freshness"]["status"] == "fresh"
     assert health_result.structured_content["freshness"]["reason"] == "within_expected_window"
     assert health_result.structured_content["freshness"]["dataset_id"] == "sama-money-supply"
+
+
+async def test_server_download_tool_can_expose_local_snapshot_availability(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    reference_time = datetime(2026, 1, 15, 12, 0, tzinfo=UTC)
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    snapshot_path = _write_snapshot_with_mtime(
+        snapshot_store,
+        dataset_id="sama-money-supply",
+        modified_at=datetime(2026, 1, 1, 0, 0, tzinfo=UTC),
+    )
+
+    original = download_module.evaluate_snapshot_freshness
+
+    def _fixed_reference_freshness(**kwargs):
+        kwargs["reference_time"] = reference_time
+        return original(**kwargs)
+
+    monkeypatch.setattr(
+        download_module,
+        "evaluate_snapshot_freshness",
+        _fixed_reference_freshness,
+    )
+
+    app = create_server(_runtime_config(tmp_path))
+    tools = await app.get_tools()
+    download_result = await tools["download_dataset"].run(
+        {"dataset_id": "sama-money-supply"}
+    )
+
+    assert download_result.structured_content["status"] == "available"
+    assert download_result.structured_content["reason"] == "local_snapshot_available"
+    assert download_result.structured_content["local_snapshot_exists"] is True
+    assert download_result.structured_content["snapshot_path"] == str(snapshot_path)
+    assert download_result.structured_content["freshness"]["status"] == "fresh"
+    assert download_result.structured_content["freshness"]["reason"] == (
+        "within_expected_window"
+    )
+    assert download_result.structured_content["freshness"]["dataset_id"] == (
+        "sama-money-supply"
+    )
 
 
 @respx.mock
