@@ -19,7 +19,7 @@ def _report_url() -> str:
 
 
 @respx.mock
-async def test_server_registers_catalog_resource_metadata_tool_and_preview_tool(
+async def test_server_registers_catalog_resource_metadata_health_and_preview_tools(
     tmp_path: Path,
 ) -> None:
     respx.get(_report_url()).mock(
@@ -35,7 +35,7 @@ async def test_server_registers_catalog_resource_metadata_tool_and_preview_tool(
     tools = await app.get_tools()
 
     assert set(resources) == {"resource://catalog"}
-    assert set(tools) == {"dataset_metadata", "preview_dataset"}
+    assert set(tools) == {"dataset_health", "dataset_metadata", "preview_dataset"}
 
     catalog_payload = json.loads(await resources["resource://catalog"].read())
     assert catalog_payload["dataset_count"] == 3
@@ -48,6 +48,12 @@ async def test_server_registers_catalog_resource_metadata_tool_and_preview_tool(
     assert metadata_result.structured_content["dataset_id"] == "sama-money-supply"
     assert metadata_result.structured_content["metadata"]["title"] == "Money Supply"
 
+    health_result = await tools["dataset_health"].run({"dataset_id": "sama-money-supply"})
+    assert health_result.structured_content["status"] == "found"
+    assert health_result.structured_content["dataset_id"] == "sama-money-supply"
+    assert health_result.structured_content["health_status"] == "unknown"
+    assert health_result.structured_content["schema_version"] == "0.1.0"
+
     preview_result = await tools["preview_dataset"].run({"dataset_id": REPORT_LOCATOR})
     assert preview_result.structured_content["status"] == "record_derivable"
     assert preview_result.structured_content["dataset_id"] == REPORT_LOCATOR
@@ -57,18 +63,27 @@ async def test_server_registers_catalog_resource_metadata_tool_and_preview_tool(
     )
 
 
-async def test_server_metadata_lookup_keeps_missing_dataset_explicit(
+async def test_server_metadata_and_health_lookup_keep_missing_dataset_explicit(
     tmp_path: Path,
 ) -> None:
     app = create_server(RuntimeConfig(registry_path=tmp_path / "registry.sqlite"))
     tools = await app.get_tools()
 
-    tool_result = await tools["dataset_metadata"].run({"dataset_id": "missing-dataset"})
+    metadata_result = await tools["dataset_metadata"].run({"dataset_id": "missing-dataset"})
+    health_result = await tools["dataset_health"].run({"dataset_id": "missing-dataset"})
 
-    assert tool_result.structured_content == {
+    assert metadata_result.structured_content == {
         "dataset_id": "missing-dataset",
         "status": "missing",
         "metadata": None,
+    }
+    assert health_result.structured_content == {
+        "dataset_id": "missing-dataset",
+        "status": "missing",
+        "health_status": None,
+        "schema_version": None,
+        "caveats": [],
+        "known_issues": [],
     }
 
 
