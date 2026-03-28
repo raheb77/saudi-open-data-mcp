@@ -1,7 +1,41 @@
 """Smoke tests for the scaffold CLI."""
 
-from saudi_open_data_mcp.cli import main
+from __future__ import annotations
+
+from saudi_open_data_mcp import cli as cli_module
+from saudi_open_data_mcp.config import RuntimeConfig
 
 
 def test_cli_check_imports_mode_returns_success() -> None:
-    assert main(["--check-imports"]) == 0
+    assert cli_module.main(["--check-imports"]) == 0
+
+
+def test_cli_check_imports_subcommand_returns_success() -> None:
+    assert cli_module.main(["check-imports"]) == 0
+
+
+def test_cli_run_http_dispatches_to_server(monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
+
+    class DummyApp:
+        async def run_http_async(self, **kwargs) -> None:
+            calls.append(kwargs)
+
+    config = RuntimeConfig()
+
+    monkeypatch.setattr(cli_module, "load_config", lambda: config)
+    monkeypatch.setattr(cli_module, "create_server", lambda runtime_config=None: DummyApp())
+
+    exit_code = cli_module.main(
+        ["run-http", "--host", "127.0.0.1", "--port", "8081", "--log-level", "DEBUG"]
+    )
+
+    assert exit_code == 0
+    assert calls == [
+        {
+            "transport": "streamable-http",
+            "host": "127.0.0.1",
+            "port": 8081,
+            "log_level": "DEBUG",
+        }
+    ]

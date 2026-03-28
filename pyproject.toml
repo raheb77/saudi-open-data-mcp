@@ -30,6 +30,10 @@ packages = ["src/saudi_open_data_mcp"]
 addopts = "-ra"
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.uv]
+package = false
 
 [tool.ruff]
 line-length = 100

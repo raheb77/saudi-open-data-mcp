@@ -81,7 +81,7 @@ One important limitation to keep explicit: `preview_dataset` uses the real conne
 
 ## Local Setup
 
-This repo uses a `src/` layout. Local test and CLI execution currently require `PYTHONPATH=src` unless you install the package into the environment first.
+This repo uses a `src/` layout, but local test and CLI workflows no longer require manually setting `PYTHONPATH`.
 
 Install and sync with `uv`:
 
@@ -89,32 +89,51 @@ Install and sync with `uv`:
 uv sync
 ```
 
+Then either activate the local environment:
+
+```bash
+source .venv/bin/activate
+```
+
+or call the tools from `.venv/bin/...` explicitly. This is the least ambiguous local path for the current project layout.
+
 Lint:
 
 ```bash
-uv run ruff check .
+ruff check .
 ```
 
 Tests:
 
 ```bash
-PYTHONPATH=src uv run pytest
+pytest
 ```
 
 ## Local Run
 
-The most practical local verification today is:
-
-1. instantiate the FastMCP app
-2. run the tests
+The current local entrypoint is the project CLI under `src/saudi_open_data_mcp/cli.py`.
 
 Import / wiring check:
 
 ```bash
-PYTHONPATH=src uv run python -m saudi_open_data_mcp.cli --check-imports
+python src/saudi_open_data_mcp/cli.py --check-imports
 ```
 
-This currently verifies that the server can be constructed and that the wired MCP surface is importable. It does not claim a polished local hosting workflow yet.
+This verifies that the FastMCP app can be constructed and that the currently wired MCP surface is importable.
+
+Local HTTP run:
+
+```bash
+./scripts/run_local_http.sh
+```
+
+Optional host and port overrides:
+
+```bash
+./scripts/run_local_http.sh --host 127.0.0.1 --port 8080
+```
+
+The HTTP helper starts the current FastMCP app over streamable HTTP using configured defaults. It is intended for local development and inspection, not as a polished deployment entrypoint.
 
 ## Testing
 
