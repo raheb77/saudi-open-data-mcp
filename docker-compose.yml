@@ -1,0 +1,5 @@
+services:
+  app:
+    build:
+      context: .
+    command: ["python", "-m", "saudi_open_data_mcp.cli", "--check-imports"]
