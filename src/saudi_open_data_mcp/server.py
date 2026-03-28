@@ -7,6 +7,7 @@ from .connectors.sama import SAMAConnector
 from .registry.bootstrap import bootstrap_registry
 from .registry.repository import RegistryRepository
 from .resources.catalog import CatalogResource
+from .storage.snapshots import SnapshotStore
 from .tools.health import DatasetHealthTool
 from .tools.metadata import DatasetMetadataTool
 from .tools.preview import DatasetPreviewTool
@@ -21,7 +22,10 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
     bootstrap_registry(repository)
 
     catalog_resource = CatalogResource(repository)
-    health_tool = DatasetHealthTool(repository)
+    health_tool = DatasetHealthTool(
+        repository,
+        SnapshotStore(runtime_config.snapshot_dir),
+    )
     metadata_tool = DatasetMetadataTool(repository)
     preview_tool = DatasetPreviewTool(
         SAMAConnector(base_url=runtime_config.source.base_url).fetch_dataset_payload

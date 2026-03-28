@@ -3,19 +3,31 @@
 from __future__ import annotations
 
 import json
+import os
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
 import respx
 
 from saudi_open_data_mcp.config import RuntimeConfig
+from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.server import create_server
+from saudi_open_data_mcp.storage.snapshots import SnapshotStore
+from saudi_open_data_mcp.tools import health as health_module
 
 REPORT_LOCATOR = "report.aspx?cid=55"
 
 
 def _report_url() -> str:
     return f"https://www.sama.gov.sa/en-US/EconomicReports/Pages/{REPORT_LOCATOR}"
+
+
+def _runtime_config(tmp_path: Path) -> RuntimeConfig:
+    return RuntimeConfig(
+        registry_path=tmp_path / "registry.sqlite",
+        snapshot_dir=tmp_path / "snapshots",
+    )
 
 
 @respx.mock
@@ -29,7 +41,7 @@ async def test_server_registers_catalog_resource_metadata_health_search_and_prev
             headers={"content-type": "application/json"},
         )
     )
-    app = create_server(RuntimeConfig(registry_path=tmp_path / "registry.sqlite"))
+    app = create_server(_runtime_config(tmp_path))
 
     resources = await app.get_resources()
     tools = await app.get_tools()
@@ -58,6 +70,8 @@ async def test_server_registers_catalog_resource_metadata_health_search_and_prev
     assert health_result.structured_content["dataset_id"] == "sama-money-supply"
     assert health_result.structured_content["health_status"] == "unknown"
     assert health_result.structured_content["schema_version"] == "0.1.0"
+    assert health_result.structured_content["freshness"]["status"] == "missing"
+    assert health_result.structured_content["freshness"]["reason"] == "no_snapshot"
 
     search_result = await tools["search_datasets"].run({"query": "money"})
     assert search_result.structured_content["query"] == "money"
@@ -99,7 +113,7 @@ async def test_server_registers_catalog_resource_metadata_health_search_and_prev
 async def test_server_metadata_and_health_lookup_keep_missing_dataset_explicit(
     tmp_path: Path,
 ) -> None:
-    app = create_server(RuntimeConfig(registry_path=tmp_path / "registry.sqlite"))
+    app = create_server(_runtime_config(tmp_path))
     tools = await app.get_tools()
 
     metadata_result = await tools["dataset_metadata"].run({"dataset_id": "missing-dataset"})
@@ -120,6 +134,36 @@ async def test_server_metadata_and_health_lookup_keep_missing_dataset_explicit(
     }
 
 
+async def test_server_health_tool_can_expose_recent_snapshot_freshness(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    reference_time = datetime(2026, 1, 15, 12, 0, tzinfo=UTC)
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    _write_snapshot_with_mtime(
+        snapshot_store,
+        dataset_id="sama-money-supply",
+        modified_at=datetime(2026, 1, 1, 0, 0, tzinfo=UTC),
+    )
+
+    original = health_module.evaluate_snapshot_freshness
+
+    def _fixed_reference_freshness(**kwargs):
+        kwargs["reference_time"] = reference_time
+        return original(**kwargs)
+
+    monkeypatch.setattr(health_module, "evaluate_snapshot_freshness", _fixed_reference_freshness)
+
+    app = create_server(_runtime_config(tmp_path))
+    tools = await app.get_tools()
+    health_result = await tools["dataset_health"].run({"dataset_id": "sama-money-supply"})
+
+    assert health_result.structured_content["status"] == "found"
+    assert health_result.structured_content["freshness"]["status"] == "fresh"
+    assert health_result.structured_content["freshness"]["reason"] == "within_expected_window"
+    assert health_result.structured_content["freshness"]["dataset_id"] == "sama-money-supply"
+
+
 @respx.mock
 async def test_server_preview_tool_keeps_html_preview_limited(tmp_path: Path) -> None:
     respx.get(_report_url()).mock(
@@ -129,7 +173,7 @@ async def test_server_preview_tool_keeps_html_preview_limited(tmp_path: Path) ->
             headers={"content-type": "text/html; charset=utf-8"},
         )
     )
-    app = create_server(RuntimeConfig(registry_path=tmp_path / "registry.sqlite"))
+    app = create_server(_runtime_config(tmp_path))
     tools = await app.get_tools()
 
     preview_result = await tools["preview_dataset"].run({"dataset_id": REPORT_LOCATOR})
@@ -137,3 +181,20 @@ async def test_server_preview_tool_keeps_html_preview_limited(tmp_path: Path) ->
     assert preview_result.structured_content["status"] == "limited"
     assert preview_result.structured_content["failure"] is None
     assert preview_result.structured_content["normalization_result"]["status"] == "limited"
+
+
+def _write_snapshot_with_mtime(
+    store: SnapshotStore,
+    *,
+    dataset_id: str,
+    modified_at: datetime,
+) -> Path:
+    payload = RawPayload(
+        source="sama",
+        dataset_id=dataset_id,
+        content={"body": {"rows": []}},
+    )
+    path = store.write_snapshot(payload)
+    timestamp = modified_at.timestamp()
+    os.utime(path, (timestamp, timestamp))
+    return path
