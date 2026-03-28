@@ -106,6 +106,37 @@ def test_get_dataset_download_returns_available_local_artifact_result(
     assert result.freshness.snapshot_modified_at == snapshot_time
 
 
+def test_get_dataset_download_keeps_available_result_when_freshness_is_stale(
+    tmp_path: Path,
+) -> None:
+    repository = RegistryRepository(tmp_path / "registry.sqlite")
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    descriptor = _descriptor(dataset_id="sama-balance-of-payments")
+    tool = DatasetDownloadTool(repository, snapshot_store)
+    snapshot_time = datetime(2026, 1, 1, 0, 0, tzinfo=UTC)
+    reference_time = datetime(2026, 2, 15, 12, 0, tzinfo=UTC)
+
+    repository.upsert_dataset(descriptor)
+    snapshot_path = _write_snapshot_with_mtime(
+        snapshot_store,
+        dataset_id=descriptor.dataset_id,
+        modified_at=snapshot_time,
+    )
+    result = tool.get_dataset_download(
+        descriptor.dataset_id,
+        reference_time=reference_time,
+    )
+
+    assert result.status is DatasetDownloadStatus.AVAILABLE
+    assert result.reason is DatasetDownloadReason.LOCAL_SNAPSHOT_AVAILABLE
+    assert result.local_snapshot_exists is True
+    assert result.source == "sama"
+    assert result.snapshot_path == snapshot_path
+    assert result.freshness is not None
+    assert result.freshness.status is SnapshotFreshnessStatus.STALE
+    assert result.freshness.snapshot_modified_at == snapshot_time
+
+
 def test_download_tool_module_does_not_import_connectors_directly() -> None:
     project_root = Path(__file__).resolve().parents[2]
     download_module = project_root / "src" / "saudi_open_data_mcp" / "tools" / "download.py"

@@ -61,7 +61,10 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
 
     @app.tool(
         name="download_dataset",
-        description="Report local raw artifact availability for an exact dataset_id.",
+        description=(
+            "Report local raw snapshot availability for an exact dataset_id. "
+            "This tool does not fetch data remotely."
+        ),
     )
     def download_dataset(dataset_id: str) -> dict:
         return download_tool.get_dataset_download(dataset_id).model_dump(mode="json")

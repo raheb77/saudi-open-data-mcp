@@ -123,7 +123,7 @@ async def test_server_registers_catalog_resource_metadata_health_search_preview_
     )
 
 
-async def test_server_metadata_and_health_lookup_keep_missing_dataset_explicit(
+async def test_server_metadata_health_and_download_lookup_keep_missing_dataset_explicit(
     tmp_path: Path,
 ) -> None:
     app = create_server(_runtime_config(tmp_path))
@@ -177,6 +177,8 @@ async def test_server_health_tool_can_expose_recent_snapshot_freshness(
         kwargs["reference_time"] = reference_time
         return original(**kwargs)
 
+    # The server does not pass reference_time into the health tool today.
+    # Patch the freshness seam so this server-wiring check stays deterministic.
     monkeypatch.setattr(health_module, "evaluate_snapshot_freshness", _fixed_reference_freshness)
 
     app = create_server(_runtime_config(tmp_path))
@@ -207,6 +209,8 @@ async def test_server_download_tool_can_expose_local_snapshot_availability(
         kwargs["reference_time"] = reference_time
         return original(**kwargs)
 
+    # The server does not pass reference_time into the download tool today.
+    # Patch the freshness seam so this server-wiring check stays deterministic.
     monkeypatch.setattr(
         download_module,
         "evaluate_snapshot_freshness",
