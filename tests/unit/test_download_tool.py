@@ -28,6 +28,7 @@ def _descriptor(dataset_id: str = "sama-money-supply") -> DatasetDescriptor:
     return DatasetDescriptor(
         dataset_id=dataset_id,
         source="sama",
+        source_locator=f"report.aspx?cid={sum(dataset_id.encode('utf-8'))}",
         title="Money Supply",
         description="Official monetary aggregate dataset published by SAMA.",
         schema_version="0.1.0",
@@ -68,11 +69,41 @@ def test_get_dataset_download_returns_explicit_missing_local_artifact(
 
     assert result.status is DatasetDownloadStatus.ARTIFACT_MISSING
     assert result.reason is DatasetDownloadReason.NO_LOCAL_SNAPSHOT
+    assert result.dataset_id == descriptor.dataset_id
     assert result.local_snapshot_exists is False
     assert result.source == "sama"
-    assert result.snapshot_path == snapshot_store.snapshot_path("sama", descriptor.dataset_id)
+    assert result.snapshot_path == snapshot_store.snapshot_path(
+        "sama",
+        descriptor.source_locator,
+    )
     assert result.freshness is not None
+    assert result.freshness.dataset_id == descriptor.dataset_id
     assert result.freshness.status is SnapshotFreshnessStatus.MISSING
+
+
+def test_get_dataset_download_uses_source_locator_not_canonical_dataset_id_for_lookup(
+    tmp_path: Path,
+) -> None:
+    repository = RegistryRepository(tmp_path / "registry.sqlite")
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    descriptor = _descriptor(dataset_id="sama-interest-rates")
+    tool = DatasetDownloadTool(repository, snapshot_store)
+
+    repository.upsert_dataset(descriptor)
+    _write_snapshot_with_mtime(
+        snapshot_store,
+        snapshot_dataset_id=descriptor.dataset_id,
+        modified_at=datetime(2026, 1, 1, 0, 0, tzinfo=UTC),
+    )
+    result = tool.get_dataset_download(descriptor.dataset_id)
+
+    assert result.status is DatasetDownloadStatus.ARTIFACT_MISSING
+    assert result.reason is DatasetDownloadReason.NO_LOCAL_SNAPSHOT
+    assert result.dataset_id == descriptor.dataset_id
+    assert result.snapshot_path == snapshot_store.snapshot_path(
+        "sama",
+        descriptor.source_locator,
+    )
 
 
 def test_get_dataset_download_returns_available_local_artifact_result(
@@ -88,7 +119,7 @@ def test_get_dataset_download_returns_available_local_artifact_result(
     repository.upsert_dataset(descriptor)
     snapshot_path = _write_snapshot_with_mtime(
         snapshot_store,
-        dataset_id=descriptor.dataset_id,
+        snapshot_dataset_id=descriptor.source_locator,
         modified_at=snapshot_time,
     )
     result = tool.get_dataset_download(
@@ -98,10 +129,12 @@ def test_get_dataset_download_returns_available_local_artifact_result(
 
     assert result.status is DatasetDownloadStatus.AVAILABLE
     assert result.reason is DatasetDownloadReason.LOCAL_SNAPSHOT_AVAILABLE
+    assert result.dataset_id == descriptor.dataset_id
     assert result.local_snapshot_exists is True
     assert result.source == "sama"
     assert result.snapshot_path == snapshot_path
     assert result.freshness is not None
+    assert result.freshness.dataset_id == descriptor.dataset_id
     assert result.freshness.status is SnapshotFreshnessStatus.FRESH
     assert result.freshness.snapshot_modified_at == snapshot_time
 
@@ -119,7 +152,7 @@ def test_get_dataset_download_keeps_available_result_when_freshness_is_stale(
     repository.upsert_dataset(descriptor)
     snapshot_path = _write_snapshot_with_mtime(
         snapshot_store,
-        dataset_id=descriptor.dataset_id,
+        snapshot_dataset_id=descriptor.source_locator,
         modified_at=snapshot_time,
     )
     result = tool.get_dataset_download(
@@ -129,10 +162,12 @@ def test_get_dataset_download_keeps_available_result_when_freshness_is_stale(
 
     assert result.status is DatasetDownloadStatus.AVAILABLE
     assert result.reason is DatasetDownloadReason.LOCAL_SNAPSHOT_AVAILABLE
+    assert result.dataset_id == descriptor.dataset_id
     assert result.local_snapshot_exists is True
     assert result.source == "sama"
     assert result.snapshot_path == snapshot_path
     assert result.freshness is not None
+    assert result.freshness.dataset_id == descriptor.dataset_id
     assert result.freshness.status is SnapshotFreshnessStatus.STALE
     assert result.freshness.snapshot_modified_at == snapshot_time
 
@@ -153,12 +188,12 @@ def test_download_tool_module_does_not_import_connectors_directly() -> None:
 def _write_snapshot_with_mtime(
     store: SnapshotStore,
     *,
-    dataset_id: str,
+    snapshot_dataset_id: str,
     modified_at: datetime,
 ) -> Path:
     payload = RawPayload(
         source="sama",
-        dataset_id=dataset_id,
+        dataset_id=snapshot_dataset_id,
         content={"body": {"rows": []}},
     )
     path = store.write_snapshot(payload)

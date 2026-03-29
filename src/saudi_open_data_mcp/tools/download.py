@@ -172,16 +172,30 @@ class DatasetDownloadTool:
 
         freshness = evaluate_snapshot_freshness(
             source=descriptor.source,
-            dataset_id=descriptor.dataset_id,
+            dataset_id=descriptor.source_locator,
             snapshot_store=self._snapshot_store,
             reference_time=reference_time,
             update_frequency=descriptor.update_frequency,
+        )
+        freshness = _bind_canonical_dataset_id(
+            descriptor=descriptor,
+            freshness=freshness,
         )
 
         if freshness.status is SnapshotFreshnessStatus.MISSING:
             return DatasetDownloadResult.artifact_missing(descriptor, freshness)
 
         return DatasetDownloadResult.available(descriptor, freshness)
+
+
+def _bind_canonical_dataset_id(
+    *,
+    descriptor: DatasetDescriptor,
+    freshness: SnapshotFreshnessResult,
+) -> SnapshotFreshnessResult:
+    """Rewrite source-locator-based freshness output to the canonical dataset identity."""
+
+    return freshness.model_copy(update={"dataset_id": descriptor.dataset_id})
 
 
 def register(app: FastMCP) -> None:
