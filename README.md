@@ -163,6 +163,8 @@ saudi-open-data-mcp run-stdio
 
 `run-http` starts the FastMCP app over streamable HTTP. `run-stdio` starts the same app over stdio for MCP hosts that expect a command-based server process.
 
+The installed module and console-script entrypoints are smoke-tested from subprocesses in the repo test suite to catch broken editable-install activation paths.
+
 The helper script remains available for local HTTP development:
 
 ```bash
