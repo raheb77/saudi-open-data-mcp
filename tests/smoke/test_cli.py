@@ -96,72 +96,51 @@ def test_source_tree_cli_check_imports_runs_subprocess() -> None:
 
 
 @pytest.mark.asyncio
-async def test_source_tree_cli_stdio_uses_repo_anchored_snapshot_paths_outside_repo_root(
+async def test_source_tree_cli_stdio_uses_explicit_runtime_paths_outside_repo_root(
     tmp_path: Path,
 ) -> None:
     root = Path(__file__).resolve().parents[2]
     python = Path(sys.prefix) / "bin" / "python"
-    registry_path = root / ".local" / "registry.sqlite"
-    snapshot_store = SnapshotStore(root / ".local" / "snapshots")
+    registry_path = tmp_path / "runtime" / "registry.sqlite"
+    snapshot_store = SnapshotStore(tmp_path / "runtime" / "snapshots")
     snapshot_path = snapshot_store.snapshot_path("sama", "report.aspx?cid=55")
-    registry_backup = tmp_path / "registry.sqlite.backup"
-    snapshot_backup = tmp_path / "snapshot.json.backup"
-    registry_existed = registry_path.exists()
-    snapshot_existed = snapshot_path.exists()
+    outside_repo_root = tmp_path / "outside-repo-root"
+    outside_repo_root.mkdir()
 
-    if registry_existed:
-        registry_backup.write_bytes(registry_path.read_bytes())
-    if snapshot_existed:
-        snapshot_backup.write_bytes(snapshot_path.read_bytes())
+    bootstrap_registry(RegistryRepository(registry_path))
+    snapshot_store.write_snapshot(
+        RawPayload(
+            source="sama",
+            dataset_id="report.aspx?cid=55",
+            content={
+                "url": (
+                    "https://www.sama.gov.sa/en-US/EconomicReports/Pages/"
+                    "report.aspx?cid=55"
+                ),
+                "status_code": 200,
+                "content_type": "application/json",
+                "body": {"rows": [{"period": "2026-01", "value": 1}]},
+            },
+        )
+    )
 
-    try:
-        if registry_path.exists():
-            registry_path.unlink()
-        if snapshot_path.exists():
-            snapshot_path.unlink()
+    transport = StdioTransport(
+        command=str(python),
+        args=[str(root / "src" / "saudi_open_data_mcp" / "cli.py"), "run-stdio"],
+        cwd=str(outside_repo_root),
+        env={
+            "LOG_LEVEL": "ERROR",
+            "REGISTRY_PATH": str(registry_path),
+            "SNAPSHOT_DIR": str(snapshot_store.root),
+        },
+    )
 
-        bootstrap_registry(RegistryRepository(registry_path))
-        snapshot_store.write_snapshot(
-            RawPayload(
-                source="sama",
-                dataset_id="report.aspx?cid=55",
-                content={
-                    "url": (
-                        "https://www.sama.gov.sa/en-US/EconomicReports/Pages/"
-                        "report.aspx?cid=55"
-                    ),
-                    "status_code": 200,
-                    "content_type": "application/json",
-                    "body": {"rows": [{"period": "2026-01", "value": 1}]},
-                },
-            )
+    async with Client(transport) as client:
+        result = await client.call_tool(
+            "download_dataset",
+            {"dataset_id": "sama-money-supply"},
         )
 
-        transport = StdioTransport(
-            command=str(python),
-            args=[str(root / "src" / "saudi_open_data_mcp" / "cli.py"), "run-stdio"],
-            cwd=str(tmp_path),
-            env={"LOG_LEVEL": "ERROR"},
-        )
-
-        async with Client(transport) as client:
-            result = await client.call_tool(
-                "download_dataset",
-                {"dataset_id": "sama-money-supply"},
-            )
-
-        assert result.structured_content["status"] == "available"
-        assert result.structured_content["dataset_id"] == "sama-money-supply"
-        assert result.structured_content["snapshot_path"] == str(snapshot_path)
-    finally:
-        if registry_existed:
-            registry_path.parent.mkdir(parents=True, exist_ok=True)
-            registry_path.write_bytes(registry_backup.read_bytes())
-        elif registry_path.exists():
-            registry_path.unlink()
-
-        if snapshot_existed:
-            snapshot_path.parent.mkdir(parents=True, exist_ok=True)
-            snapshot_path.write_bytes(snapshot_backup.read_bytes())
-        elif snapshot_path.exists():
-            snapshot_path.unlink()
+    assert result.structured_content["status"] == "available"
+    assert result.structured_content["dataset_id"] == "sama-money-supply"
+    assert result.structured_content["snapshot_path"] == str(snapshot_path)
