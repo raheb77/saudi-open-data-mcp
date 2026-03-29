@@ -32,7 +32,7 @@ def _runtime_config(tmp_path: Path) -> RuntimeConfig:
 
 
 @respx.mock
-async def test_server_registers_catalog_resource_metadata_health_search_preview_and_download_tools(
+async def test_server_registers_current_mcp_surface(
     tmp_path: Path,
 ) -> None:
     respx.get(_report_url()).mock(
@@ -53,6 +53,7 @@ async def test_server_registers_catalog_resource_metadata_health_search_preview_
         "dataset_health",
         "dataset_metadata",
         "preview_dataset",
+        "query_dataset",
         "search_datasets",
     }
 
@@ -85,6 +86,67 @@ async def test_server_registers_catalog_resource_metadata_health_search_preview_
     assert download_result.structured_content["source"] == "sama"
     assert download_result.structured_content["freshness"]["status"] == "missing"
     assert download_result.structured_content["freshness"]["reason"] == "no_snapshot"
+
+    missing_query_result = await tools["query_dataset"].run(
+        {"dataset_id": "sama-money-supply"}
+    )
+    assert missing_query_result.structured_content["dataset_id"] == "sama-money-supply"
+    assert missing_query_result.structured_content["status"] == "snapshot_missing"
+    assert missing_query_result.structured_content["source"] == "sama"
+    assert missing_query_result.structured_content["matched_records"] == []
+
+    _write_snapshot_with_mtime(
+        SnapshotStore(tmp_path / "snapshots"),
+        dataset_id=REPORT_LOCATOR,
+        modified_at=datetime(2026, 1, 1, 0, 0, tzinfo=UTC),
+        body={
+            "rows": [
+                {"period": "2026-01", "value": 1},
+                {"period": "2026-02", "value": 2},
+            ]
+        },
+    )
+
+    filtered_query_result = await tools["query_dataset"].run(
+        {
+            "dataset_id": "sama-money-supply",
+            "filters": {"period": "2026-02"},
+        }
+    )
+    assert filtered_query_result.structured_content["dataset_id"] == "sama-money-supply"
+    assert filtered_query_result.structured_content["status"] == "success"
+    assert filtered_query_result.structured_content["source"] == "sama"
+    assert filtered_query_result.structured_content["applied_filters"] == {
+        "period": "2026-02"
+    }
+    assert filtered_query_result.structured_content["total_records_before_filter"] == 2
+    assert filtered_query_result.structured_content["matched_records"] == [
+        {
+            "dataset_id": "sama-money-supply",
+            "source": "sama",
+            "record_index": 1,
+            "fields": {"period": "2026-02", "value": 2},
+        }
+    ]
+
+    limited_query_result = await tools["query_dataset"].run(
+        {
+            "dataset_id": "sama-money-supply",
+            "limit": 1,
+        }
+    )
+    assert limited_query_result.structured_content["status"] == "success"
+    assert limited_query_result.structured_content["dataset_id"] == "sama-money-supply"
+    assert limited_query_result.structured_content["limit"] == 1
+    assert limited_query_result.structured_content["total_records_before_filter"] == 2
+    assert limited_query_result.structured_content["matched_records"] == [
+        {
+            "dataset_id": "sama-money-supply",
+            "source": "sama",
+            "record_index": 0,
+            "fields": {"period": "2026-01", "value": 1},
+        }
+    ]
 
     search_result = await tools["search_datasets"].run({"query": "money"})
     assert search_result.structured_content["query"] == "money"
@@ -123,7 +185,7 @@ async def test_server_registers_catalog_resource_metadata_health_search_preview_
     )
 
 
-async def test_server_metadata_health_and_download_lookup_keep_missing_dataset_explicit(
+async def test_server_metadata_health_download_and_query_lookup_keep_missing_dataset_explicit(
     tmp_path: Path,
 ) -> None:
     app = create_server(_runtime_config(tmp_path))
@@ -134,6 +196,7 @@ async def test_server_metadata_health_and_download_lookup_keep_missing_dataset_e
     download_result = await tools["download_dataset"].run(
         {"dataset_id": "missing-dataset"}
     )
+    query_result = await tools["query_dataset"].run({"dataset_id": "missing-dataset"})
 
     assert metadata_result.structured_content == {
         "dataset_id": "missing-dataset",
@@ -156,6 +219,17 @@ async def test_server_metadata_health_and_download_lookup_keep_missing_dataset_e
         "source": None,
         "snapshot_path": None,
         "freshness": None,
+    }
+    assert query_result.structured_content == {
+        "dataset_id": "missing-dataset",
+        "status": "unknown_dataset",
+        "source": None,
+        "applied_filters": {},
+        "limit": None,
+        "total_records_before_filter": None,
+        "matched_records": [],
+        "limitations": [],
+        "failure": None,
     }
 
 
@@ -260,11 +334,17 @@ def _write_snapshot_with_mtime(
     *,
     dataset_id: str,
     modified_at: datetime,
+    body: object | None = None,
 ) -> Path:
     payload = RawPayload(
         source="sama",
         dataset_id=dataset_id,
-        content={"body": {"rows": []}},
+        content={
+            "url": f"https://www.sama.gov.sa/en-US/EconomicReports/Pages/{dataset_id}",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": body if body is not None else {"rows": []},
+        },
     )
     path = store.write_snapshot(payload)
     timestamp = modified_at.timestamp()

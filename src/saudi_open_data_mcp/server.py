@@ -12,6 +12,7 @@ from .tools.download import DatasetDownloadTool
 from .tools.health import DatasetHealthTool
 from .tools.metadata import DatasetMetadataTool
 from .tools.preview import DatasetPreviewTool
+from .tools.query import DatasetQueryTool
 from .tools.search import DatasetSearchTool
 
 
@@ -33,6 +34,7 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
     preview_tool = DatasetPreviewTool(
         SAMAConnector(base_url=runtime_config.source.base_url).fetch_dataset_payload
     )
+    query_tool = DatasetQueryTool(repository, snapshot_store)
     search_tool = DatasetSearchTool(repository)
 
     app = FastMCP(runtime_config.app_name)
@@ -68,6 +70,24 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
     )
     def download_dataset(dataset_id: str) -> dict:
         return download_tool.get_dataset_download(dataset_id).model_dump(mode="json")
+
+    @app.tool(
+        name="query_dataset",
+        description=(
+            "Query local canonical records for an exact dataset_id "
+            "using exact-match filters only."
+        ),
+    )
+    def query_dataset(
+        dataset_id: str,
+        filters: dict[str, str | int | float | bool | None] | None = None,
+        limit: int | None = None,
+    ) -> dict:
+        return query_tool.query_dataset(
+            dataset_id,
+            filters=filters,
+            limit=limit,
+        ).model_dump(mode="json")
 
     @app.tool(
         name="search_datasets",
