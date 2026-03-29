@@ -39,3 +39,25 @@ def test_cli_run_http_dispatches_to_server(monkeypatch) -> None:
             "log_level": "DEBUG",
         }
     ]
+
+
+def test_cli_run_stdio_dispatches_to_server(monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
+
+    class DummyApp:
+        async def run_stdio_async(self, **kwargs) -> None:
+            calls.append(kwargs)
+
+    config = RuntimeConfig(log_level="INFO")
+
+    monkeypatch.setattr(cli_module, "load_config", lambda: config)
+    monkeypatch.setattr(cli_module, "create_server", lambda runtime_config=None: DummyApp())
+
+    exit_code = cli_module.main(["run-stdio", "--log-level", "DEBUG"])
+
+    assert exit_code == 0
+    assert calls == [
+        {
+            "log_level": "DEBUG",
+        }
+    ]

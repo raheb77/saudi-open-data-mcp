@@ -33,6 +33,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     check_imports_parser.set_defaults(command="check-imports")
 
+    run_stdio_parser = subparsers.add_parser(
+        "run-stdio",
+        help="Run the current FastMCP app over stdio.",
+    )
+    run_stdio_parser.add_argument(
+        "--log-level",
+        default=None,
+        help="Override the configured log level.",
+    )
+    run_stdio_parser.set_defaults(command="run-stdio")
+
     run_http_parser = subparsers.add_parser(
         "run-http",
         help="Run the current FastMCP app over local HTTP using configured defaults.",
@@ -80,6 +91,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 transport="streamable-http",
                 host=host,
                 port=port,
+                log_level=log_level,
+            )
+        )
+        return 0
+
+    if args.command == "run-stdio":
+        config = load_config()
+        app = create_server(config)
+        log_level = args.log_level or config.log_level
+        asyncio.run(
+            app.run_stdio_async(
                 log_level=log_level,
             )
         )

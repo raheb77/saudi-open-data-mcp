@@ -159,6 +159,14 @@ Optional host and port overrides:
 
 The HTTP helper starts the current FastMCP app over streamable HTTP using configured defaults. It is intended for local development and inspection, not as a polished deployment entrypoint.
 
+Local stdio run for MCP hosts:
+
+```bash
+python src/saudi_open_data_mcp/cli.py run-stdio
+```
+
+This starts the same FastMCP app over stdio. It is the current direct local activation path for hosts that expect a stdio MCP server command.
+
 ## Testing
 
 The repo includes four test layers:
