@@ -7,8 +7,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+from fastmcp import Client
+from fastmcp.client.transports import StdioTransport
+
 from saudi_open_data_mcp import cli as cli_module
 from saudi_open_data_mcp.config import RuntimeConfig
+from saudi_open_data_mcp.connectors.base import RawPayload
+from saudi_open_data_mcp.registry.bootstrap import bootstrap_registry
+from saudi_open_data_mcp.registry.repository import RegistryRepository
+from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 
 
 def test_cli_check_imports_mode_returns_success() -> None:
@@ -85,3 +93,75 @@ def test_source_tree_cli_check_imports_runs_subprocess() -> None:
 
     assert result.returncode == 0, result.stderr or result.stdout
     assert "server wiring is importable" in result.stdout
+
+
+@pytest.mark.asyncio
+async def test_source_tree_cli_stdio_uses_repo_anchored_snapshot_paths_outside_repo_root(
+    tmp_path: Path,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    python = Path(sys.prefix) / "bin" / "python"
+    registry_path = root / ".local" / "registry.sqlite"
+    snapshot_store = SnapshotStore(root / ".local" / "snapshots")
+    snapshot_path = snapshot_store.snapshot_path("sama", "report.aspx?cid=55")
+    registry_backup = tmp_path / "registry.sqlite.backup"
+    snapshot_backup = tmp_path / "snapshot.json.backup"
+    registry_existed = registry_path.exists()
+    snapshot_existed = snapshot_path.exists()
+
+    if registry_existed:
+        registry_backup.write_bytes(registry_path.read_bytes())
+    if snapshot_existed:
+        snapshot_backup.write_bytes(snapshot_path.read_bytes())
+
+    try:
+        if registry_path.exists():
+            registry_path.unlink()
+        if snapshot_path.exists():
+            snapshot_path.unlink()
+
+        bootstrap_registry(RegistryRepository(registry_path))
+        snapshot_store.write_snapshot(
+            RawPayload(
+                source="sama",
+                dataset_id="report.aspx?cid=55",
+                content={
+                    "url": (
+                        "https://www.sama.gov.sa/en-US/EconomicReports/Pages/"
+                        "report.aspx?cid=55"
+                    ),
+                    "status_code": 200,
+                    "content_type": "application/json",
+                    "body": {"rows": [{"period": "2026-01", "value": 1}]},
+                },
+            )
+        )
+
+        transport = StdioTransport(
+            command=str(python),
+            args=[str(root / "src" / "saudi_open_data_mcp" / "cli.py"), "run-stdio"],
+            cwd=str(tmp_path),
+            env={"LOG_LEVEL": "ERROR"},
+        )
+
+        async with Client(transport) as client:
+            result = await client.call_tool(
+                "download_dataset",
+                {"dataset_id": "sama-money-supply"},
+            )
+
+        assert result.structured_content["status"] == "available"
+        assert result.structured_content["dataset_id"] == "sama-money-supply"
+        assert result.structured_content["snapshot_path"] == str(snapshot_path)
+    finally:
+        if registry_existed:
+            registry_path.parent.mkdir(parents=True, exist_ok=True)
+            registry_path.write_bytes(registry_backup.read_bytes())
+        elif registry_path.exists():
+            registry_path.unlink()
+
+        if snapshot_existed:
+            snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+            snapshot_path.write_bytes(snapshot_backup.read_bytes())
+        elif snapshot_path.exists():
+            snapshot_path.unlink()

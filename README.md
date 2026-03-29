@@ -144,6 +144,7 @@ python src/saudi_open_data_mcp/cli.py run-stdio
 ```
 
 `run-http` starts the FastMCP app over streamable HTTP. `run-stdio` starts the same app over stdio for MCP hosts that expect a command-based server process.
+By default, local registry and snapshot state resolve under the repo's `.local/` directory; set `REGISTRY_PATH` or `SNAPSHOT_DIR` to override them explicitly.
 
 The helper script remains available for local HTTP development:
 
