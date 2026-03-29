@@ -25,13 +25,17 @@ def _descriptor(*, dataset_id: str, title: str) -> DatasetDescriptor:
     return DatasetDescriptor(
         dataset_id=dataset_id,
         source="sama",
+        source_locator=f"report.aspx?cid={sum(dataset_id.encode('utf-8'))}",
         title=title,
         description=f"{title} dataset published by SAMA.",
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=("Official labeling may change.",),
-        known_issues=("Registry locator binding is not stored yet.",),
+        known_issues=(
+            "The source locator is hand-curated for v0.1 and may need revision if "
+            "SAMA changes the report route.",
+        ),
     )
 
 

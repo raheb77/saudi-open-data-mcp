@@ -28,6 +28,7 @@ def _descriptor(
     return DatasetDescriptor(
         dataset_id=dataset_id,
         source="sama",
+        source_locator=f"report.aspx?cid={sum(dataset_id.encode('utf-8'))}",
         title=title,
         description=f"{title} dataset published by SAMA.",
         schema_version="0.1.0",

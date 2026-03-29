@@ -56,7 +56,10 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
 
     @app.tool(
         name="dataset_health",
-        description="Exact registry-backed health lookup by dataset_id.",
+        description=(
+            "Exact registry-backed health lookup by dataset_id, "
+            "with local snapshot freshness evidence when available."
+        ),
     )
     def dataset_health(dataset_id: str) -> dict:
         return health_tool.get_dataset_health(dataset_id).model_dump(mode="json")
@@ -65,7 +68,7 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
         name="download_dataset",
         description=(
             "Report local raw snapshot availability for an exact dataset_id. "
-            "This tool does not fetch data remotely."
+            "Local-only; no remote fetch."
         ),
     )
     def download_dataset(dataset_id: str) -> dict:
@@ -75,7 +78,7 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
         name="query_dataset",
         description=(
             "Query local canonical records for an exact dataset_id "
-            "using exact-match filters only."
+            "using exact-match filters only. Local-only; no remote fetch."
         ),
     )
     def query_dataset(
@@ -91,14 +94,20 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
 
     @app.tool(
         name="search_datasets",
-        description="Search registry-backed datasets using deterministic substring matching.",
+        description=(
+            "Search registry-backed dataset metadata using deterministic "
+            "substring matching only."
+        ),
     )
     def search_datasets(query: str) -> dict:
         return search_tool.search_datasets(query).model_dump(mode="json")
 
     @app.tool(
         name="preview_dataset",
-        description="Fetch and preview a dataset by exact dataset identifier or locator.",
+        description=(
+            "Fetch and preview a dataset using the current source-specific "
+            "locator input."
+        ),
     )
     async def preview_dataset(dataset_id: str) -> dict:
         return (await preview_tool.preview_dataset(dataset_id)).model_dump(mode="json")

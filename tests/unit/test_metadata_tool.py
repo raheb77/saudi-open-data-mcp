@@ -21,6 +21,7 @@ def _descriptor(dataset_id: str = "sama-money-supply") -> DatasetDescriptor:
     return DatasetDescriptor(
         dataset_id=dataset_id,
         source="sama",
+        source_locator=f"report.aspx?cid={sum(dataset_id.encode('utf-8'))}",
         title="Money Supply",
         description="Official monetary aggregate dataset published by SAMA.",
         schema_version="0.1.0",

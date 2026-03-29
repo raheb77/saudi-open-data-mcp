@@ -49,7 +49,14 @@ async def test_json_payload_returns_record_derivable_preview_result() -> None:
     assert result.failure is None
     assert result.normalization_result is not None
     assert result.normalization_result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
-    assert result.normalization_result.records == ()
+    assert len(result.normalization_result.records) == 1
+    assert result.normalization_result.records[0].dataset_id == REPORT_LOCATOR
+    assert result.normalization_result.records[0].source == "sama"
+    assert result.normalization_result.records[0].record_index == 0
+    assert result.normalization_result.records[0].fields == {
+        "period": "2026-01",
+        "value": 1,
+    }
 
 
 @pytest.mark.asyncio
