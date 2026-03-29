@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from saudi_open_data_mcp import __main__ as main_module
 from saudi_open_data_mcp import cli as cli_module
 from saudi_open_data_mcp.config import RuntimeConfig
 
@@ -61,3 +62,16 @@ def test_cli_run_stdio_dispatches_to_server(monkeypatch) -> None:
             "log_level": "DEBUG",
         }
     ]
+
+
+def test_module_entrypoint_delegates_to_cli(monkeypatch) -> None:
+    calls: list[object] = []
+
+    def _fake_cli_main(argv=None) -> int:
+        calls.append(argv)
+        return 0
+
+    monkeypatch.setattr(main_module, "cli_main", _fake_cli_main)
+
+    assert main_module.main(["check-imports"]) == 0
+    assert calls == [["check-imports"]]

@@ -105,7 +105,7 @@ Another important limitation: `query_dataset` only works on local snapshots that
 
 ## Local Setup
 
-This repo uses a `src/` layout, but local test and CLI workflows no longer require manually setting `PYTHONPATH`.
+This repo uses a `src/` layout. After `uv sync` completes successfully, the project is installed into `.venv`, so module and console-script entrypoints are available without manually setting `PYTHONPATH`.
 
 Install and sync with `uv`:
 
@@ -119,7 +119,7 @@ Then either activate the local environment:
 source .venv/bin/activate
 ```
 
-or call the tools from `.venv/bin/...` explicitly. That is the least ambiguous local path for the current project layout.
+or call the tools from `.venv/bin/...` explicitly.
 
 Lint:
 
@@ -135,37 +135,39 @@ pytest
 
 ## Local Run
 
-The current local entrypoint is the project CLI under `src/saudi_open_data_mcp/cli.py`.
+There are now three supported activation paths for the same CLI:
 
-Import / wiring check:
+1. Source-tree path: useful when working directly from the checkout, before installing into an environment.
 
 ```bash
-python src/saudi_open_data_mcp/cli.py --check-imports
+python src/saudi_open_data_mcp/cli.py check-imports
+python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
+python src/saudi_open_data_mcp/cli.py run-stdio
 ```
 
-This verifies that the FastMCP app can be constructed and that the currently wired MCP surface is importable.
+2. Module path: useful after `uv sync` or any normal package install, and friendlier for operators than a repo-relative source path.
 
-Local HTTP run:
+```bash
+python -m saudi_open_data_mcp check-imports
+python -m saudi_open_data_mcp run-http --host 127.0.0.1 --port 8000
+python -m saudi_open_data_mcp run-stdio
+```
+
+3. Console script: the shortest path after `uv sync` or installation.
+
+```bash
+saudi-open-data-mcp check-imports
+saudi-open-data-mcp run-http --host 127.0.0.1 --port 8000
+saudi-open-data-mcp run-stdio
+```
+
+`run-http` starts the FastMCP app over streamable HTTP. `run-stdio` starts the same app over stdio for MCP hosts that expect a command-based server process.
+
+The helper script remains available for local HTTP development:
 
 ```bash
 ./scripts/run_local_http.sh
 ```
-
-Optional host and port overrides:
-
-```bash
-./scripts/run_local_http.sh --host 127.0.0.1 --port 8080
-```
-
-The HTTP helper starts the current FastMCP app over streamable HTTP using configured defaults. It is intended for local development and inspection, not as a polished deployment entrypoint.
-
-Local stdio run for MCP hosts:
-
-```bash
-python src/saudi_open_data_mcp/cli.py run-stdio
-```
-
-This starts the same FastMCP app over stdio. It is the current direct local activation path for hosts that expect a stdio MCP server command.
 
 ## Testing
 
