@@ -10,6 +10,7 @@ from fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from saudi_open_data_mcp.registry.models import (
+    DatasetDescriptor,
     DatasetHealthStatus,
     NonEmptyText,
     RegistryNote,
@@ -127,12 +128,15 @@ class DatasetHealthTool:
             else descriptor.health_status
         )
         freshness = (
-            evaluate_snapshot_freshness(
-                source=descriptor.source,
-                dataset_id=descriptor.dataset_id,
-                snapshot_store=self._snapshot_store,
-                reference_time=reference_time,
-                update_frequency=descriptor.update_frequency,
+            _bind_canonical_dataset_id(
+                descriptor=descriptor,
+                freshness=evaluate_snapshot_freshness(
+                    source=descriptor.source,
+                    dataset_id=descriptor.source_locator,
+                    snapshot_store=self._snapshot_store,
+                    reference_time=reference_time,
+                    update_frequency=descriptor.update_frequency,
+                ),
             )
             if self._snapshot_store is not None
             else None
@@ -166,3 +170,13 @@ def _merge_exclude(exclude: object, field_name: str) -> object:
         merged[field_name] = True
         return merged
     return exclude
+
+
+def _bind_canonical_dataset_id(
+    *,
+    descriptor: DatasetDescriptor,
+    freshness: SnapshotFreshnessResult,
+) -> SnapshotFreshnessResult:
+    """Rewrite source-locator-based freshness output to the canonical dataset identity."""
+
+    return freshness.model_copy(update={"dataset_id": descriptor.dataset_id})

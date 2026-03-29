@@ -167,7 +167,7 @@ async def test_server_health_tool_can_expose_recent_snapshot_freshness(
     snapshot_store = SnapshotStore(tmp_path / "snapshots")
     _write_snapshot_with_mtime(
         snapshot_store,
-        dataset_id="sama-money-supply",
+        dataset_id=REPORT_LOCATOR,
         modified_at=datetime(2026, 1, 1, 0, 0, tzinfo=UTC),
     )
 
@@ -199,7 +199,7 @@ async def test_server_download_tool_can_expose_local_snapshot_availability(
     snapshot_store = SnapshotStore(tmp_path / "snapshots")
     snapshot_path = _write_snapshot_with_mtime(
         snapshot_store,
-        dataset_id="sama-money-supply",
+        dataset_id=REPORT_LOCATOR,
         modified_at=datetime(2026, 1, 1, 0, 0, tzinfo=UTC),
     )
 
