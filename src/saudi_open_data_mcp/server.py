@@ -32,6 +32,7 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
     download_tool = DatasetDownloadTool(repository, snapshot_store)
     metadata_tool = DatasetMetadataTool(repository)
     preview_tool = DatasetPreviewTool(
+        repository,
         SAMAConnector(base_url=runtime_config.source.base_url).fetch_dataset_payload
     )
     query_tool = DatasetQueryTool(repository, snapshot_store)
@@ -105,8 +106,7 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
     @app.tool(
         name="preview_dataset",
         description=(
-            "Fetch and preview a dataset using the current source-specific "
-            "locator input."
+            "Fetch and preview a dataset for an exact registry dataset_id."
         ),
     )
     async def preview_dataset(dataset_id: str) -> dict:

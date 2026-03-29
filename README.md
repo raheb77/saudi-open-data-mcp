@@ -57,7 +57,7 @@ What each one does now:
 - `download_dataset`: local-only raw snapshot availability lookup by `dataset_id`
 - `query_dataset`: local-only exact-match query over canonical records derived from local snapshots
 - `search_datasets`: deterministic registry-backed substring search over dataset metadata
-- `preview_dataset`: fetches a raw SAMA payload through the current connector path and runs the normalization pipeline using the current source-specific locator input
+- `preview_dataset`: exact preview by canonical `dataset_id`, using the registry-owned `source_locator` internally for source access
 
 Concise example of the current surface:
 
@@ -68,7 +68,7 @@ dataset_health({"dataset_id": "sama-money-supply"})
 download_dataset({"dataset_id": "sama-money-supply"})
 query_dataset({"dataset_id": "sama-money-supply", "filters": {"period": "2026-01"}, "limit": 5})
 search_datasets({"query": "money"})
-preview_dataset({"dataset_id": "report.aspx?cid=55"})
+preview_dataset({"dataset_id": "sama-money-supply"})
 ```
 
 ## What Works Now

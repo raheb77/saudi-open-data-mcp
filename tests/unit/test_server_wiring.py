@@ -176,13 +176,26 @@ async def test_server_registers_current_mcp_surface(
         "sama-money-supply",
     ]
 
-    preview_result = await tools["preview_dataset"].run({"dataset_id": REPORT_LOCATOR})
+    preview_result = await tools["preview_dataset"].run(
+        {"dataset_id": "sama-money-supply"}
+    )
     assert preview_result.structured_content["status"] == "record_derivable"
-    assert preview_result.structured_content["dataset_id"] == REPORT_LOCATOR
+    assert preview_result.structured_content["dataset_id"] == "sama-money-supply"
     assert preview_result.structured_content["failure"] is None
     assert preview_result.structured_content["normalization_result"]["status"] == (
         "record_derivable"
     )
+    assert preview_result.structured_content["normalization_result"]["dataset_id"] == (
+        "sama-money-supply"
+    )
+    assert preview_result.structured_content["normalization_result"]["records"] == [
+        {
+            "dataset_id": "sama-money-supply",
+            "source": "sama",
+            "record_index": 0,
+            "fields": {"period": "2026-01", "value": 1},
+        }
+    ]
 
 
 async def test_server_metadata_health_download_and_query_lookup_keep_missing_dataset_explicit(
@@ -197,6 +210,7 @@ async def test_server_metadata_health_download_and_query_lookup_keep_missing_dat
         {"dataset_id": "missing-dataset"}
     )
     query_result = await tools["query_dataset"].run({"dataset_id": "missing-dataset"})
+    preview_result = await tools["preview_dataset"].run({"dataset_id": "missing-dataset"})
 
     assert metadata_result.structured_content == {
         "dataset_id": "missing-dataset",
@@ -230,6 +244,16 @@ async def test_server_metadata_health_download_and_query_lookup_keep_missing_dat
         "matched_records": [],
         "limitations": [],
         "failure": None,
+    }
+    assert preview_result.structured_content == {
+        "dataset_id": "missing-dataset",
+        "status": "failed",
+        "normalization_result": None,
+        "failure": {
+            "stage": "lookup",
+            "error_type": "LookupError",
+            "message": "dataset_id 'missing-dataset' is not present in the registry",
+        },
     }
 
 
@@ -322,11 +346,17 @@ async def test_server_preview_tool_keeps_html_preview_limited(tmp_path: Path) ->
     app = create_server(_runtime_config(tmp_path))
     tools = await app.get_tools()
 
-    preview_result = await tools["preview_dataset"].run({"dataset_id": REPORT_LOCATOR})
+    preview_result = await tools["preview_dataset"].run(
+        {"dataset_id": "sama-money-supply"}
+    )
 
     assert preview_result.structured_content["status"] == "limited"
     assert preview_result.structured_content["failure"] is None
+    assert preview_result.structured_content["dataset_id"] == "sama-money-supply"
     assert preview_result.structured_content["normalization_result"]["status"] == "limited"
+    assert preview_result.structured_content["normalization_result"]["dataset_id"] == (
+        "sama-money-supply"
+    )
 
 
 def _write_snapshot_with_mtime(

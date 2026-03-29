@@ -14,6 +14,8 @@ from saudi_open_data_mcp.normalization.pipeline import (
     NormalizationPipelineStatus,
     NormalizationResult,
 )
+from saudi_open_data_mcp.registry.models import DatasetDescriptor
+from saudi_open_data_mcp.registry.repository import RegistryRepository
 
 DatasetPayloadFetcher = Callable[[str], Awaitable[Any]]
 
@@ -29,6 +31,7 @@ class PreviewStatus(StrEnum):
 class PreviewFailureStage(StrEnum):
     """Preview failure stage."""
 
+    LOOKUP = "lookup"
     FETCH = "fetch"
     NORMALIZATION = "normalization"
 
@@ -44,7 +47,7 @@ class PreviewFailure(BaseModel):
 
 
 class DatasetPreviewResult(BaseModel):
-    """Typed preview result for a dataset or source-specific locator."""
+    """Typed preview result for a canonical registry dataset identifier."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -88,42 +91,53 @@ class PreviewPipeline(Protocol):
 
 
 class DatasetPreviewTool:
-    """Preview tool that composes injected raw payload fetching with normalization.
-
-    In v0.1, the public ``dataset_id`` argument is passed through to the injected
-    fetcher as the current source-supported locator. For SAMA, that means a
-    report locator such as ``report.aspx?cid=55`` rather than a canonical
-    registry-owned dataset identity.
-    """
+    """Preview tool that resolves canonical dataset ids to source locators."""
 
     def __init__(
         self,
+        repository: RegistryRepository,
         payload_fetcher: DatasetPayloadFetcher,
         *,
         normalization_pipeline: PreviewPipeline | None = None,
     ) -> None:
+        self._repository = repository
         self._payload_fetcher = payload_fetcher
         self._normalization_pipeline = normalization_pipeline or NormalizationPipeline()
 
     async def preview_dataset(self, dataset_id: str) -> DatasetPreviewResult:
-        """Fetch a raw payload and return an honest normalization-based preview."""
+        """Fetch a raw payload for a canonical dataset id and return a preview."""
 
         requested_dataset_id = dataset_id.strip()
         if not requested_dataset_id:
-            return self._failed_fetch_result(
+            return self._failed_result(
                 dataset_id=dataset_id,
+                stage=PreviewFailureStage.LOOKUP,
                 error=ValueError("dataset_id must not be empty"),
             )
 
-        try:
-            raw_payload = await self._payload_fetcher(requested_dataset_id)
-        except Exception as exc:
-            return self._failed_fetch_result(
+        descriptor = self._repository.get_dataset(requested_dataset_id)
+        if descriptor is None:
+            return self._failed_result(
                 dataset_id=requested_dataset_id,
+                stage=PreviewFailureStage.LOOKUP,
+                error=LookupError(
+                    f"dataset_id '{requested_dataset_id}' is not present in the registry"
+                ),
+            )
+
+        try:
+            raw_payload = await self._payload_fetcher(descriptor.source_locator)
+        except Exception as exc:
+            return self._failed_result(
+                dataset_id=requested_dataset_id,
+                stage=PreviewFailureStage.FETCH,
                 error=exc,
             )
 
-        normalization_result = self._normalization_pipeline.normalize(raw_payload)
+        normalization_result = _bind_canonical_dataset_id(
+            descriptor=descriptor,
+            normalization_result=self._normalization_pipeline.normalize(raw_payload),
+        )
 
         if normalization_result.status is NormalizationPipelineStatus.FAILED:
             return DatasetPreviewResult(
@@ -152,16 +166,40 @@ class DatasetPreviewTool:
         )
 
     @staticmethod
-    def _failed_fetch_result(dataset_id: str, error: Exception) -> DatasetPreviewResult:
+    def _failed_result(
+        *,
+        dataset_id: str,
+        stage: PreviewFailureStage,
+        error: Exception,
+    ) -> DatasetPreviewResult:
         return DatasetPreviewResult(
             dataset_id=dataset_id,
             status=PreviewStatus.FAILED,
             failure=PreviewFailure(
-                stage=PreviewFailureStage.FETCH,
+                stage=stage,
                 error_type=type(error).__name__,
                 message=str(error),
             ),
         )
+
+
+def _bind_canonical_dataset_id(
+    *,
+    descriptor: DatasetDescriptor,
+    normalization_result: NormalizationResult,
+) -> NormalizationResult:
+    """Rewrite source-locator-based preview output to the canonical dataset identity."""
+
+    canonical_records = tuple(
+        record.model_copy(update={"dataset_id": descriptor.dataset_id})
+        for record in normalization_result.records
+    )
+    return normalization_result.model_copy(
+        update={
+            "dataset_id": descriptor.dataset_id,
+            "records": canonical_records,
+        }
+    )
 
 
 def register(app: FastMCP) -> None:
