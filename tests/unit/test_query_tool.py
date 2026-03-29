@@ -32,6 +32,7 @@ def _descriptor(dataset_id: str = "sama-money-supply") -> DatasetDescriptor:
     return DatasetDescriptor(
         dataset_id=dataset_id,
         source="sama",
+        source_locator=f"report.aspx?cid={sum(dataset_id.encode('utf-8'))}",
         title="Money Supply",
         description="Official monetary aggregate dataset published by SAMA.",
         schema_version="0.1.0",
@@ -75,6 +76,28 @@ def test_query_dataset_returns_explicit_snapshot_missing_result(
     assert result.matched_records == ()
 
 
+def test_query_dataset_uses_source_locator_not_canonical_dataset_id_for_snapshot_reads(
+    tmp_path: Path,
+) -> None:
+    repository = RegistryRepository(tmp_path / "registry.sqlite")
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    descriptor = _descriptor()
+    tool = DatasetQueryTool(repository, snapshot_store)
+
+    repository.upsert_dataset(descriptor)
+    _write_snapshot(
+        snapshot_store,
+        snapshot_dataset_id=descriptor.dataset_id,
+        body={"rows": [{"period": "2026-01", "value": 1}]},
+    )
+
+    result = tool.query_dataset(descriptor.dataset_id)
+
+    assert result.status is DatasetQueryStatus.SNAPSHOT_MISSING
+    assert result.dataset_id == descriptor.dataset_id
+    assert result.source == descriptor.source
+
+
 def test_query_dataset_returns_local_canonical_records_for_supported_json_snapshot(
     tmp_path: Path,
 ) -> None:
@@ -86,7 +109,7 @@ def test_query_dataset_returns_local_canonical_records_for_supported_json_snapsh
     repository.upsert_dataset(descriptor)
     _write_snapshot(
         snapshot_store,
-        dataset_id=descriptor.dataset_id,
+        snapshot_dataset_id=descriptor.source_locator,
         body={
             "rows": [
                 {"period": "2026-01", "value": 1},
@@ -104,8 +127,10 @@ def test_query_dataset_returns_local_canonical_records_for_supported_json_snapsh
     assert result.applied_filters == {}
     assert result.limit is None
     assert len(result.matched_records) == 2
+    assert result.matched_records[0].dataset_id == descriptor.dataset_id
     assert result.matched_records[0].record_index == 0
     assert result.matched_records[0].fields == {"period": "2026-01", "value": 1}
+    assert result.matched_records[1].dataset_id == descriptor.dataset_id
     assert result.matched_records[1].record_index == 1
     assert result.matched_records[1].fields == {"period": "2026-02", "value": 2}
 
@@ -121,7 +146,7 @@ def test_query_dataset_applies_exact_match_filters(
     repository.upsert_dataset(descriptor)
     _write_snapshot(
         snapshot_store,
-        dataset_id=descriptor.dataset_id,
+        snapshot_dataset_id=descriptor.source_locator,
         body={
             "rows": [
                 {"period": "2026-01", "value": 1},
@@ -154,7 +179,7 @@ def test_query_dataset_applies_limit_deterministically(
     repository.upsert_dataset(descriptor)
     _write_snapshot(
         snapshot_store,
-        dataset_id=descriptor.dataset_id,
+        snapshot_dataset_id=descriptor.source_locator,
         body=[
             {"period": "2026-01", "value": 1},
             {"period": "2026-02", "value": 2},
@@ -181,7 +206,7 @@ def test_query_dataset_returns_explicit_limited_result_for_unsupported_json_shap
     repository.upsert_dataset(descriptor)
     _write_snapshot(
         snapshot_store,
-        dataset_id=descriptor.dataset_id,
+        snapshot_dataset_id=descriptor.source_locator,
         body={"summary": {"count": 2}},
     )
 
@@ -224,7 +249,7 @@ def test_query_dataset_returns_explicit_failed_result_for_failed_normalization(
     repository.upsert_dataset(descriptor)
     _write_snapshot(
         snapshot_store,
-        dataset_id=descriptor.dataset_id,
+        snapshot_dataset_id=descriptor.source_locator,
         body={"rows": [{"period": "2026-01", "value": 1}]},
     )
 
@@ -255,14 +280,17 @@ def test_query_tool_module_does_not_import_connectors_directly() -> None:
 def _write_snapshot(
     store: SnapshotStore,
     *,
-    dataset_id: str,
+    snapshot_dataset_id: str,
     body: object,
 ) -> Path:
     payload = RawPayload(
         source="sama",
-        dataset_id=dataset_id,
+        dataset_id=snapshot_dataset_id,
         content={
-            "url": f"https://www.sama.gov.sa/en-US/EconomicReports/Pages/{dataset_id}",
+            "url": (
+                "https://www.sama.gov.sa/en-US/EconomicReports/Pages/"
+                f"{snapshot_dataset_id}"
+            ),
             "status_code": 200,
             "content_type": "application/json",
             "body": body,

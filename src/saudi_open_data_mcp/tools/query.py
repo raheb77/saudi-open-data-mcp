@@ -288,7 +288,7 @@ class DatasetQueryTool:
         try:
             raw_payload = self._snapshot_store.read_snapshot(
                 descriptor.source,
-                descriptor.dataset_id,
+                descriptor.source_locator,
             )
         except FileNotFoundError:
             return DatasetQueryResult.snapshot_missing(
@@ -326,7 +326,10 @@ class DatasetQueryTool:
             )
 
         filtered_records = _apply_filters(
-            normalization_result.records,
+            _bind_canonical_dataset_id(
+                descriptor=descriptor,
+                records=normalization_result.records,
+            ),
             normalized_filters,
         )
         limited_records = (
@@ -398,6 +401,19 @@ def _apply_filters(
         record
         for record in records
         if _record_matches_filters(record, filters)
+    )
+
+
+def _bind_canonical_dataset_id(
+    *,
+    descriptor: DatasetDescriptor,
+    records: tuple[CanonicalRecord, ...],
+) -> tuple[CanonicalRecord, ...]:
+    """Rewrite source-locator-derived records to the canonical registry dataset identity."""
+
+    return tuple(
+        record.model_copy(update={"dataset_id": descriptor.dataset_id})
+        for record in records
     )
 
 
