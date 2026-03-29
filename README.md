@@ -176,6 +176,8 @@ Claude Desktop example:
 }
 ```
 
+`cwd` is optional here. The default registry and snapshot paths are now anchored to the repo rather than the process working directory, but keeping `cwd` set to the repo root can still make local config and path reasoning easier.
+
 If you prefer a single command path, the repo also includes a stdio helper script:
 
 ```json
