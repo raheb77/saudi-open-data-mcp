@@ -30,6 +30,10 @@ def test_registry_and_normalization_scaffold_compose(tmp_path: Path) -> None:
 
     assert bootstrapped_descriptors == repository.list_datasets()
     assert all(isinstance(item, DatasetDescriptor) for item in bootstrapped_descriptors)
+    assert all(
+        item.source_locator.startswith("report.aspx?cid=")
+        for item in bootstrapped_descriptors
+    )
     assert result.dataset_id == "report.aspx?cid=55"
     assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
     assert len(result.records) == 1

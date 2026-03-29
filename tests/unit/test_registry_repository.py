@@ -23,6 +23,7 @@ def _descriptor(
     return DatasetDescriptor(
         dataset_id=dataset_id,
         source="sama",
+        source_locator=f"report.aspx?cid={sum(dataset_id.encode('utf-8'))}",
         title=title,
         description=f"{title} dataset published by SAMA.",
         schema_version="0.1.0",
@@ -51,6 +52,53 @@ def test_repository_initialization_creates_required_tables(tmp_path: Path) -> No
 
     assert "dataset_descriptors" in table_names
     assert "dataset_health" in table_names
+
+    with sqlite3.connect(database_path) as connection:
+        columns = {
+            row[1]
+            for row in connection.execute("PRAGMA table_info(dataset_descriptors)").fetchall()
+        }
+
+    assert "source_locator" in columns
+
+
+def test_repository_initialization_adds_source_locator_to_existing_descriptor_table(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "registry.sqlite"
+
+    with sqlite3.connect(database_path) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE dataset_descriptors (
+                dataset_id TEXT PRIMARY KEY,
+                source TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                schema_version TEXT NOT NULL,
+                update_frequency TEXT NOT NULL,
+                health_status TEXT NOT NULL,
+                caveats_json TEXT NOT NULL,
+                known_issues_json TEXT NOT NULL
+            );
+
+            CREATE TABLE dataset_health (
+                dataset_id TEXT PRIMARY KEY,
+                health_status TEXT NOT NULL
+            );
+            """
+        )
+
+    repository = RegistryRepository(database_path)
+    descriptor = _descriptor(
+        dataset_id="sama-money-supply",
+        title="Money Supply",
+    )
+    repository.upsert_dataset(descriptor)
+
+    stored = repository.get_dataset(descriptor.dataset_id)
+
+    assert stored == descriptor
 
 
 def test_upsert_and_get_dataset_round_trip_returns_typed_descriptor(

@@ -17,6 +17,7 @@ def test_dataset_descriptor_accepts_valid_metadata() -> None:
     descriptor = DatasetDescriptor(
         dataset_id="sama-balance-of-payments",
         source="sama",
+        source_locator="report.aspx?cid=41",
         title="Balance of Payments",
         description="Official balance of payments dataset published by SAMA.",
         schema_version="0.1.0",
@@ -27,6 +28,7 @@ def test_dataset_descriptor_accepts_valid_metadata() -> None:
     )
 
     assert descriptor.dataset_id == "sama-balance-of-payments"
+    assert descriptor.source_locator == "report.aspx?cid=41"
     assert descriptor.schema_version == "0.1.0"
     assert descriptor.update_frequency is UpdateFrequency.QUARTERLY
     assert descriptor.health_status is DatasetHealthStatus.HEALTHY
@@ -38,6 +40,7 @@ def test_dataset_descriptor_defaults_issue_collections_to_typed_empty_tuples() -
     descriptor = DatasetDescriptor(
         dataset_id="sama-money-supply",
         source="sama",
+        source_locator="report.aspx?cid=55",
         title="Money Supply",
         description="Official monetary aggregate dataset published by SAMA.",
         schema_version="0.1.0",
@@ -56,6 +59,7 @@ def test_dataset_descriptor_rejects_invalid_enum_values() -> None:
         DatasetDescriptor(
             dataset_id="sama-interest-rates",
             source="sama",
+            source_locator="report.aspx?cid=52",
             title="Interest Rates",
             description="Official interest rate series published by SAMA.",
             schema_version="0.1.0",
@@ -78,6 +82,7 @@ def test_dataset_descriptor_requires_declared_fields() -> None:
             health_status=DatasetHealthStatus.HEALTHY,
         )
 
+    assert "source_locator" in str(exc_info.value)
     assert "description" in str(exc_info.value)
 
 
@@ -86,6 +91,7 @@ def test_dataset_descriptor_rejects_invalid_schema_version() -> None:
         DatasetDescriptor(
             dataset_id="sama-external-debt",
             source="sama",
+            source_locator="report.aspx?cid=77",
             title="External Debt",
             description="Official external debt dataset published by SAMA.",
             schema_version="latest",
@@ -101,6 +107,7 @@ def test_dataset_descriptor_rejects_invalid_note_values() -> None:
         DatasetDescriptor(
             dataset_id="sama-reserves",
             source="sama",
+            source_locator="report.aspx?cid=88",
             title="Reserves",
             description="Official reserve assets dataset published by SAMA.",
             schema_version="0.1.0",
@@ -117,6 +124,7 @@ def test_dataset_descriptor_forbids_extra_fields() -> None:
         DatasetDescriptor(
             dataset_id="sama-credit",
             source="sama",
+            source_locator="report.aspx?cid=99",
             title="Credit",
             description="Official credit dataset published by SAMA.",
             schema_version="0.1.0",

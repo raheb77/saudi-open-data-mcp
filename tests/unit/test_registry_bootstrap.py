@@ -20,6 +20,10 @@ def test_bootstrap_inserts_expected_initial_descriptors(tmp_path: Path) -> None:
     assert bootstrapped_descriptors == list(INITIAL_DATASET_DESCRIPTORS)
     assert repository.list_datasets() == bootstrapped_descriptors
     assert all(isinstance(item, DatasetDescriptor) for item in bootstrapped_descriptors)
+    assert all(
+        descriptor.source_locator.startswith("report.aspx?cid=")
+        for descriptor in bootstrapped_descriptors
+    )
 
 
 def test_bootstrap_is_idempotent_and_deterministic(tmp_path: Path) -> None:

@@ -26,6 +26,7 @@ class RegistryRepository:
                 CREATE TABLE IF NOT EXISTS dataset_descriptors (
                     dataset_id TEXT PRIMARY KEY,
                     source TEXT NOT NULL,
+                    source_locator TEXT NOT NULL,
                     title TEXT NOT NULL,
                     description TEXT NOT NULL,
                     schema_version TEXT NOT NULL,
@@ -41,6 +42,7 @@ class RegistryRepository:
                 );
                 """
             )
+            self._ensure_dataset_descriptor_columns(connection)
 
     def upsert_dataset(self, descriptor: DatasetDescriptor) -> None:
         """Insert or replace a dataset descriptor and its minimal health state."""
@@ -51,6 +53,7 @@ class RegistryRepository:
                 INSERT OR REPLACE INTO dataset_descriptors (
                     dataset_id,
                     source,
+                    source_locator,
                     title,
                     description,
                     schema_version,
@@ -58,11 +61,12 @@ class RegistryRepository:
                     health_status,
                     caveats_json,
                     known_issues_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     descriptor.dataset_id,
                     descriptor.source,
+                    descriptor.source_locator,
                     descriptor.title,
                     descriptor.description,
                     descriptor.schema_version,
@@ -89,6 +93,7 @@ class RegistryRepository:
                 SELECT
                     dataset_id,
                     source,
+                    source_locator,
                     title,
                     description,
                     schema_version,
@@ -116,6 +121,7 @@ class RegistryRepository:
                 SELECT
                     dataset_id,
                     source,
+                    source_locator,
                     title,
                     description,
                     schema_version,
@@ -145,6 +151,7 @@ class RegistryRepository:
                 SELECT
                     dataset_id,
                     source,
+                    source_locator,
                     title,
                     description,
                     schema_version,
@@ -219,6 +226,22 @@ class RegistryRepository:
         return connection
 
     @staticmethod
+    def _ensure_dataset_descriptor_columns(connection: sqlite3.Connection) -> None:
+        """Add required descriptor columns for the current v0.1 schema when missing."""
+
+        columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(dataset_descriptors)")
+        }
+        if "source_locator" not in columns:
+            connection.execute(
+                """
+                ALTER TABLE dataset_descriptors
+                ADD COLUMN source_locator TEXT NOT NULL DEFAULT ''
+                """
+            )
+
+    @staticmethod
     def _dump_notes(notes: tuple[str, ...]) -> str:
         return json.dumps(list(notes), ensure_ascii=True)
 
@@ -235,6 +258,7 @@ class RegistryRepository:
             {
                 "dataset_id": row["dataset_id"],
                 "source": row["source"],
+                "source_locator": row["source_locator"],
                 "title": row["title"],
                 "description": row["description"],
                 "schema_version": row["schema_version"],

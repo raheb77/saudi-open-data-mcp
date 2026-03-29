@@ -37,12 +37,17 @@ class DatasetHealthStatus(StrEnum):
 
 
 class DatasetDescriptor(BaseModel):
-    """Registry-owned dataset descriptor metadata."""
+    """Registry-owned dataset descriptor metadata.
+
+    `dataset_id` is the canonical registry identifier.
+    `source_locator` is the source-specific locator needed at the source boundary.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     dataset_id: NonEmptyText
     source: NonEmptyText
+    source_locator: NonEmptyText
     title: NonEmptyText
     description: NonEmptyText
     schema_version: SchemaVersion

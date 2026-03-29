@@ -9,6 +9,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
     DatasetDescriptor(
         dataset_id="sama-balance-of-payments",
         source="sama",
+        source_locator="report.aspx?cid=41",
         title="Balance of Payments",
         description=(
             "Initial v0.1 seed descriptor for the SAMA balance of payments dataset."
@@ -20,12 +21,14 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
             "This is a hand-curated seed descriptor, not a complete SAMA catalog entry.",
         ),
         known_issues=(
-            "Registry-to-source locator binding is not stored in the registry yet.",
+            "The source locator is hand-curated for v0.1 and may need revision if "
+            "SAMA changes the report route.",
         ),
     ),
     DatasetDescriptor(
         dataset_id="sama-interest-rates",
         source="sama",
+        source_locator="report.aspx?cid=52",
         title="Interest Rates",
         description=(
             "Initial v0.1 seed descriptor for SAMA-published interest rate data."
@@ -37,12 +40,14 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
             "This is a hand-curated seed descriptor, not a complete SAMA catalog entry.",
         ),
         known_issues=(
-            "Registry-to-source locator binding is not stored in the registry yet.",
+            "The source locator is hand-curated for v0.1 and may need revision if "
+            "SAMA changes the report route.",
         ),
     ),
     DatasetDescriptor(
         dataset_id="sama-money-supply",
         source="sama",
+        source_locator="report.aspx?cid=55",
         title="Money Supply",
         description=(
             "Initial v0.1 seed descriptor for SAMA monetary aggregate data."
@@ -54,7 +59,8 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
             "This is a hand-curated seed descriptor, not a complete SAMA catalog entry.",
         ),
         known_issues=(
-            "Registry-to-source locator binding is not stored in the registry yet.",
+            "The source locator is hand-curated for v0.1 and may need revision if "
+            "SAMA changes the report route.",
         ),
     ),
 )
