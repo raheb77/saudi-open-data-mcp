@@ -152,6 +152,44 @@ The helper script remains available for local HTTP development:
 ./scripts/run_local_http.sh
 ```
 
+## MCP Host Registration
+
+For stdio-based MCP hosts, use the source-tree CLI directly with absolute paths.
+
+Claude Desktop example:
+
+```json
+{
+  "mcpServers": {
+    "saudi-open-data-mcp": {
+      "command": "/absolute/path/to/saudi-open-data-mcp/.venv/bin/python",
+      "args": [
+        "/absolute/path/to/saudi-open-data-mcp/src/saudi_open_data_mcp/cli.py",
+        "run-stdio"
+      ],
+      "cwd": "/absolute/path/to/saudi-open-data-mcp",
+      "env": {
+        "LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
+
+If you prefer a single command path, the repo also includes a stdio helper script:
+
+```json
+{
+  "mcpServers": {
+    "saudi-open-data-mcp": {
+      "command": "/absolute/path/to/saudi-open-data-mcp/scripts/run_local_stdio.sh"
+    }
+  }
+}
+```
+
+Current limitation to keep explicit: the supported host registration path is stdio through the source-tree CLI. Installed module entrypoints and packaged console scripts are not part of the verified workflow.
+
 ## Testing
 
 The repo includes four test layers:
