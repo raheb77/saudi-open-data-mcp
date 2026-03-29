@@ -144,3 +144,83 @@ async def test_source_tree_cli_stdio_uses_explicit_runtime_paths_outside_repo_ro
     assert result.structured_content["status"] == "available"
     assert result.structured_content["dataset_id"] == "sama-money-supply"
     assert result.structured_content["snapshot_path"] == str(snapshot_path)
+
+
+@pytest.mark.asyncio
+async def test_source_tree_cli_stdio_uses_default_anchored_paths_outside_repo_root(
+    tmp_path: Path,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    python = Path(sys.prefix) / "bin" / "python"
+    registry_path = root / ".local" / "registry.sqlite"
+    snapshot_store = SnapshotStore(root / ".local" / "snapshots")
+    snapshot_path = snapshot_store.snapshot_path("sama", "report.aspx?cid=55")
+    outside_repo_root = tmp_path / "outside-repo-root"
+    outside_repo_root.mkdir()
+    env = os.environ.copy()
+    env.pop("REGISTRY_PATH", None)
+    env.pop("SNAPSHOT_DIR", None)
+    env.pop("CACHE_DIR", None)
+    env["LOG_LEVEL"] = "ERROR"
+
+    original_registry = _read_optional_bytes(registry_path)
+    original_snapshot = _read_optional_bytes(snapshot_path)
+
+    try:
+        if registry_path.exists():
+            registry_path.unlink()
+        if snapshot_path.exists():
+            snapshot_path.unlink()
+
+        bootstrap_registry(RegistryRepository(registry_path))
+        snapshot_store.write_snapshot(
+            RawPayload(
+                source="sama",
+                dataset_id="report.aspx?cid=55",
+                content={
+                    "url": (
+                        "https://www.sama.gov.sa/en-US/EconomicReports/Pages/"
+                        "report.aspx?cid=55"
+                    ),
+                    "status_code": 200,
+                    "content_type": "application/json",
+                    "body": {"rows": [{"period": "2026-01", "value": 1}]},
+                },
+            )
+        )
+
+        transport = StdioTransport(
+            command=str(python),
+            args=[str(root / "src" / "saudi_open_data_mcp" / "cli.py"), "run-stdio"],
+            cwd=str(outside_repo_root),
+            env=env,
+        )
+
+        async with Client(transport) as client:
+            result = await client.call_tool(
+                "download_dataset",
+                {"dataset_id": "sama-money-supply"},
+            )
+
+        assert result.structured_content["status"] == "available"
+        assert result.structured_content["dataset_id"] == "sama-money-supply"
+        assert result.structured_content["snapshot_path"] == str(snapshot_path)
+    finally:
+        _restore_optional_bytes(registry_path, original_registry)
+        _restore_optional_bytes(snapshot_path, original_snapshot)
+
+
+def _read_optional_bytes(path: Path) -> bytes | None:
+    if not path.exists():
+        return None
+    return path.read_bytes()
+
+
+def _restore_optional_bytes(path: Path, contents: bytes | None) -> None:
+    if contents is None:
+        if path.exists():
+            path.unlink()
+        return
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(contents)
