@@ -82,33 +82,14 @@ def test_module_entrypoint_delegates_to_cli(monkeypatch) -> None:
     assert calls == [["check-imports"]]
 
 
-def test_installed_module_entrypoint_runs_check_imports_subprocess() -> None:
+def test_source_tree_cli_check_imports_runs_subprocess() -> None:
     root = Path(__file__).resolve().parents[2]
     env = os.environ.copy()
     env.pop("PYTHONPATH", None)
     python = Path(sys.prefix) / "bin" / "python"
 
     result = subprocess.run(
-        [str(python), "-m", "saudi_open_data_mcp", "--check-imports"],
-        cwd=root,
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stderr or result.stdout
-    assert "server wiring is importable" in result.stdout
-
-
-def test_installed_console_script_runs_check_imports_subprocess() -> None:
-    root = Path(__file__).resolve().parents[2]
-    env = os.environ.copy()
-    env.pop("PYTHONPATH", None)
-    script = Path(sys.prefix) / "bin" / "saudi-open-data-mcp"
-
-    result = subprocess.run(
-        [str(script), "--check-imports"],
+        [str(python), "src/saudi_open_data_mcp/cli.py", "--check-imports"],
         cwd=root,
         env=env,
         capture_output=True,

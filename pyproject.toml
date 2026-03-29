@@ -29,9 +29,6 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/saudi_open_data_mcp"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"src/sitecustomize.py" = "sitecustomize.py"
-
 [tool.pytest.ini_options]
 addopts = "-ra"
 asyncio_mode = "auto"
@@ -39,7 +36,7 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 
 [tool.uv]
-package = true
+package = false
 
 [tool.ruff]
 line-length = 100
