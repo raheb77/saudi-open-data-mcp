@@ -151,8 +151,6 @@ The helper script remains available for local HTTP development:
 ./scripts/run_local_http.sh
 ```
 
-The package still defines module and console-script entrypoints for real installs, but they are not the verified local development path in the current repo workflow.
-
 ## Testing
 
 The repo includes four test layers:

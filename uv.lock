@@ -1031,7 +1031,7 @@ wheels = [
 [[package]]
 name = "saudi-open-data-mcp"
 version = "0.1.0"
-source = { editable = "." }
+source = { virtual = "." }
 dependencies = [
     { name = "duckdb" },
     { name = "fastmcp" },

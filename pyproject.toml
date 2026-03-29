@@ -15,9 +15,6 @@ dependencies = [
     "pydantic>=2,<3",
 ]
 
-[project.scripts]
-saudi-open-data-mcp = "saudi_open_data_mcp.cli:main"
-
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
