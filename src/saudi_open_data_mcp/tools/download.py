@@ -23,7 +23,7 @@ from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 class DatasetDownloadStatus(StrEnum):
     """Local artifact availability state for a dataset."""
 
-    UNKNOWN_DATASET = "unknown_dataset"
+    MISSING = "missing"
     ARTIFACT_MISSING = "artifact_missing"
     AVAILABLE = "available"
 
@@ -51,18 +51,18 @@ class DatasetDownloadResult(BaseModel):
 
     @model_validator(mode="after")
     def _validate_consistency(self) -> Self:
-        if self.status is DatasetDownloadStatus.UNKNOWN_DATASET:
+        if self.status is DatasetDownloadStatus.MISSING:
             if self.reason is not DatasetDownloadReason.DATASET_NOT_IN_REGISTRY:
-                raise ValueError("unknown_dataset results require dataset_not_in_registry")
+                raise ValueError("missing results require dataset_not_in_registry")
             if self.local_snapshot_exists:
-                raise ValueError("unknown_dataset results must not claim a local snapshot")
+                raise ValueError("missing results must not claim a local snapshot")
             if (
                 self.source is not None
                 or self.snapshot_path is not None
                 or self.freshness is not None
             ):
                 raise ValueError(
-                    "unknown_dataset results must not include source, snapshot_path, or freshness"
+                    "missing results must not include source, snapshot_path, or freshness"
                 )
             return self
 
@@ -96,12 +96,12 @@ class DatasetDownloadResult(BaseModel):
         return self
 
     @classmethod
-    def unknown_dataset(cls, dataset_id: str) -> Self:
-        """Build an explicit unknown-dataset result."""
+    def missing(cls, dataset_id: str) -> Self:
+        """Build an explicit missing result for an unknown dataset."""
 
         return cls(
             dataset_id=dataset_id,
-            status=DatasetDownloadStatus.UNKNOWN_DATASET,
+            status=DatasetDownloadStatus.MISSING,
             reason=DatasetDownloadReason.DATASET_NOT_IN_REGISTRY,
             local_snapshot_exists=False,
         )
@@ -168,7 +168,7 @@ class DatasetDownloadTool:
 
         descriptor = self._repository.get_dataset(dataset_id)
         if descriptor is None:
-            return DatasetDownloadResult.unknown_dataset(dataset_id)
+            return DatasetDownloadResult.missing(dataset_id)
 
         freshness = evaluate_snapshot_freshness(
             source=descriptor.source,

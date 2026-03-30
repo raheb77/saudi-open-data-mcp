@@ -27,7 +27,7 @@ QueryFilterValue = str | int | float | bool | None
 class DatasetQueryStatus(StrEnum):
     """Explicit local query status for v0.1."""
 
-    UNKNOWN_DATASET = "unknown_dataset"
+    MISSING = "missing"
     SNAPSHOT_MISSING = "snapshot_missing"
     LIMITED = "limited"
     FAILED = "failed"
@@ -68,16 +68,14 @@ class DatasetQueryResult(BaseModel):
 
     @model_validator(mode="after")
     def _validate_consistency(self) -> Self:
-        if self.status is DatasetQueryStatus.UNKNOWN_DATASET:
+        if self.status is DatasetQueryStatus.MISSING:
             if self.source is not None:
-                raise ValueError("unknown_dataset results must not include source")
+                raise ValueError("missing results must not include source")
             if self.total_records_before_filter is not None:
-                raise ValueError(
-                    "unknown_dataset results must not include total_records_before_filter"
-                )
+                raise ValueError("missing results must not include total_records_before_filter")
             if self.matched_records or self.limitations or self.failure is not None:
                 raise ValueError(
-                    "unknown_dataset results must not include records, limitations, or failure"
+                    "missing results must not include records, limitations, or failure"
                 )
             return self
 
@@ -135,18 +133,18 @@ class DatasetQueryResult(BaseModel):
         return self
 
     @classmethod
-    def unknown_dataset(
+    def missing(
         cls,
         *,
         dataset_id: str,
         applied_filters: dict[str, QueryFilterValue],
         limit: int | None,
     ) -> Self:
-        """Build an explicit unknown-dataset query result."""
+        """Build an explicit missing query result for an unknown dataset."""
 
         return cls(
             dataset_id=dataset_id,
-            status=DatasetQueryStatus.UNKNOWN_DATASET,
+            status=DatasetQueryStatus.MISSING,
             applied_filters=applied_filters,
             limit=limit,
         )
@@ -279,7 +277,7 @@ class DatasetQueryTool:
 
         descriptor = self._repository.get_dataset(normalized_dataset_id)
         if descriptor is None:
-            return DatasetQueryResult.unknown_dataset(
+            return DatasetQueryResult.missing(
                 dataset_id=normalized_dataset_id,
                 applied_filters=normalized_filters,
                 limit=normalized_limit,

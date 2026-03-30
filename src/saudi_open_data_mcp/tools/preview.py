@@ -23,6 +23,7 @@ DatasetPayloadFetcher = Callable[[str], Awaitable[Any]]
 class PreviewStatus(StrEnum):
     """Preview status aligned to the current normalization capability."""
 
+    MISSING = "missing"
     RECORD_DERIVABLE = "record_derivable"
     LIMITED = "limited"
     FAILED = "failed"
@@ -58,6 +59,13 @@ class DatasetPreviewResult(BaseModel):
 
     @model_validator(mode="after")
     def _validate_status_consistency(self) -> Self:
+        if self.status is PreviewStatus.MISSING:
+            if self.failure is not None or self.normalization_result is not None:
+                raise ValueError(
+                    "missing preview results must not include failure or normalization_result"
+                )
+            return self
+
         if self.status is PreviewStatus.FAILED:
             if self.failure is None:
                 raise ValueError("failure details must be present when preview status is failed")
@@ -117,12 +125,9 @@ class DatasetPreviewTool:
 
         descriptor = self._repository.get_dataset(requested_dataset_id)
         if descriptor is None:
-            return self._failed_result(
+            return DatasetPreviewResult(
                 dataset_id=requested_dataset_id,
-                stage=PreviewFailureStage.LOOKUP,
-                error=LookupError(
-                    f"dataset_id '{requested_dataset_id}' is not present in the registry"
-                ),
+                status=PreviewStatus.MISSING,
             )
 
         try:

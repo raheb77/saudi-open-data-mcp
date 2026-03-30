@@ -43,7 +43,7 @@ def _descriptor(dataset_id: str = "sama-money-supply") -> DatasetDescriptor:
     )
 
 
-def test_query_dataset_returns_explicit_unknown_dataset_result(
+def test_query_dataset_returns_explicit_missing_result_for_unknown_dataset(
     tmp_path: Path,
 ) -> None:
     repository = RegistryRepository(tmp_path / "registry.sqlite")
@@ -51,7 +51,7 @@ def test_query_dataset_returns_explicit_unknown_dataset_result(
 
     result = tool.query_dataset("missing-dataset")
 
-    assert result.status is DatasetQueryStatus.UNKNOWN_DATASET
+    assert result.status is DatasetQueryStatus.MISSING
     assert result.dataset_id == "missing-dataset"
     assert result.source is None
     assert result.total_records_before_filter is None

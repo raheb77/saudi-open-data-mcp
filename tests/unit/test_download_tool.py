@@ -39,7 +39,7 @@ def _descriptor(dataset_id: str = "sama-money-supply") -> DatasetDescriptor:
     )
 
 
-def test_get_dataset_download_returns_explicit_unknown_dataset_result(
+def test_get_dataset_download_returns_explicit_missing_result_for_unknown_dataset(
     tmp_path: Path,
 ) -> None:
     repository = RegistryRepository(tmp_path / "registry.sqlite")
@@ -48,7 +48,7 @@ def test_get_dataset_download_returns_explicit_unknown_dataset_result(
     result = tool.get_dataset_download("missing-dataset")
 
     assert isinstance(result, DatasetDownloadResult)
-    assert result.status is DatasetDownloadStatus.UNKNOWN_DATASET
+    assert result.status is DatasetDownloadStatus.MISSING
     assert result.reason is DatasetDownloadReason.DATASET_NOT_IN_REGISTRY
     assert result.local_snapshot_exists is False
     assert result.source is None

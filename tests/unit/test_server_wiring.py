@@ -198,7 +198,7 @@ async def test_server_registers_current_mcp_surface(
     ]
 
 
-async def test_server_metadata_health_download_and_query_lookup_keep_missing_dataset_explicit(
+async def test_server_missing_dataset_lookup_stays_explicit(
     tmp_path: Path,
 ) -> None:
     app = create_server(_runtime_config(tmp_path))
@@ -227,7 +227,7 @@ async def test_server_metadata_health_download_and_query_lookup_keep_missing_dat
     }
     assert download_result.structured_content == {
         "dataset_id": "missing-dataset",
-        "status": "unknown_dataset",
+        "status": "missing",
         "reason": "dataset_not_in_registry",
         "local_snapshot_exists": False,
         "source": None,
@@ -236,7 +236,7 @@ async def test_server_metadata_health_download_and_query_lookup_keep_missing_dat
     }
     assert query_result.structured_content == {
         "dataset_id": "missing-dataset",
-        "status": "unknown_dataset",
+        "status": "missing",
         "source": None,
         "applied_filters": {},
         "limit": None,
@@ -247,13 +247,9 @@ async def test_server_metadata_health_download_and_query_lookup_keep_missing_dat
     }
     assert preview_result.structured_content == {
         "dataset_id": "missing-dataset",
-        "status": "failed",
+        "status": "missing",
         "normalization_result": None,
-        "failure": {
-            "stage": "lookup",
-            "error_type": "LookupError",
-            "message": "dataset_id 'missing-dataset' is not present in the registry",
-        },
+        "failure": None,
     }
 
 

@@ -134,7 +134,7 @@ async def test_connector_failure_becomes_explicit_preview_failure(tmp_path: Path
 
 
 @pytest.mark.asyncio
-async def test_preview_tool_returns_explicit_failure_for_unknown_dataset(
+async def test_preview_tool_returns_explicit_missing_result_for_unknown_dataset(
     tmp_path: Path,
 ) -> None:
     async def fetcher(dataset_id: str) -> RawPayload:
@@ -147,12 +147,10 @@ async def test_preview_tool_returns_explicit_failure_for_unknown_dataset(
 
     result = await tool.preview_dataset("missing-dataset")
 
-    assert result.status is PreviewStatus.FAILED
+    assert result.status is PreviewStatus.MISSING
     assert result.dataset_id == "missing-dataset"
     assert result.normalization_result is None
-    assert result.failure is not None
-    assert result.failure.stage is PreviewFailureStage.LOOKUP
-    assert result.failure.error_type == "LookupError"
+    assert result.failure is None
 
 
 @pytest.mark.asyncio
