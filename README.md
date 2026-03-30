@@ -154,6 +154,7 @@ Local state expectations:
 - `download_dataset` reports only what exists in the local snapshot store. It does not fetch remotely.
 - `query_dataset` only works when a local snapshot exists and the normalization layer can derive canonical records from that snapshot.
 - If no local snapshot exists, `download_dataset` returns `artifact_missing` and `query_dataset` returns `snapshot_missing`.
+- On a fresh checkout, those local-only states are the expected result until snapshots have been written under the configured snapshot directory.
 
 The helper script remains available for local HTTP development:
 
@@ -207,12 +208,18 @@ Current limitation to keep explicit: the supported host registration path is std
 
 HTTP is available, but it is not a plain REST surface. Use an MCP-aware client against `/mcp`.
 
+Start the server in one shell:
+
+```bash
+python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
+```
+
 Naive probing can look broken even when the server is healthy:
 
 - `GET /` can return `404`
 - `GET /mcp` without the expected MCP headers can return `406`
 
-That behavior is expected for the current streamable HTTP setup.
+That behavior is expected for the current streamable HTTP setup. Browser or `curl` checks are useful only as a negative smoke test here, not as a real MCP session test.
 
 Minimal MCP-aware test example:
 
