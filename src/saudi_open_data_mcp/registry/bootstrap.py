@@ -12,7 +12,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         source_locator="report.aspx?cid=41",
         title="Balance of Payments",
         description=(
-            "Initial v0.1 seed descriptor for the SAMA balance of payments dataset."
+            "Initial v0.1 registry entry for the SAMA balance of payments dataset."
         ),
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.QUARTERLY,
@@ -31,7 +31,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         source_locator="report.aspx?cid=52",
         title="Interest Rates",
         description=(
-            "Initial v0.1 seed descriptor for SAMA-published interest rate data."
+            "Initial v0.1 registry entry for SAMA-published interest rate data."
         ),
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.MONTHLY,
@@ -50,7 +50,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         source_locator="report.aspx?cid=55",
         title="Money Supply",
         description=(
-            "Initial v0.1 seed descriptor for SAMA monetary aggregate data."
+            "Initial v0.1 registry entry for SAMA monetary aggregate data."
         ),
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.MONTHLY,
