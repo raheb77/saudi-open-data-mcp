@@ -193,16 +193,48 @@ def _bind_canonical_dataset_id(
     descriptor: DatasetDescriptor,
     normalization_result: NormalizationResult,
 ) -> NormalizationResult:
-    """Rewrite source-locator-based preview output to the canonical dataset identity."""
+    """Rewrite preview output to the canonical dataset identity for MCP callers."""
 
     canonical_records = tuple(
         record.model_copy(update={"dataset_id": descriptor.dataset_id})
         for record in normalization_result.records
     )
+    mapping_result = _bind_canonical_locator_fields(
+        result=normalization_result.mapping_result,
+        dataset_id=descriptor.dataset_id,
+    )
+    validation_result = _bind_canonical_locator_fields(
+        result=normalization_result.validation_result,
+        dataset_id=descriptor.dataset_id,
+    )
     return normalization_result.model_copy(
         update={
             "dataset_id": descriptor.dataset_id,
             "records": canonical_records,
+            "mapping_result": mapping_result,
+            "validation_result": validation_result,
+        }
+    )
+
+
+def _bind_canonical_locator_fields(
+    *,
+    result: Any,
+    dataset_id: str,
+) -> Any:
+    """Rewrite nested dataset locator fields to the canonical dataset identity."""
+
+    if result is None:
+        return None
+
+    canonical_fields = dict(result.canonical_fields)
+    if "dataset_locator" in canonical_fields:
+        canonical_fields["dataset_locator"] = dataset_id
+
+    return result.model_copy(
+        update={
+            "dataset_locator": dataset_id,
+            "canonical_fields": canonical_fields,
         }
     )
 

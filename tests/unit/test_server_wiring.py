@@ -188,6 +188,30 @@ async def test_server_registers_current_mcp_surface(
     assert preview_result.structured_content["normalization_result"]["dataset_id"] == (
         "sama-money-supply"
     )
+    assert (
+        preview_result.structured_content["normalization_result"]["mapping_result"][
+            "dataset_locator"
+        ]
+        == "sama-money-supply"
+    )
+    assert (
+        preview_result.structured_content["normalization_result"]["mapping_result"][
+            "canonical_fields"
+        ]["dataset_locator"]
+        == "sama-money-supply"
+    )
+    assert (
+        preview_result.structured_content["normalization_result"]["validation_result"][
+            "dataset_locator"
+        ]
+        == "sama-money-supply"
+    )
+    assert (
+        preview_result.structured_content["normalization_result"]["validation_result"][
+            "canonical_fields"
+        ]["dataset_locator"]
+        == "sama-money-supply"
+    )
     assert preview_result.structured_content["normalization_result"]["records"] == [
         {
             "dataset_id": "sama-money-supply",
@@ -352,6 +376,30 @@ async def test_server_preview_tool_keeps_html_preview_limited(tmp_path: Path) ->
     assert preview_result.structured_content["normalization_result"]["status"] == "limited"
     assert preview_result.structured_content["normalization_result"]["dataset_id"] == (
         "sama-money-supply"
+    )
+    assert (
+        preview_result.structured_content["normalization_result"]["mapping_result"][
+            "dataset_locator"
+        ]
+        == "sama-money-supply"
+    )
+    assert (
+        preview_result.structured_content["normalization_result"]["mapping_result"][
+            "canonical_fields"
+        ]["dataset_locator"]
+        == "sama-money-supply"
+    )
+    assert (
+        preview_result.structured_content["normalization_result"]["validation_result"][
+            "dataset_locator"
+        ]
+        == "sama-money-supply"
+    )
+    assert (
+        preview_result.structured_content["normalization_result"]["validation_result"][
+            "canonical_fields"
+        ]["dataset_locator"]
+        == "sama-money-supply"
     )
 
 

@@ -78,6 +78,18 @@ async def test_json_payload_returns_record_derivable_preview_result(tmp_path: Pa
     assert result.normalization_result is not None
     assert result.normalization_result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
     assert result.normalization_result.dataset_id == DATASET_ID
+    assert result.normalization_result.mapping_result is not None
+    assert result.normalization_result.mapping_result.dataset_locator == DATASET_ID
+    assert (
+        result.normalization_result.mapping_result.canonical_fields["dataset_locator"]
+        == DATASET_ID
+    )
+    assert result.normalization_result.validation_result is not None
+    assert result.normalization_result.validation_result.dataset_locator == DATASET_ID
+    assert (
+        result.normalization_result.validation_result.canonical_fields["dataset_locator"]
+        == DATASET_ID
+    )
     assert len(result.normalization_result.records) == 1
     assert result.normalization_result.records[0].dataset_id == DATASET_ID
     assert result.normalization_result.records[0].source == "sama"
@@ -109,6 +121,18 @@ async def test_html_payload_returns_limited_preview_result(tmp_path: Path) -> No
     assert result.normalization_result is not None
     assert result.normalization_result.status is NormalizationPipelineStatus.LIMITED
     assert result.normalization_result.dataset_id == DATASET_ID
+    assert result.normalization_result.mapping_result is not None
+    assert result.normalization_result.mapping_result.dataset_locator == DATASET_ID
+    assert (
+        result.normalization_result.mapping_result.canonical_fields["dataset_locator"]
+        == DATASET_ID
+    )
+    assert result.normalization_result.validation_result is not None
+    assert result.normalization_result.validation_result.dataset_locator == DATASET_ID
+    assert (
+        result.normalization_result.validation_result.canonical_fields["dataset_locator"]
+        == DATASET_ID
+    )
     assert result.normalization_result.records == ()
 
 
