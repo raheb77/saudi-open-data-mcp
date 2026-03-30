@@ -18,11 +18,11 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         update_frequency=UpdateFrequency.QUARTERLY,
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=(
-            "This is a hand-curated seed descriptor, not a complete SAMA catalog entry.",
+            "This is a hand-curated v0.1 registry entry, not a complete SAMA catalog entry.",
         ),
         known_issues=(
-            "The source locator is hand-curated for v0.1 and may need revision if "
-            "SAMA changes the report route.",
+            "This upstream mapping is hand-curated for v0.1 and may need revision "
+            "if SAMA changes report structure or routes.",
         ),
     ),
     DatasetDescriptor(
@@ -37,11 +37,11 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=(
-            "This is a hand-curated seed descriptor, not a complete SAMA catalog entry.",
+            "This is a hand-curated v0.1 registry entry, not a complete SAMA catalog entry.",
         ),
         known_issues=(
-            "The source locator is hand-curated for v0.1 and may need revision if "
-            "SAMA changes the report route.",
+            "This upstream mapping is hand-curated for v0.1 and may need revision "
+            "if SAMA changes report structure or routes.",
         ),
     ),
     DatasetDescriptor(
@@ -56,11 +56,11 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=(
-            "This is a hand-curated seed descriptor, not a complete SAMA catalog entry.",
+            "This is a hand-curated v0.1 registry entry, not a complete SAMA catalog entry.",
         ),
         known_issues=(
-            "The source locator is hand-curated for v0.1 and may need revision if "
-            "SAMA changes the report route.",
+            "This upstream mapping is hand-curated for v0.1 and may need revision "
+            "if SAMA changes report structure or routes.",
         ),
     ),
 )
