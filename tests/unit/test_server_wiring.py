@@ -67,6 +67,7 @@ async def test_server_registers_current_mcp_surface(
     assert metadata_result.structured_content["status"] == "found"
     assert metadata_result.structured_content["dataset_id"] == "sama-money-supply"
     assert metadata_result.structured_content["metadata"]["title"] == "Money Supply"
+    assert "source_locator" not in metadata_result.structured_content["metadata"]
 
     health_result = await tools["dataset_health"].run({"dataset_id": "sama-money-supply"})
     assert health_result.structured_content["status"] == "found"

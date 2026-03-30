@@ -14,6 +14,7 @@ from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.tools.metadata import (
     DatasetMetadataLookupResult,
     DatasetMetadataTool,
+    PublicDatasetMetadata,
 )
 
 
@@ -45,8 +46,18 @@ def test_get_dataset_metadata_returns_typed_metadata_for_valid_dataset_id(
     assert isinstance(result, DatasetMetadataLookupResult)
     assert result.status == "found"
     assert result.dataset_id == descriptor.dataset_id
-    assert result.metadata == descriptor
-    assert isinstance(result.metadata, DatasetDescriptor)
+    assert result.metadata == PublicDatasetMetadata(
+        dataset_id=descriptor.dataset_id,
+        source=descriptor.source,
+        title=descriptor.title,
+        description=descriptor.description,
+        schema_version=descriptor.schema_version,
+        update_frequency=descriptor.update_frequency,
+        health_status=descriptor.health_status,
+        caveats=descriptor.caveats,
+        known_issues=descriptor.known_issues,
+    )
+    assert isinstance(result.metadata, PublicDatasetMetadata)
 
 
 def test_get_dataset_metadata_returns_explicit_missing_result_for_unknown_dataset(
@@ -63,7 +74,7 @@ def test_get_dataset_metadata_returns_explicit_missing_result_for_unknown_datase
     assert result.metadata is None
 
 
-def test_get_dataset_metadata_matches_repository_descriptor_without_transforming_it(
+def test_get_dataset_metadata_omits_internal_source_locator_from_public_metadata(
     tmp_path: Path,
 ) -> None:
     repository = RegistryRepository(tmp_path / "registry.sqlite")
@@ -71,12 +82,11 @@ def test_get_dataset_metadata_matches_repository_descriptor_without_transforming
     tool = DatasetMetadataTool(repository)
 
     repository.upsert_dataset(descriptor)
-    stored_descriptor = repository.get_dataset(descriptor.dataset_id)
     result = tool.get_dataset_metadata(descriptor.dataset_id)
 
-    assert stored_descriptor is not None
     assert result.status == "found"
-    assert result.metadata == stored_descriptor
+    assert result.metadata is not None
+    assert "source_locator" not in result.metadata.model_dump(mode="json")
 
 
 def test_metadata_tool_module_does_not_import_connectors() -> None:

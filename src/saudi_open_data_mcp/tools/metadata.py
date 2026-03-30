@@ -7,8 +7,47 @@ from typing import Literal, Self
 from fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from saudi_open_data_mcp.registry.models import DatasetDescriptor, NonEmptyText
+from saudi_open_data_mcp.registry.models import (
+    DatasetDescriptor,
+    DatasetHealthStatus,
+    NonEmptyText,
+    RegistryNote,
+    SchemaVersion,
+    UpdateFrequency,
+)
 from saudi_open_data_mcp.registry.repository import RegistryRepository
+
+
+class PublicDatasetMetadata(BaseModel):
+    """Operator-facing dataset metadata without internal source locator details."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    dataset_id: NonEmptyText
+    source: NonEmptyText
+    title: NonEmptyText
+    description: NonEmptyText
+    schema_version: SchemaVersion
+    update_frequency: UpdateFrequency
+    health_status: DatasetHealthStatus
+    caveats: tuple[RegistryNote, ...]
+    known_issues: tuple[RegistryNote, ...]
+
+    @classmethod
+    def from_descriptor(cls, descriptor: DatasetDescriptor) -> Self:
+        """Build public metadata from a registry-owned descriptor."""
+
+        return cls(
+            dataset_id=descriptor.dataset_id,
+            source=descriptor.source,
+            title=descriptor.title,
+            description=descriptor.description,
+            schema_version=descriptor.schema_version,
+            update_frequency=descriptor.update_frequency,
+            health_status=descriptor.health_status,
+            caveats=descriptor.caveats,
+            known_issues=descriptor.known_issues,
+        )
 
 
 class DatasetMetadataLookupResult(BaseModel):
@@ -18,7 +57,7 @@ class DatasetMetadataLookupResult(BaseModel):
 
     dataset_id: NonEmptyText
     status: Literal["found", "missing"]
-    metadata: DatasetDescriptor | None = None
+    metadata: PublicDatasetMetadata | None = None
 
     @model_validator(mode="after")
     def _validate_status_and_metadata(self) -> Self:
@@ -40,7 +79,7 @@ class DatasetMetadataLookupResult(BaseModel):
         return cls(
             dataset_id=metadata.dataset_id,
             status="found",
-            metadata=metadata,
+            metadata=PublicDatasetMetadata.from_descriptor(metadata),
         )
 
     @classmethod
