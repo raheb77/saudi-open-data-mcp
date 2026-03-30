@@ -9,11 +9,13 @@ from typing import Any, Protocol, Self
 from fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from saudi_open_data_mcp.normalization.field_mapping import FieldMappingResult
 from saudi_open_data_mcp.normalization.pipeline import (
     NormalizationPipeline,
     NormalizationPipelineStatus,
     NormalizationResult,
 )
+from saudi_open_data_mcp.normalization.validators import FieldMappingValidationResult
 from saudi_open_data_mcp.registry.models import DatasetDescriptor
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 
@@ -219,9 +221,9 @@ def _bind_canonical_dataset_id(
 
 def _bind_canonical_locator_fields(
     *,
-    result: Any,
+    result: FieldMappingResult | FieldMappingValidationResult | None,
     dataset_id: str,
-) -> Any:
+) -> FieldMappingResult | FieldMappingValidationResult | None:
     """Rewrite nested dataset locator fields to the canonical dataset identity."""
 
     if result is None:
