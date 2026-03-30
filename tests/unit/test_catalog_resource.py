@@ -33,8 +33,8 @@ def _descriptor(*, dataset_id: str, title: str) -> DatasetDescriptor:
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=("Official labeling may change.",),
         known_issues=(
-            "The source locator is hand-curated for v0.1 and may need revision if "
-            "SAMA changes the report route.",
+            "This upstream mapping is hand-curated for v0.1 and may need revision "
+            "if SAMA changes report structure or routes.",
         ),
     )
 
