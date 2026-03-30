@@ -75,26 +75,13 @@ async def test_json_payload_returns_record_derivable_preview_result(tmp_path: Pa
     assert result.status is PreviewStatus.RECORD_DERIVABLE
     assert result.failure is None
     assert result.dataset_id == DATASET_ID
-    assert result.normalization_result is not None
-    assert result.normalization_result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
-    assert result.normalization_result.dataset_id == DATASET_ID
-    assert result.normalization_result.mapping_result is not None
-    assert result.normalization_result.mapping_result.dataset_locator == DATASET_ID
-    assert (
-        result.normalization_result.mapping_result.canonical_fields["dataset_locator"]
-        == DATASET_ID
-    )
-    assert result.normalization_result.validation_result is not None
-    assert result.normalization_result.validation_result.dataset_locator == DATASET_ID
-    assert (
-        result.normalization_result.validation_result.canonical_fields["dataset_locator"]
-        == DATASET_ID
-    )
-    assert len(result.normalization_result.records) == 1
-    assert result.normalization_result.records[0].dataset_id == DATASET_ID
-    assert result.normalization_result.records[0].source == "sama"
-    assert result.normalization_result.records[0].record_index == 0
-    assert result.normalization_result.records[0].fields == {
+    assert result.limitations == ()
+    assert "normalization_result" not in result.model_dump(mode="json")
+    assert len(result.records) == 1
+    assert result.records[0].dataset_id == DATASET_ID
+    assert result.records[0].source == "sama"
+    assert result.records[0].record_index == 0
+    assert result.records[0].fields == {
         "period": "2026-01",
         "value": 1,
     }
@@ -118,22 +105,11 @@ async def test_html_payload_returns_limited_preview_result(tmp_path: Path) -> No
     assert result.status is PreviewStatus.LIMITED
     assert result.failure is None
     assert result.dataset_id == DATASET_ID
-    assert result.normalization_result is not None
-    assert result.normalization_result.status is NormalizationPipelineStatus.LIMITED
-    assert result.normalization_result.dataset_id == DATASET_ID
-    assert result.normalization_result.mapping_result is not None
-    assert result.normalization_result.mapping_result.dataset_locator == DATASET_ID
-    assert (
-        result.normalization_result.mapping_result.canonical_fields["dataset_locator"]
-        == DATASET_ID
+    assert result.records == ()
+    assert result.limitations == (
+        "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
     )
-    assert result.normalization_result.validation_result is not None
-    assert result.normalization_result.validation_result.dataset_locator == DATASET_ID
-    assert (
-        result.normalization_result.validation_result.canonical_fields["dataset_locator"]
-        == DATASET_ID
-    )
-    assert result.normalization_result.records == ()
+    assert "normalization_result" not in result.model_dump(mode="json")
 
 
 @pytest.mark.asyncio
@@ -151,7 +127,8 @@ async def test_connector_failure_becomes_explicit_preview_failure(tmp_path: Path
 
     assert result.status is PreviewStatus.FAILED
     assert result.dataset_id == DATASET_ID
-    assert result.normalization_result is None
+    assert result.records == ()
+    assert result.limitations == ()
     assert result.failure is not None
     assert result.failure.stage is PreviewFailureStage.FETCH
     assert result.failure.error_type == "SourceUnavailableError"
@@ -173,7 +150,8 @@ async def test_preview_tool_returns_explicit_missing_result_for_unknown_dataset(
 
     assert result.status is PreviewStatus.MISSING
     assert result.dataset_id == "missing-dataset"
-    assert result.normalization_result is None
+    assert result.records == ()
+    assert result.limitations == ()
     assert result.failure is None
 
 
@@ -219,5 +197,5 @@ async def test_preview_tool_uses_registry_lookup_and_normalization_pipeline(
     assert captured_payloads == [raw_payload]
     assert result.status is PreviewStatus.RECORD_DERIVABLE
     assert result.dataset_id == DATASET_ID
-    assert result.normalization_result is not None
-    assert result.normalization_result.dataset_id == DATASET_ID
+    assert result.records == ()
+    assert result.limitations == ()

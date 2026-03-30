@@ -182,37 +182,8 @@ async def test_server_registers_current_mcp_surface(
     assert preview_result.structured_content["status"] == "record_derivable"
     assert preview_result.structured_content["dataset_id"] == "sama-money-supply"
     assert preview_result.structured_content["failure"] is None
-    assert preview_result.structured_content["normalization_result"]["status"] == (
-        "record_derivable"
-    )
-    assert preview_result.structured_content["normalization_result"]["dataset_id"] == (
-        "sama-money-supply"
-    )
-    assert (
-        preview_result.structured_content["normalization_result"]["mapping_result"][
-            "dataset_locator"
-        ]
-        == "sama-money-supply"
-    )
-    assert (
-        preview_result.structured_content["normalization_result"]["mapping_result"][
-            "canonical_fields"
-        ]["dataset_locator"]
-        == "sama-money-supply"
-    )
-    assert (
-        preview_result.structured_content["normalization_result"]["validation_result"][
-            "dataset_locator"
-        ]
-        == "sama-money-supply"
-    )
-    assert (
-        preview_result.structured_content["normalization_result"]["validation_result"][
-            "canonical_fields"
-        ]["dataset_locator"]
-        == "sama-money-supply"
-    )
-    assert preview_result.structured_content["normalization_result"]["records"] == [
+    assert preview_result.structured_content["limitations"] == []
+    assert preview_result.structured_content["records"] == [
         {
             "dataset_id": "sama-money-supply",
             "source": "sama",
@@ -272,7 +243,8 @@ async def test_server_missing_dataset_lookup_stays_explicit(
     assert preview_result.structured_content == {
         "dataset_id": "missing-dataset",
         "status": "missing",
-        "normalization_result": None,
+        "records": [],
+        "limitations": [],
         "failure": None,
     }
 
@@ -373,34 +345,10 @@ async def test_server_preview_tool_keeps_html_preview_limited(tmp_path: Path) ->
     assert preview_result.structured_content["status"] == "limited"
     assert preview_result.structured_content["failure"] is None
     assert preview_result.structured_content["dataset_id"] == "sama-money-supply"
-    assert preview_result.structured_content["normalization_result"]["status"] == "limited"
-    assert preview_result.structured_content["normalization_result"]["dataset_id"] == (
-        "sama-money-supply"
-    )
-    assert (
-        preview_result.structured_content["normalization_result"]["mapping_result"][
-            "dataset_locator"
-        ]
-        == "sama-money-supply"
-    )
-    assert (
-        preview_result.structured_content["normalization_result"]["mapping_result"][
-            "canonical_fields"
-        ]["dataset_locator"]
-        == "sama-money-supply"
-    )
-    assert (
-        preview_result.structured_content["normalization_result"]["validation_result"][
-            "dataset_locator"
-        ]
-        == "sama-money-supply"
-    )
-    assert (
-        preview_result.structured_content["normalization_result"]["validation_result"][
-            "canonical_fields"
-        ]["dataset_locator"]
-        == "sama-money-supply"
-    )
+    assert preview_result.structured_content["records"] == []
+    assert preview_result.structured_content["limitations"] == [
+        "text_or_html_body_requires_source_specific_extraction_before_record_normalization"
+    ]
 
 
 def _write_snapshot_with_mtime(

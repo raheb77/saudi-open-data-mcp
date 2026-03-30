@@ -7,15 +7,14 @@ from enum import StrEnum
 from typing import Any, Protocol, Self
 
 from fastmcp import FastMCP
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from saudi_open_data_mcp.normalization.field_mapping import FieldMappingResult
 from saudi_open_data_mcp.normalization.pipeline import (
+    CanonicalRecord,
     NormalizationPipeline,
     NormalizationPipelineStatus,
     NormalizationResult,
 )
-from saudi_open_data_mcp.normalization.validators import FieldMappingValidationResult
 from saudi_open_data_mcp.registry.models import DatasetDescriptor
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 
@@ -56,40 +55,40 @@ class DatasetPreviewResult(BaseModel):
 
     dataset_id: str
     status: PreviewStatus
-    normalization_result: NormalizationResult | None = None
+    records: tuple[CanonicalRecord, ...] = Field(default_factory=tuple)
+    limitations: tuple[str, ...] = Field(default_factory=tuple)
     failure: PreviewFailure | None = None
 
     @model_validator(mode="after")
     def _validate_status_consistency(self) -> Self:
         if self.status is PreviewStatus.MISSING:
-            if self.failure is not None or self.normalization_result is not None:
+            if self.failure is not None or self.records or self.limitations:
                 raise ValueError(
-                    "missing preview results must not include failure or normalization_result"
+                    "missing preview results must not include records, limitations, or failure"
                 )
             return self
 
         if self.status is PreviewStatus.FAILED:
             if self.failure is None:
                 raise ValueError("failure details must be present when preview status is failed")
-            if (
-                self.normalization_result is not None
-                and self.normalization_result.status is not NormalizationPipelineStatus.FAILED
-            ):
-                raise ValueError(
-                    "failed preview results may only carry failed normalization results"
-                )
+            if self.records or self.limitations:
+                raise ValueError("failed preview results must not include records or limitations")
             return self
 
         if self.failure is not None:
             raise ValueError("failure details must be absent for successful preview results")
-        if self.normalization_result is None:
-            raise ValueError(
-                "normalization_result must be present for record-derivable or limited previews"
-            )
-        if self.normalization_result.dataset_id != self.dataset_id:
-            raise ValueError("dataset_id must match normalization_result.dataset_id")
-        if self.status.value != self.normalization_result.status.value:
-            raise ValueError("preview status must match normalization pipeline status")
+        if self.status is PreviewStatus.LIMITED:
+            if self.records:
+                raise ValueError("limited preview results must not include records")
+            if not self.limitations:
+                raise ValueError("limited preview results must include explicit limitations")
+            return self
+
+        if self.limitations:
+            raise ValueError("record-derivable preview results must not include limitations")
+        for record in self.records:
+            if record.dataset_id != self.dataset_id:
+                raise ValueError("preview record dataset_id must match preview dataset_id")
         return self
 
 
@@ -150,7 +149,6 @@ class DatasetPreviewTool:
             return DatasetPreviewResult(
                 dataset_id=normalization_result.dataset_id,
                 status=PreviewStatus.FAILED,
-                normalization_result=normalization_result,
                 failure=PreviewFailure(
                     stage=PreviewFailureStage.NORMALIZATION,
                     error_type=(
@@ -169,7 +167,8 @@ class DatasetPreviewTool:
         return DatasetPreviewResult(
             dataset_id=normalization_result.dataset_id,
             status=PreviewStatus(normalization_result.status.value),
-            normalization_result=normalization_result,
+            records=normalization_result.records,
+            limitations=_collect_limitations(normalization_result),
         )
 
     @staticmethod
@@ -195,50 +194,40 @@ def _bind_canonical_dataset_id(
     descriptor: DatasetDescriptor,
     normalization_result: NormalizationResult,
 ) -> NormalizationResult:
-    """Rewrite preview output to the canonical dataset identity for MCP callers."""
+    """Rewrite preview records to the canonical dataset identity for MCP callers."""
 
     canonical_records = tuple(
         record.model_copy(update={"dataset_id": descriptor.dataset_id})
         for record in normalization_result.records
     )
-    mapping_result = _bind_canonical_locator_fields(
-        result=normalization_result.mapping_result,
-        dataset_id=descriptor.dataset_id,
-    )
-    validation_result = _bind_canonical_locator_fields(
-        result=normalization_result.validation_result,
-        dataset_id=descriptor.dataset_id,
-    )
     return normalization_result.model_copy(
         update={
             "dataset_id": descriptor.dataset_id,
             "records": canonical_records,
-            "mapping_result": mapping_result,
-            "validation_result": validation_result,
         }
     )
 
 
-def _bind_canonical_locator_fields(
-    *,
-    result: FieldMappingResult | FieldMappingValidationResult | None,
-    dataset_id: str,
-) -> FieldMappingResult | FieldMappingValidationResult | None:
-    """Rewrite nested dataset locator fields to the canonical dataset identity."""
+def _collect_limitations(normalization_result: NormalizationResult) -> tuple[str, ...]:
+    """Expose only explicit operator-facing limitations for limited previews."""
 
-    if result is None:
-        return None
+    if normalization_result.status is NormalizationPipelineStatus.RECORD_DERIVABLE:
+        return ()
 
-    canonical_fields = dict(result.canonical_fields)
-    if "dataset_locator" in canonical_fields:
-        canonical_fields["dataset_locator"] = dataset_id
+    if normalization_result.validation_result is not None:
+        limitations = normalization_result.validation_result.limitations
+        if limitations:
+            return limitations
 
-    return result.model_copy(
-        update={
-            "dataset_locator": dataset_id,
-            "canonical_fields": canonical_fields,
-        }
-    )
+    if normalization_result.mapping_result is not None:
+        limitations = normalization_result.mapping_result.limitations
+        if limitations:
+            return limitations
+
+    if normalization_result.status is NormalizationPipelineStatus.LIMITED:
+        raise ValueError("limited normalization result must include explicit limitations")
+
+    return ()
 
 
 def register(app: FastMCP) -> None:
