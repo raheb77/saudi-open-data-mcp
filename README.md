@@ -139,12 +139,21 @@ The supported local development activation path is the source-tree CLI:
 
 ```bash
 python src/saudi_open_data_mcp/cli.py check-imports
-python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
 python src/saudi_open_data_mcp/cli.py run-stdio
+python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
 ```
 
-`run-http` starts the FastMCP app over streamable HTTP. `run-stdio` starts the same app over stdio for MCP hosts that expect a command-based server process.
+`run-stdio` is the primary host/operator path. It starts the MCP server over stdio for Claude Desktop and other command-based MCP hosts.
+
+`run-http` starts the same app over streamable HTTP. Treat that path as MCP-aware and session-aware only. It is suitable for MCP inspectors and MCP clients, not generic browser probing.
+
 By default, local registry and snapshot state resolve under the repo's `.local/` directory; set `REGISTRY_PATH` or `SNAPSHOT_DIR` to override them explicitly.
+
+Local state expectations:
+
+- `download_dataset` reports only what exists in the local snapshot store. It does not fetch remotely.
+- `query_dataset` only works when a local snapshot exists and the normalization layer can derive canonical records from that snapshot.
+- If no local snapshot exists, `download_dataset` returns `artifact_missing` and `query_dataset` returns `snapshot_missing`.
 
 The helper script remains available for local HTTP development:
 
@@ -153,6 +162,8 @@ The helper script remains available for local HTTP development:
 ```
 
 ## MCP Host Registration
+
+For real MCP host registration, use stdio first. That is the primary supported operator path in this repo.
 
 For stdio-based MCP hosts, use the source-tree CLI directly with absolute paths.
 
@@ -191,6 +202,40 @@ If you prefer a single command path, the repo also includes a stdio helper scrip
 ```
 
 Current limitation to keep explicit: the supported host registration path is stdio through the source-tree CLI. Installed module entrypoints and packaged console scripts are not part of the verified workflow.
+
+## HTTP Testing Notes
+
+HTTP is available, but it is not a plain REST surface. Use an MCP-aware client against `/mcp`.
+
+Naive probing can look broken even when the server is healthy:
+
+- `GET /` can return `404`
+- `GET /mcp` without the expected MCP headers can return `406`
+
+That behavior is expected for the current streamable HTTP setup.
+
+Minimal MCP-aware test example:
+
+```python
+import asyncio
+
+from fastmcp import Client
+from fastmcp.client.transports import StreamableHttpTransport
+
+
+async def main() -> None:
+    async with Client(
+        transport=StreamableHttpTransport("http://127.0.0.1:8000/mcp")
+    ) as client:
+        result = await client.call_tool(
+            "dataset_metadata",
+            {"dataset_id": "sama-money-supply"},
+        )
+        print(result.structured_content)
+
+
+asyncio.run(main())
+```
 
 ## Testing
 
