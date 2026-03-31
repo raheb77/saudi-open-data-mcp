@@ -149,6 +149,8 @@ class DatasetHealthTool:
             known_issues=descriptor.known_issues,
             freshness=freshness,
         )
+
+
 def _merge_exclude(exclude: object, field_name: str) -> object:
     """Merge a field exclusion into an existing model_dump exclude value."""
 
