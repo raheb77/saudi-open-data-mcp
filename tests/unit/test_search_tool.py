@@ -15,6 +15,7 @@ from saudi_open_data_mcp.tools.search import (
     DatasetSearchMatch,
     DatasetSearchMode,
     DatasetSearchResult,
+    DatasetSearchStatus,
     DatasetSearchTool,
 )
 
@@ -52,6 +53,7 @@ def test_search_datasets_returns_typed_matches_for_known_query(tmp_path: Path) -
     result = tool.search_datasets("money")
 
     assert isinstance(result, DatasetSearchResult)
+    assert result.status is DatasetSearchStatus.RESULTS
     assert result.mode is DatasetSearchMode.FILTERED
     assert result.query == "money"
     assert result.normalized_query == "money"
@@ -107,6 +109,7 @@ def test_search_datasets_empty_query_returns_all_datasets_explicitly(
 
     result = tool.search_datasets("   ")
 
+    assert result.status is DatasetSearchStatus.RESULTS
     assert result.mode is DatasetSearchMode.ALL_DATASETS
     assert result.normalized_query == ""
     assert result.match_count == 2
@@ -128,6 +131,7 @@ def test_search_datasets_returns_empty_result_for_no_matches(tmp_path: Path) -> 
 
     result = tool.search_datasets("no-match-query")
 
+    assert result.status is DatasetSearchStatus.NO_RESULTS
     assert result.mode is DatasetSearchMode.FILTERED
     assert result.normalized_query == "no-match-query"
     assert result.match_count == 0

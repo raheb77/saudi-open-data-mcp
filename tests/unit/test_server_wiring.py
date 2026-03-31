@@ -152,6 +152,7 @@ async def test_server_registers_current_mcp_surface(
     search_result = await tools["search_datasets"].run({"query": "money"})
     assert search_result.structured_content["query"] == "money"
     assert search_result.structured_content["normalized_query"] == "money"
+    assert search_result.structured_content["status"] == "results"
     assert search_result.structured_content["mode"] == "filtered"
     assert search_result.structured_content["match_count"] == 1
     assert search_result.structured_content["matches"] == [
@@ -167,6 +168,7 @@ async def test_server_registers_current_mcp_surface(
     all_datasets_result = await tools["search_datasets"].run({"query": "   "})
     assert all_datasets_result.structured_content["query"] == "   "
     assert all_datasets_result.structured_content["normalized_query"] == ""
+    assert all_datasets_result.structured_content["status"] == "results"
     assert all_datasets_result.structured_content["mode"] == "all_datasets"
     assert all_datasets_result.structured_content["match_count"] == 3
     assert [

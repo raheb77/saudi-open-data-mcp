@@ -24,6 +24,13 @@ class DatasetSearchMode(StrEnum):
     ALL_DATASETS = "all_datasets"
 
 
+class DatasetSearchStatus(StrEnum):
+    """Top-level result status for registry-backed search."""
+
+    RESULTS = "results"
+    NO_RESULTS = "no_results"
+
+
 class DatasetSearchMatch(BaseModel):
     """Concise registry-backed summary for a search hit."""
 
@@ -55,6 +62,7 @@ class DatasetSearchResult(BaseModel):
 
     query: str
     normalized_query: str
+    status: DatasetSearchStatus
     mode: DatasetSearchMode
     match_count: int = Field(ge=0)
     matches: tuple[DatasetSearchMatch, ...] = Field(default_factory=tuple)
@@ -63,6 +71,12 @@ class DatasetSearchResult(BaseModel):
     def _validate_consistency(self) -> Self:
         if self.match_count != len(self.matches):
             raise ValueError("match_count must equal the number of matches")
+
+        if self.match_count > 0:
+            if self.status is not DatasetSearchStatus.RESULTS:
+                raise ValueError("non-empty matches require results status")
+        elif self.status is not DatasetSearchStatus.NO_RESULTS:
+            raise ValueError("empty matches require no_results status")
 
         if self.normalized_query:
             if self.mode is not DatasetSearchMode.FILTERED:
@@ -90,9 +104,15 @@ class DatasetSearchResult(BaseModel):
         matches = tuple(
             DatasetSearchMatch.from_descriptor(descriptor) for descriptor in descriptors
         )
+        status = (
+            DatasetSearchStatus.RESULTS
+            if matches
+            else DatasetSearchStatus.NO_RESULTS
+        )
         return cls(
             query=query,
             normalized_query=normalized_query,
+            status=status,
             mode=mode,
             match_count=len(matches),
             matches=matches,
