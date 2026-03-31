@@ -6,7 +6,6 @@ from collections.abc import Awaitable, Callable
 from enum import StrEnum
 from typing import Any, Protocol, Self
 
-from fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from saudi_open_data_mcp.normalization.pipeline import (
@@ -228,9 +227,3 @@ def _collect_limitations(normalization_result: NormalizationResult) -> tuple[str
         raise ValueError("limited normalization result must include explicit limitations")
 
     return ()
-
-
-def register(app: FastMCP) -> None:
-    """Defer FastMCP registration until server wiring expands to preview support."""
-
-    _ = app

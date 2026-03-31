@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Literal, Self
 
-from fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from saudi_open_data_mcp.registry.models import (
@@ -103,9 +102,3 @@ class DatasetMetadataTool:
             return DatasetMetadataLookupResult.missing(dataset_id)
 
         return DatasetMetadataLookupResult.found(descriptor)
-
-
-def register(app: FastMCP) -> None:
-    """Defer FastMCP registration until server wiring is in scope."""
-
-    _ = app

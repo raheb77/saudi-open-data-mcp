@@ -7,7 +7,6 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, Protocol, Self
 
-from fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from saudi_open_data_mcp.normalization.pipeline import (
@@ -459,9 +458,3 @@ def _normalization_error_message(failure: NormalizationFailure | None) -> str:
     if failure is None:
         return "Normalization pipeline failed without structured failure details"
     return failure.message
-
-
-def register(app: FastMCP) -> None:
-    """Defer FastMCP registration until server wiring expands to query support."""
-
-    _ = app

@@ -7,7 +7,6 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Self
 
-from fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from saudi_open_data_mcp.registry.models import DatasetDescriptor, NonEmptyText
@@ -196,9 +195,3 @@ def _bind_canonical_dataset_id(
     """Rewrite source-locator-based freshness output to the canonical dataset identity."""
 
     return freshness.model_copy(update={"dataset_id": descriptor.dataset_id})
-
-
-def register(app: FastMCP) -> None:
-    """Defer FastMCP registration until server wiring expands to download support."""
-
-    _ = app

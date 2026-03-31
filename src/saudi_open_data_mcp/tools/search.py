@@ -5,7 +5,6 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Self
 
-from fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from saudi_open_data_mcp.registry.models import (
@@ -133,9 +132,3 @@ class DatasetSearchTool:
             query=query,
             descriptors=descriptors,
         )
-
-
-def register(app: FastMCP) -> None:
-    """Defer FastMCP registration until server wiring expands to search support."""
-
-    _ = app

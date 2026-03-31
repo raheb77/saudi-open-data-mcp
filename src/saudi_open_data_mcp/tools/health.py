@@ -6,7 +6,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal, Self
 
-from fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from saudi_open_data_mcp.registry.models import (
@@ -150,14 +149,6 @@ class DatasetHealthTool:
             known_issues=descriptor.known_issues,
             freshness=freshness,
         )
-
-
-def register(app: FastMCP) -> None:
-    """Defer FastMCP registration until server wiring expands to health support."""
-
-    _ = app
-
-
 def _merge_exclude(exclude: object, field_name: str) -> object:
     """Merge a field exclusion into an existing model_dump exclude value."""
 
