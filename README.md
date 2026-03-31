@@ -138,7 +138,7 @@ pytest
 The supported local development activation path is the source-tree CLI:
 
 ```bash
-python src/saudi_open_data_mcp/cli.py check-imports
+python src/saudi_open_data_mcp/cli.py check-startup
 python src/saudi_open_data_mcp/cli.py run-stdio
 python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
 ```

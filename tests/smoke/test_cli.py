@@ -19,12 +19,12 @@ from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 
 
-def test_cli_check_imports_mode_returns_success() -> None:
-    assert cli_module.main(["--check-imports"]) == 0
+def test_cli_check_startup_mode_returns_success() -> None:
+    assert cli_module.main(["--check-startup"]) == 0
 
 
-def test_cli_check_imports_subcommand_returns_success() -> None:
-    assert cli_module.main(["check-imports"]) == 0
+def test_cli_check_startup_subcommand_returns_success() -> None:
+    assert cli_module.main(["check-startup"]) == 0
 
 
 def test_cli_run_http_dispatches_to_server(monkeypatch) -> None:
@@ -76,14 +76,14 @@ def test_cli_run_stdio_dispatches_to_server(monkeypatch) -> None:
     ]
 
 
-def test_source_tree_cli_check_imports_runs_subprocess() -> None:
+def test_source_tree_cli_check_startup_runs_subprocess() -> None:
     root = Path(__file__).resolve().parents[2]
     env = os.environ.copy()
     env.pop("PYTHONPATH", None)
     python = Path(sys.prefix) / "bin" / "python"
 
     result = subprocess.run(
-        [str(python), "src/saudi_open_data_mcp/cli.py", "--check-imports"],
+        [str(python), "src/saudi_open_data_mcp/cli.py", "--check-startup"],
         cwd=root,
         env=env,
         capture_output=True,
@@ -92,7 +92,7 @@ def test_source_tree_cli_check_imports_runs_subprocess() -> None:
     )
 
     assert result.returncode == 0, result.stderr or result.stdout
-    assert "server wiring is importable" in result.stdout
+    assert "startup wiring is valid" in result.stdout
 
 
 @pytest.mark.asyncio

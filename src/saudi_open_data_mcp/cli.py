@@ -22,16 +22,16 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command")
 
     parser.add_argument(
-        "--check-imports",
+        "--check-startup",
         action="store_true",
-        help="Instantiate the server and exit successfully if wiring imports cleanly.",
+        help="Construct the server and exit successfully if startup wiring validates.",
     )
 
-    check_imports_parser = subparsers.add_parser(
-        "check-imports",
-        help="Instantiate the server and exit.",
+    check_startup_parser = subparsers.add_parser(
+        "check-startup",
+        help="Construct the server and exit.",
     )
-    check_imports_parser.set_defaults(command="check-imports")
+    check_startup_parser.set_defaults(command="check-startup")
 
     run_stdio_parser = subparsers.add_parser(
         "run-stdio",
@@ -75,9 +75,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.check_imports or args.command in {None, "check-imports"}:
+    if args.check_startup or args.command in {None, "check-startup"}:
         create_server()
-        print("saudi-open-data-mcp server wiring is importable.")
+        print("saudi-open-data-mcp startup wiring is valid.")
         return 0
 
     if args.command == "run-http":
