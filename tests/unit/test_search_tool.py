@@ -5,6 +5,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 from saudi_open_data_mcp.registry.models import (
     DatasetDescriptor,
     DatasetHealthStatus,
@@ -136,6 +138,38 @@ def test_search_datasets_returns_empty_result_for_no_matches(tmp_path: Path) -> 
     assert result.normalized_query == "no-match-query"
     assert result.match_count == 0
     assert result.matches == ()
+
+
+def test_search_result_rejects_no_results_status_with_non_empty_matches() -> None:
+    with pytest.raises(ValueError, match="non-empty matches require results status"):
+        DatasetSearchResult(
+            query="money",
+            normalized_query="money",
+            status=DatasetSearchStatus.NO_RESULTS,
+            mode=DatasetSearchMode.FILTERED,
+            match_count=1,
+            matches=(
+                DatasetSearchMatch(
+                    dataset_id="sama-money-supply",
+                    source="sama",
+                    title="Money Supply",
+                    update_frequency=UpdateFrequency.MONTHLY,
+                    health_status=DatasetHealthStatus.UNKNOWN,
+                ),
+            ),
+        )
+
+
+def test_search_result_rejects_results_status_with_empty_matches() -> None:
+    with pytest.raises(ValueError, match="empty matches require no_results status"):
+        DatasetSearchResult(
+            query="money",
+            normalized_query="money",
+            status=DatasetSearchStatus.RESULTS,
+            mode=DatasetSearchMode.FILTERED,
+            match_count=0,
+            matches=(),
+        )
 
 
 def test_search_tool_module_does_not_import_connectors() -> None:
