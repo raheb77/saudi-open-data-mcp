@@ -237,5 +237,5 @@ async def test_preview_tool_fails_explicitly_for_unsupported_source(tmp_path: Pa
     assert result.limitations == ()
     assert result.failure is not None
     assert result.failure.stage is PreviewFailureStage.FETCH
-    assert result.failure.error_type == "ConnectorNotImplementedError"
+    assert result.failure.error_type == "UnknownSourceError"
     assert "unsupported-source" in result.failure.message

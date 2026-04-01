@@ -31,6 +31,10 @@ class ConnectorNotImplementedError(ConnectorError):
     """Raised when a scaffold connector is invoked."""
 
 
+class UnknownSourceError(ConnectorError):
+    """Raised when no connector is registered for a requested source."""
+
+
 class SourceUnavailableError(ConnectorError):
     """Raised when an approved source is unavailable."""
 

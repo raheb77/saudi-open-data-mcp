@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from .base import Connector
-from .errors import ConnectorNotImplementedError
+from .errors import UnknownSourceError
 
 
 class SourceConnectorResolver:
@@ -23,7 +23,7 @@ class SourceConnectorResolver:
         normalized_source = source.strip()
         connector = self._connectors.get(normalized_source)
         if connector is None:
-            raise ConnectorNotImplementedError(
+            raise UnknownSourceError(
                 source_name=normalized_source or "<unconfigured>",
                 message=f"No connector configured for source '{source}'",
             )
