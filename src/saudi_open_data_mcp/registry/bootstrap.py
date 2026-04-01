@@ -89,7 +89,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
 
 
 def bootstrap_registry(repository: RegistryRepository) -> list[DatasetDescriptor]:
-    """Seed the registry with the initial v0.1 descriptor set."""
+    """Seed the registry with the current MVP descriptor set."""
 
     bootstrapped_descriptors = [
         descriptor.model_copy(deep=True) for descriptor in INITIAL_DATASET_DESCRIPTORS
