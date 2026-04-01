@@ -10,4 +10,4 @@ COPY src /app/src
 
 RUN pip install --no-cache-dir .
 
-CMD ["python", "-m", "saudi_open_data_mcp.cli", "--check-startup"]
+CMD ["python", "src/saudi_open_data_mcp/cli.py", "check-startup"]

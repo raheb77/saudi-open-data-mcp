@@ -92,7 +92,7 @@ def test_source_tree_cli_check_startup_runs_subprocess() -> None:
     )
 
     assert result.returncode == 0, result.stderr or result.stdout
-    assert "startup wiring is valid" in result.stdout
+    assert "startup wiring and registry bootstrap are valid" in result.stdout
 
 
 @pytest.mark.asyncio

@@ -18,18 +18,21 @@ from saudi_open_data_mcp.server import create_server
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI parser."""
 
-    parser = argparse.ArgumentParser(prog="saudi-open-data-mcp")
+    parser = argparse.ArgumentParser(prog="python src/saudi_open_data_mcp/cli.py")
     subparsers = parser.add_subparsers(dest="command")
 
     parser.add_argument(
         "--check-startup",
         action="store_true",
-        help="Construct the server and exit successfully if startup wiring validates.",
+        help=(
+            "Construct the server, bootstrap the registry if needed, "
+            "and exit successfully if startup wiring validates."
+        ),
     )
 
     check_startup_parser = subparsers.add_parser(
         "check-startup",
-        help="Construct the server and exit.",
+        help="Construct the server, bootstrap the registry if needed, and exit.",
     )
     check_startup_parser.set_defaults(command="check-startup")
 
@@ -77,7 +80,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.check_startup or args.command in {None, "check-startup"}:
         create_server()
-        print("saudi-open-data-mcp startup wiring is valid.")
+        print("saudi-open-data-mcp startup wiring and registry bootstrap are valid.")
         return 0
 
     if args.command == "run-http":

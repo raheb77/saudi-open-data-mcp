@@ -11,18 +11,16 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         source="sama",
         source_locator="report.aspx?cid=41",
         title="Balance of Payments",
-        description=(
-            "Initial v0.1 registry entry for the SAMA balance of payments dataset."
-        ),
+        description=("Registry entry for the SAMA balance of payments dataset."),
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.QUARTERLY,
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=(
-            "This is a hand-curated v0.1 registry entry, not a complete SAMA catalog entry.",
+            "This is a hand-curated registry entry, not a complete SAMA catalog entry.",
         ),
         known_issues=(
-            "This upstream mapping is hand-curated for v0.1 and may need revision "
-            "if SAMA changes report structure or routes.",
+            "This upstream mapping is hand-curated and may need revision if SAMA "
+            "changes report structure or routes.",
         ),
     ),
     DatasetDescriptor(
@@ -33,14 +31,12 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
             "preview/parsed/Census%20Marital%20Status%20CSV.json"
         ),
         title="Census Marital Status",
-        description=(
-            "Initial v0.2 registry entry for a data.gov.sa census marital status dataset."
-        ),
+        description=("Registry entry for a data.gov.sa census marital status dataset."),
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.UNSPECIFIED,
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=(
-            "This is a hand-curated v0.2 registry entry, not a complete data.gov.sa catalog entry.",
+            "This is a hand-curated registry entry, not a complete data.gov.sa catalog entry.",
         ),
         known_issues=(
             "This upstream mapping is hand-curated and may need revision "
@@ -52,18 +48,16 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         source="sama",
         source_locator="report.aspx?cid=52",
         title="Interest Rates",
-        description=(
-            "Initial v0.1 registry entry for SAMA-published interest rate data."
-        ),
+        description=("Registry entry for SAMA-published interest rate data."),
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=(
-            "This is a hand-curated v0.1 registry entry, not a complete SAMA catalog entry.",
+            "This is a hand-curated registry entry, not a complete SAMA catalog entry.",
         ),
         known_issues=(
-            "This upstream mapping is hand-curated for v0.1 and may need revision "
-            "if SAMA changes report structure or routes.",
+            "This upstream mapping is hand-curated and may need revision if SAMA "
+            "changes report structure or routes.",
         ),
     ),
     DatasetDescriptor(
@@ -71,18 +65,16 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         source="sama",
         source_locator="report.aspx?cid=55",
         title="Money Supply",
-        description=(
-            "Initial v0.1 registry entry for SAMA monetary aggregate data."
-        ),
+        description=("Registry entry for SAMA monetary aggregate data."),
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=(
-            "This is a hand-curated v0.1 registry entry, not a complete SAMA catalog entry.",
+            "This is a hand-curated registry entry, not a complete SAMA catalog entry.",
         ),
         known_issues=(
-            "This upstream mapping is hand-curated for v0.1 and may need revision "
-            "if SAMA changes report structure or routes.",
+            "This upstream mapping is hand-curated and may need revision if SAMA "
+            "changes report structure or routes.",
         ),
     ),
 )
