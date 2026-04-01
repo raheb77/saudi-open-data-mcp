@@ -214,6 +214,9 @@ async def test_connector_failure_becomes_explicit_preview_failure(tmp_path: Path
     assert result.failure is not None
     assert result.failure.stage is PreviewFailureStage.FETCH
     assert result.failure.error_type == "SourceUnavailableError"
+    assert result.failure.message == "SAMA source request failed for preview testing"
+    assert "source=" not in result.failure.message
+    assert "dataset_id=" not in result.failure.message
 
 
 @pytest.mark.asyncio
@@ -312,4 +315,32 @@ async def test_preview_tool_fails_explicitly_for_unsupported_source(tmp_path: Pa
     assert result.failure is not None
     assert result.failure.stage is PreviewFailureStage.FETCH
     assert result.failure.error_type == "UnknownSourceError"
-    assert "unsupported-source" in result.failure.message
+    assert result.failure.message == "No connector configured for source 'unsupported-source'"
+    assert "source=" not in result.failure.message
+    assert "dataset_id=" not in result.failure.message
+
+
+@pytest.mark.asyncio
+async def test_non_connector_failures_keep_standard_string_representation(
+    tmp_path: Path,
+) -> None:
+    class FormattedError(Exception):
+        def __str__(self) -> str:
+            return "formatted generic failure"
+
+    class FailingConnector:
+        async def fetch_dataset_payload(self, dataset_id: str) -> RawPayload:
+            raise FormattedError()
+
+    tool = DatasetPreviewTool(
+        _repository(tmp_path),
+        SourceConnectorResolver({"sama": FailingConnector()}),
+    )
+
+    result = await tool.preview_dataset(DATASET_ID)
+
+    assert result.status is PreviewStatus.FAILED
+    assert result.failure is not None
+    assert result.failure.stage is PreviewFailureStage.FETCH
+    assert result.failure.error_type == "FormattedError"
+    assert result.failure.message == "formatted generic failure"

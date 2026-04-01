@@ -195,7 +195,7 @@ class DatasetPreviewTool:
             failure=PreviewFailure(
                 stage=stage,
                 error_type=type(error).__name__,
-                message=str(error),
+                message=_public_failure_message(error),
             ),
         )
 
@@ -239,3 +239,14 @@ def _collect_limitations(normalization_result: NormalizationResult) -> tuple[str
         raise ValueError("limited normalization result must include explicit limitations")
 
     return ()
+
+
+def _public_failure_message(error: Exception) -> str:
+    """Return an operator-facing failure message without leaking connector context."""
+
+    connector_message = getattr(error, "message", None)
+    connector_source = getattr(error, "source_name", None)
+    if isinstance(connector_message, str) and isinstance(connector_source, str):
+        return connector_message
+
+    return str(error)
