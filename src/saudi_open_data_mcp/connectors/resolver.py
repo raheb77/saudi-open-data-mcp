@@ -24,7 +24,7 @@ class SourceConnectorResolver:
         connector = self._connectors.get(normalized_source)
         if connector is None:
             raise UnknownSourceError(
-                source_name=normalized_source or "<unconfigured>",
+                source_name=normalized_source,
                 message=f"No connector configured for source '{source}'",
             )
         return connector
