@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from .config import RuntimeConfig, load_config
+from .connectors.resolver import SourceConnectorResolver
 from .connectors.sama import SAMAConnector
 from .registry.bootstrap import bootstrap_registry
 from .registry.repository import RegistryRepository
@@ -23,6 +24,11 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
     repository = RegistryRepository(runtime_config.registry_path)
     bootstrap_registry(repository)
     snapshot_store = SnapshotStore(runtime_config.snapshot_dir)
+    connector_resolver = SourceConnectorResolver(
+        {
+            "sama": SAMAConnector(base_url=runtime_config.source.base_url),
+        }
+    )
 
     catalog_resource = CatalogResource(repository)
     health_tool = DatasetHealthTool(
@@ -33,7 +39,7 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
     metadata_tool = DatasetMetadataTool(repository)
     preview_tool = DatasetPreviewTool(
         repository,
-        SAMAConnector(base_url=runtime_config.source.base_url).fetch_dataset_payload
+        connector_resolver,
     )
     query_tool = DatasetQueryTool(repository, snapshot_store)
     search_tool = DatasetSearchTool(repository)

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
 from enum import StrEnum
 from typing import Any, Protocol, Self
 
@@ -16,8 +15,6 @@ from saudi_open_data_mcp.normalization.pipeline import (
 )
 from saudi_open_data_mcp.registry.models import DatasetDescriptor
 from saudi_open_data_mcp.registry.repository import RegistryRepository
-
-DatasetPayloadFetcher = Callable[[str], Awaitable[Any]]
 
 
 class PreviewStatus(StrEnum):
@@ -98,18 +95,32 @@ class PreviewPipeline(Protocol):
         """Return a typed normalization result for a fetched raw payload."""
 
 
+class PreviewConnector(Protocol):
+    """Minimal connector protocol for preview fetching."""
+
+    async def fetch_dataset_payload(self, dataset_id: str) -> Any:
+        """Fetch a raw payload for a source-specific locator."""
+
+
+class PreviewConnectorResolver(Protocol):
+    """Resolve a source name to a live connector without importing connectors here."""
+
+    def resolve(self, source: str) -> PreviewConnector:
+        """Return the configured connector for a registry descriptor source."""
+
+
 class DatasetPreviewTool:
     """Preview tool that resolves canonical dataset ids to source locators."""
 
     def __init__(
         self,
         repository: RegistryRepository,
-        payload_fetcher: DatasetPayloadFetcher,
+        connector_resolver: PreviewConnectorResolver,
         *,
         normalization_pipeline: PreviewPipeline | None = None,
     ) -> None:
         self._repository = repository
-        self._payload_fetcher = payload_fetcher
+        self._connector_resolver = connector_resolver
         self._normalization_pipeline = normalization_pipeline or NormalizationPipeline()
 
     async def preview_dataset(self, dataset_id: str) -> DatasetPreviewResult:
@@ -131,7 +142,8 @@ class DatasetPreviewTool:
             )
 
         try:
-            raw_payload = await self._payload_fetcher(descriptor.source_locator)
+            connector = self._connector_resolver.resolve(descriptor.source)
+            raw_payload = await connector.fetch_dataset_payload(descriptor.source_locator)
         except Exception as exc:
             return self._failed_result(
                 dataset_id=requested_dataset_id,

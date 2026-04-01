@@ -11,6 +11,7 @@ import respx
 
 from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.connectors.errors import SourceUnavailableError
+from saudi_open_data_mcp.connectors.resolver import SourceConnectorResolver
 from saudi_open_data_mcp.connectors.sama import SAMAConnector
 from saudi_open_data_mcp.normalization.pipeline import (
     NormalizationPipelineStatus,
@@ -38,11 +39,15 @@ def _report_url() -> str:
 
 
 def _repository(tmp_path: Path) -> RegistryRepository:
+    return _repository_with_source(tmp_path, source="sama")
+
+
+def _repository_with_source(tmp_path: Path, *, source: str) -> RegistryRepository:
     repository = RegistryRepository(tmp_path / "registry.sqlite")
     repository.upsert_dataset(
         DatasetDescriptor(
             dataset_id=DATASET_ID,
-            source="sama",
+            source=source,
             source_locator=REPORT_LOCATOR,
             title="Money Supply",
             description="Official monetary aggregate dataset published by SAMA.",
@@ -67,7 +72,10 @@ async def test_json_payload_returns_record_derivable_preview_result(tmp_path: Pa
         )
     )
     connector = SAMAConnector()
-    tool = DatasetPreviewTool(_repository(tmp_path), connector.fetch_dataset_payload)
+    tool = DatasetPreviewTool(
+        _repository(tmp_path),
+        SourceConnectorResolver({"sama": connector}),
+    )
 
     result = await tool.preview_dataset(DATASET_ID)
 
@@ -98,7 +106,10 @@ async def test_html_payload_returns_limited_preview_result(tmp_path: Path) -> No
         )
     )
     connector = SAMAConnector()
-    tool = DatasetPreviewTool(_repository(tmp_path), connector.fetch_dataset_payload)
+    tool = DatasetPreviewTool(
+        _repository(tmp_path),
+        SourceConnectorResolver({"sama": connector}),
+    )
 
     result = await tool.preview_dataset(DATASET_ID)
 
@@ -114,14 +125,18 @@ async def test_html_payload_returns_limited_preview_result(tmp_path: Path) -> No
 
 @pytest.mark.asyncio
 async def test_connector_failure_becomes_explicit_preview_failure(tmp_path: Path) -> None:
-    async def failing_fetcher(dataset_id: str) -> RawPayload:
-        raise SourceUnavailableError(
-            source_name="sama",
-            dataset_id=dataset_id,
-            message="SAMA source request failed for preview testing",
-        )
+    class FailingConnector:
+        async def fetch_dataset_payload(self, dataset_id: str) -> RawPayload:
+            raise SourceUnavailableError(
+                source_name="sama",
+                dataset_id=dataset_id,
+                message="SAMA source request failed for preview testing",
+            )
 
-    tool = DatasetPreviewTool(_repository(tmp_path), failing_fetcher)
+    tool = DatasetPreviewTool(
+        _repository(tmp_path),
+        SourceConnectorResolver({"sama": FailingConnector()}),
+    )
 
     result = await tool.preview_dataset(DATASET_ID)
 
@@ -138,12 +153,9 @@ async def test_connector_failure_becomes_explicit_preview_failure(tmp_path: Path
 async def test_preview_tool_returns_explicit_missing_result_for_unknown_dataset(
     tmp_path: Path,
 ) -> None:
-    async def fetcher(dataset_id: str) -> RawPayload:
-        raise AssertionError(f"fetcher should not be called for unknown dataset_id: {dataset_id}")
-
     tool = DatasetPreviewTool(
         RegistryRepository(tmp_path / "registry.sqlite"),
-        fetcher,
+        SourceConnectorResolver({}),
     )
 
     result = await tool.preview_dataset("missing-dataset")
@@ -160,6 +172,7 @@ async def test_preview_tool_uses_registry_lookup_and_normalization_pipeline(
     tmp_path: Path,
 ) -> None:
     captured_payloads: list[Any] = []
+    resolved_sources: list[str] = []
     requested_locators: list[str] = []
     raw_payload = RawPayload(
         source="sama",
@@ -180,22 +193,49 @@ async def test_preview_tool_uses_registry_lookup_and_normalization_pipeline(
                 status=NormalizationPipelineStatus.RECORD_DERIVABLE,
             )
 
-    async def fetcher(dataset_id: str) -> RawPayload:
-        requested_locators.append(dataset_id)
-        assert dataset_id == REPORT_LOCATOR
-        return raw_payload
+    class ConnectorSpy:
+        async def fetch_dataset_payload(self, dataset_id: str) -> RawPayload:
+            requested_locators.append(dataset_id)
+            assert dataset_id == REPORT_LOCATOR
+            return raw_payload
+
+    class ResolverSpy:
+        def resolve(self, source: str) -> ConnectorSpy:
+            resolved_sources.append(source)
+            assert source == "sama"
+            return ConnectorSpy()
 
     tool = DatasetPreviewTool(
         _repository(tmp_path),
-        fetcher,
+        ResolverSpy(),
         normalization_pipeline=PipelineSpy(),
     )
 
     result = await tool.preview_dataset(DATASET_ID)
 
+    assert resolved_sources == ["sama"]
     assert requested_locators == [REPORT_LOCATOR]
     assert captured_payloads == [raw_payload]
     assert result.status is PreviewStatus.RECORD_DERIVABLE
     assert result.dataset_id == DATASET_ID
     assert result.records == ()
     assert result.limitations == ()
+
+
+@pytest.mark.asyncio
+async def test_preview_tool_fails_explicitly_for_unsupported_source(tmp_path: Path) -> None:
+    tool = DatasetPreviewTool(
+        _repository_with_source(tmp_path, source="unsupported-source"),
+        SourceConnectorResolver({"sama": SAMAConnector()}),
+    )
+
+    result = await tool.preview_dataset(DATASET_ID)
+
+    assert result.status is PreviewStatus.FAILED
+    assert result.dataset_id == DATASET_ID
+    assert result.records == ()
+    assert result.limitations == ()
+    assert result.failure is not None
+    assert result.failure.stage is PreviewFailureStage.FETCH
+    assert result.failure.error_type == "ConnectorNotImplementedError"
+    assert "unsupported-source" in result.failure.message

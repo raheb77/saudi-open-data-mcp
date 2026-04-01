@@ -10,12 +10,14 @@ from pathlib import Path
 import httpx
 import respx
 
+from saudi_open_data_mcp import server as server_module
 from saudi_open_data_mcp.config import RuntimeConfig
 from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.server import create_server
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 from saudi_open_data_mcp.tools import download as download_module
 from saudi_open_data_mcp.tools import health as health_module
+from saudi_open_data_mcp.tools.preview import DatasetPreviewResult, PreviewStatus
 
 REPORT_LOCATOR = "report.aspx?cid=55"
 
@@ -352,6 +354,39 @@ async def test_server_preview_tool_keeps_html_preview_limited(tmp_path: Path) ->
     assert preview_result.structured_content["limitations"] == [
         "text_or_html_body_requires_source_specific_extraction_before_record_normalization"
     ]
+
+
+async def test_server_wires_preview_through_connector_resolver(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+    resolver_sentinel = object()
+
+    def _resolver_factory(connectors):
+        captured["connectors"] = connectors
+        return resolver_sentinel
+
+    class PreviewToolSpy:
+        def __init__(self, repository, connector_resolver, **kwargs) -> None:
+            captured["connector_resolver"] = connector_resolver
+
+        async def preview_dataset(self, dataset_id: str) -> DatasetPreviewResult:
+            return DatasetPreviewResult(
+                dataset_id=dataset_id,
+                status=PreviewStatus.MISSING,
+            )
+
+    monkeypatch.setattr(server_module, "SourceConnectorResolver", _resolver_factory)
+    monkeypatch.setattr(server_module, "DatasetPreviewTool", PreviewToolSpy)
+
+    app = server_module.create_server(_runtime_config(tmp_path))
+    tools = await app.get_tools()
+    preview_result = await tools["preview_dataset"].run({"dataset_id": "missing-dataset"})
+
+    assert preview_result.structured_content["status"] == "missing"
+    assert captured["connector_resolver"] is resolver_sentinel
+    assert set(captured["connectors"]) == {"sama"}
 
 
 def _write_snapshot_with_mtime(
