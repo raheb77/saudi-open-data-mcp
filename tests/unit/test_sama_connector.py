@@ -65,6 +65,8 @@ async def test_timeout_maps_to_source_timeout_error() -> None:
         await connector.fetch_dataset_payload(REPORT_LOCATOR)
 
     assert exc_info.value.dataset_id == REPORT_LOCATOR
+    assert exc_info.value.message == "SAMA source request timed out"
+    assert REPORT_LOCATOR not in exc_info.value.message
 
 
 @pytest.mark.asyncio
@@ -79,7 +81,8 @@ async def test_unavailable_source_maps_to_source_unavailable_error() -> None:
         await connector.fetch_dataset_payload(REPORT_LOCATOR)
 
     assert exc_info.value.dataset_id == REPORT_LOCATOR
-    assert "HTTP 503" in str(exc_info.value)
+    assert exc_info.value.message == "SAMA source returned HTTP 503"
+    assert REPORT_LOCATOR not in exc_info.value.message
 
 
 @pytest.mark.asyncio

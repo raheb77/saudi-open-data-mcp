@@ -124,22 +124,19 @@ class DataGovSaConnector(Connector):
             raise SourceTimeoutError(
                 source_name=self.source_name,
                 dataset_id=source_locator,
-                message=f"data.gov.sa source request timed out for '{source_locator}'",
+                message="data.gov.sa source request timed out",
             ) from exc
         except httpx.HTTPStatusError as exc:
             raise SourceUnavailableError(
                 source_name=self.source_name,
                 dataset_id=source_locator,
-                message=(
-                    f"data.gov.sa source returned HTTP {exc.response.status_code} "
-                    f"for '{source_locator}'"
-                ),
+                message=f"data.gov.sa source returned HTTP {exc.response.status_code}",
             ) from exc
         except httpx.RequestError as exc:
             raise SourceUnavailableError(
                 source_name=self.source_name,
                 dataset_id=source_locator,
-                message=f"data.gov.sa source request failed for '{source_locator}'",
+                message="data.gov.sa source request failed",
             ) from exc
 
     def _build_raw_payload(self, source_locator: str, response: httpx.Response) -> RawPayload:

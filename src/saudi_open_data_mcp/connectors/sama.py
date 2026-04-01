@@ -129,22 +129,19 @@ class SAMAConnector(Connector):
             raise SourceTimeoutError(
                 source_name=self.source_name,
                 dataset_id=dataset_locator,
-                message=f"SAMA source request timed out for '{dataset_locator}'",
+                message="SAMA source request timed out",
             ) from exc
         except httpx.HTTPStatusError as exc:
             raise SourceUnavailableError(
                 source_name=self.source_name,
                 dataset_id=dataset_locator,
-                message=(
-                    f"SAMA source returned HTTP {exc.response.status_code} "
-                    f"for '{dataset_locator}'"
-                ),
+                message=f"SAMA source returned HTTP {exc.response.status_code}",
             ) from exc
         except httpx.RequestError as exc:
             raise SourceUnavailableError(
                 source_name=self.source_name,
                 dataset_id=dataset_locator,
-                message=f"SAMA source request failed for '{dataset_locator}'",
+                message="SAMA source request failed",
             ) from exc
 
     def _build_raw_payload(self, dataset_locator: str, response: httpx.Response) -> RawPayload:

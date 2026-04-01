@@ -72,6 +72,8 @@ async def test_timeout_maps_to_source_timeout_error() -> None:
         await connector.fetch_dataset_payload(SOURCE_LOCATOR)
 
     assert exc_info.value.dataset_id == SOURCE_LOCATOR
+    assert exc_info.value.message == "data.gov.sa source request timed out"
+    assert SOURCE_LOCATOR not in exc_info.value.message
 
 
 @pytest.mark.asyncio
@@ -84,7 +86,8 @@ async def test_unavailable_source_maps_to_source_unavailable_error() -> None:
         await connector.fetch_dataset_payload(SOURCE_LOCATOR)
 
     assert exc_info.value.dataset_id == SOURCE_LOCATOR
-    assert "HTTP 503" in str(exc_info.value)
+    assert exc_info.value.message == "data.gov.sa source returned HTTP 503"
+    assert SOURCE_LOCATOR not in exc_info.value.message
 
 
 @pytest.mark.asyncio
