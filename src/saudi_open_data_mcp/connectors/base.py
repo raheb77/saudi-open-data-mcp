@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Protocol
 
 import httpx
 from pydantic import BaseModel, Field
@@ -58,6 +58,13 @@ class RawPayload(BaseModel):
     source: str
     dataset_id: str
     content: dict[str, Any] = Field(default_factory=dict)
+
+
+class RawPayloadSnapshotWriter(Protocol):
+    """Minimal protocol for optional raw payload snapshot persistence."""
+
+    def write_snapshot(self, payload: RawPayload) -> object:
+        """Persist a raw payload snapshot."""
 
 
 class Connector(ABC):

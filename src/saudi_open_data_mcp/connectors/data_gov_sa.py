@@ -7,8 +7,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from ..storage.snapshots import SnapshotStore
-from .base import Connector, RawPayload, RequestPolicy
+from .base import Connector, RawPayload, RawPayloadSnapshotWriter, RequestPolicy
 from .errors import (
     InvalidSourceResponseError,
     SourceAccessPolicyViolationError,
@@ -28,7 +27,7 @@ class DataGovSaConnector(Connector):
         base_url: str = "https://open.data.gov.sa",
         *,
         request_policy: RequestPolicy | None = None,
-        snapshot_store: SnapshotStore | None = None,
+        snapshot_store: RawPayloadSnapshotWriter | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self.approved_base_url = base_url.rstrip("/")
