@@ -5,7 +5,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from .base import Connector
+from .data_gov_sa import DataGovSaConnector
 from .errors import UnknownSourceError
+from .sama import SAMAConnector
 
 
 class SourceConnectorResolver:
@@ -28,3 +30,14 @@ class SourceConnectorResolver:
                 message=f"No connector configured for source '{source}'",
             )
         return connector
+
+
+def build_default_connector_resolver(*, sama_base_url: str) -> SourceConnectorResolver:
+    """Build the current source-to-connector resolver for live preview access."""
+
+    return SourceConnectorResolver(
+        {
+            "sama": SAMAConnector(base_url=sama_base_url),
+            "data-gov-sa": DataGovSaConnector(),
+        }
+    )

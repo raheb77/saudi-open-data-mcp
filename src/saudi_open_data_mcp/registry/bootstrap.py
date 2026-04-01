@@ -26,6 +26,28 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         ),
     ),
     DatasetDescriptor(
+        dataset_id="data-gov-sa-census-marital-status",
+        source="data-gov-sa",
+        source_locator=(
+            "/ar/datasets/view/104380ce-60b6-46bc-ba0a-6d5e10ac46cb/"
+            "preview/parsed/Census%20Marital%20Status%20CSV.json"
+        ),
+        title="Census Marital Status",
+        description=(
+            "Initial v0.2 registry entry for a data.gov.sa census marital status dataset."
+        ),
+        schema_version="0.1.0",
+        update_frequency=UpdateFrequency.UNSPECIFIED,
+        health_status=DatasetHealthStatus.UNKNOWN,
+        caveats=(
+            "This is a hand-curated v0.2 registry entry, not a complete data.gov.sa catalog entry.",
+        ),
+        known_issues=(
+            "This upstream mapping is hand-curated and may need revision "
+            "if data.gov.sa changes preview routes or parsed resource formats.",
+        ),
+    ),
+    DatasetDescriptor(
         dataset_id="sama-interest-rates",
         source="sama",
         source_locator="report.aspx?cid=52",

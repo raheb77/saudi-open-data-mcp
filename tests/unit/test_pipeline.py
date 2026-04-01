@@ -58,6 +58,38 @@ def test_html_raw_payload_produces_limited_pipeline_result() -> None:
     assert result.records == ()
 
 
+def test_data_gov_sa_json_raw_payload_produces_record_derivable_pipeline_result() -> None:
+    raw_payload = RawPayload(
+        source="data-gov-sa",
+        dataset_id=(
+            "/ar/datasets/view/104380ce-60b6-46bc-ba0a-6d5e10ac46cb/"
+            "preview/parsed/Census%20Marital%20Status%20CSV.json"
+        ),
+        content={
+            "url": (
+                "https://open.data.gov.sa/ar/datasets/view/"
+                "104380ce-60b6-46bc-ba0a-6d5e10ac46cb/preview/parsed/"
+                "Census%20Marital%20Status%20CSV.json"
+            ),
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {"rows": [{"status": "single", "count": 10}]},
+        },
+    )
+
+    result = NormalizationPipeline().normalize(raw_payload)
+
+    assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
+    assert result.failure is None
+    assert result.mapping_result is not None
+    assert result.validation_result is not None
+    assert len(result.records) == 1
+    assert result.records[0].dataset_id == raw_payload.dataset_id
+    assert result.records[0].source == "data-gov-sa"
+    assert result.records[0].record_index == 0
+    assert result.records[0].fields == {"status": "single", "count": 10}
+
+
 def test_unsupported_json_shape_produces_limited_pipeline_result_without_records() -> None:
     raw_payload = RawPayload(
         source="sama",

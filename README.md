@@ -9,7 +9,7 @@ The project is not just an MCP wrapper around upstream websites. Its value is in
 - registry-backed dataset metadata and health metadata
 - deterministic AI-facing resource and tool interfaces
 
-Current implementation starts with SAMA only and already exposes a small working MCP surface.
+Current implementation starts with SAMA plus one narrow data.gov.sa pilot dataset and already exposes a small working MCP surface.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture and [docs/ADR/ADR-001-start-with-sama.md](docs/ADR/ADR-001-start-with-sama.md) for the initial source decision.
 
@@ -75,6 +75,7 @@ preview_dataset({"dataset_id": "sama-money-supply"})
 
 - Architecture documents and ADRs are in place and aligned with the codebase.
 - The connector contract is typed and implemented for SAMA.
+- A narrow `data.gov.sa` connector path is implemented for one seeded pilot dataset.
 - Raw payload snapshots can be written and read locally.
 - Local snapshot freshness is evaluated deterministically from filesystem evidence only.
 - Registry models, SQLite repository behavior, and deterministic bootstrap data are implemented.
@@ -90,7 +91,7 @@ preview_dataset({"dataset_id": "sama-money-supply"})
 
 ## What Is Intentionally Not Implemented Yet
 
-- no second source beyond SAMA
+- no broad second-source coverage beyond one narrow data.gov.sa pilot dataset
 - no semantic search
 - no LLM in the core path
 - no connector-backed catalog discovery

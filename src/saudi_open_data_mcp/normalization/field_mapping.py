@@ -74,8 +74,8 @@ def get_field_mapping(raw_payload: RawPayload) -> FieldMappingResult:
     return mapper(raw_payload)
 
 
-def _map_sama_field_mapping(raw_payload: RawPayload) -> FieldMappingResult:
-    """Map a raw SAMA payload into a typed normalization-ready field structure.
+def _map_tabular_source_payload(raw_payload: RawPayload) -> FieldMappingResult:
+    """Map a supported raw payload into a typed normalization-ready field structure.
 
     This layer does not invent canonical business records. It separates:
     - connector response metadata
@@ -131,7 +131,8 @@ def _map_sama_field_mapping(raw_payload: RawPayload) -> FieldMappingResult:
 FieldMapper = Callable[[RawPayload], FieldMappingResult]
 
 _FIELD_MAPPERS: dict[str, FieldMapper] = {
-    "sama": _map_sama_field_mapping,
+    "sama": _map_tabular_source_payload,
+    "data-gov-sa": _map_tabular_source_payload,
 }
 
 

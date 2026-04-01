@@ -33,7 +33,9 @@ def test_registry_and_normalization_scaffold_compose(tmp_path: Path) -> None:
     assert all(
         item.source_locator.startswith("report.aspx?cid=")
         for item in bootstrapped_descriptors
+        if item.source == "sama"
     )
+    assert any(item.source == "data-gov-sa" for item in bootstrapped_descriptors)
     assert result.dataset_id == "report.aspx?cid=55"
     assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
     assert len(result.records) == 1

@@ -65,10 +65,10 @@ def validate_field_mapping(mapping_result: FieldMappingResult) -> FieldMappingVa
     return validator(mapping_result)
 
 
-def _validate_sama_field_mapping(
+def _validate_tabular_source_field_mapping(
     mapping_result: FieldMappingResult,
 ) -> FieldMappingValidationResult:
-    """Validate the current SAMA field mapping contract."""
+    """Validate the current tabular-source field mapping contract."""
 
     dataset_locator = validate_dataset_id(mapping_result.dataset_locator)
     _validate_common_fields(mapping_result, dataset_locator)
@@ -93,7 +93,8 @@ def _validate_sama_field_mapping(
 FieldMappingValidator = Callable[[FieldMappingResult], FieldMappingValidationResult]
 
 _FIELD_MAPPING_VALIDATORS: dict[str, FieldMappingValidator] = {
-    "sama": _validate_sama_field_mapping,
+    "sama": _validate_tabular_source_field_mapping,
+    "data-gov-sa": _validate_tabular_source_field_mapping,
 }
 
 

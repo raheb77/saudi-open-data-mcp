@@ -23,6 +23,13 @@ def test_bootstrap_inserts_expected_initial_descriptors(tmp_path: Path) -> None:
     assert all(
         descriptor.source_locator.startswith("report.aspx?cid=")
         for descriptor in bootstrapped_descriptors
+        if descriptor.source == "sama"
+    )
+    assert any(descriptor.source == "data-gov-sa" for descriptor in bootstrapped_descriptors)
+    assert any(
+        descriptor.source_locator.startswith("/ar/datasets/view/")
+        for descriptor in bootstrapped_descriptors
+        if descriptor.source == "data-gov-sa"
     )
 
 

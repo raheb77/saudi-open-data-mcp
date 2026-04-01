@@ -3,8 +3,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from .config import RuntimeConfig, load_config
-from .connectors.resolver import SourceConnectorResolver
-from .connectors.sama import SAMAConnector
+from .connectors.resolver import build_default_connector_resolver
 from .registry.bootstrap import bootstrap_registry
 from .registry.repository import RegistryRepository
 from .resources.catalog import CatalogResource
@@ -24,10 +23,8 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
     repository = RegistryRepository(runtime_config.registry_path)
     bootstrap_registry(repository)
     snapshot_store = SnapshotStore(runtime_config.snapshot_dir)
-    connector_resolver = SourceConnectorResolver(
-        {
-            "sama": SAMAConnector(base_url=runtime_config.source.base_url),
-        }
+    connector_resolver = build_default_connector_resolver(
+        sama_base_url=runtime_config.source.base_url,
     )
 
     catalog_resource = CatalogResource(repository)

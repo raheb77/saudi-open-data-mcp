@@ -10,6 +10,7 @@ import pytest
 import respx
 
 from saudi_open_data_mcp.connectors.base import RawPayload
+from saudi_open_data_mcp.connectors.data_gov_sa import DataGovSaConnector
 from saudi_open_data_mcp.connectors.errors import SourceUnavailableError
 from saudi_open_data_mcp.connectors.resolver import SourceConnectorResolver
 from saudi_open_data_mcp.connectors.sama import SAMAConnector
@@ -32,25 +33,49 @@ from saudi_open_data_mcp.tools.preview import (
 
 DATASET_ID = "sama-money-supply"
 REPORT_LOCATOR = "report.aspx?cid=55"
+DATA_GOV_SA_DATASET_ID = "data-gov-sa-census-marital-status"
+DATA_GOV_SA_SOURCE_LOCATOR = (
+    "/ar/datasets/view/104380ce-60b6-46bc-ba0a-6d5e10ac46cb/"
+    "preview/parsed/Census%20Marital%20Status%20CSV.json"
+)
 
 
 def _report_url() -> str:
     return f"https://www.sama.gov.sa/en-US/EconomicReports/Pages/{REPORT_LOCATOR}"
 
 
+def _data_gov_sa_preview_url() -> str:
+    return f"https://open.data.gov.sa{DATA_GOV_SA_SOURCE_LOCATOR}"
+
+
 def _repository(tmp_path: Path) -> RegistryRepository:
-    return _repository_with_source(tmp_path, source="sama")
+    return _repository_with_source(
+        tmp_path,
+        source="sama",
+        dataset_id=DATASET_ID,
+        source_locator=REPORT_LOCATOR,
+        title="Money Supply",
+        description="Official monetary aggregate dataset published by SAMA.",
+    )
 
 
-def _repository_with_source(tmp_path: Path, *, source: str) -> RegistryRepository:
+def _repository_with_source(
+    tmp_path: Path,
+    *,
+    source: str,
+    dataset_id: str,
+    source_locator: str,
+    title: str,
+    description: str,
+) -> RegistryRepository:
     repository = RegistryRepository(tmp_path / "registry.sqlite")
     repository.upsert_dataset(
         DatasetDescriptor(
-            dataset_id=DATASET_ID,
+            dataset_id=dataset_id,
             source=source,
-            source_locator=REPORT_LOCATOR,
-            title="Money Supply",
-            description="Official monetary aggregate dataset published by SAMA.",
+            source_locator=source_locator,
+            title=title,
+            description=description,
             schema_version="0.1.0",
             update_frequency=UpdateFrequency.MONTHLY,
             health_status=DatasetHealthStatus.UNKNOWN,
@@ -92,6 +117,48 @@ async def test_json_payload_returns_record_derivable_preview_result(tmp_path: Pa
     assert result.records[0].fields == {
         "period": "2026-01",
         "value": 1,
+    }
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_data_gov_sa_json_payload_returns_record_derivable_preview_result(
+    tmp_path: Path,
+) -> None:
+    respx.get(_data_gov_sa_preview_url()).mock(
+        return_value=httpx.Response(
+            200,
+            json={"rows": [{"status": "single", "count": 10}]},
+            headers={"content-type": "application/json"},
+        )
+    )
+    connector = DataGovSaConnector()
+    tool = DatasetPreviewTool(
+        _repository_with_source(
+            tmp_path,
+            source="data-gov-sa",
+            dataset_id=DATA_GOV_SA_DATASET_ID,
+            source_locator=DATA_GOV_SA_SOURCE_LOCATOR,
+            title="Census Marital Status",
+            description="Official census marital status dataset published by data.gov.sa.",
+        ),
+        SourceConnectorResolver({"data-gov-sa": connector}),
+    )
+
+    result = await tool.preview_dataset(DATA_GOV_SA_DATASET_ID)
+
+    assert isinstance(result, DatasetPreviewResult)
+    assert result.status is PreviewStatus.RECORD_DERIVABLE
+    assert result.failure is None
+    assert result.dataset_id == DATA_GOV_SA_DATASET_ID
+    assert result.limitations == ()
+    assert len(result.records) == 1
+    assert result.records[0].dataset_id == DATA_GOV_SA_DATASET_ID
+    assert result.records[0].source == "data-gov-sa"
+    assert result.records[0].record_index == 0
+    assert result.records[0].fields == {
+        "status": "single",
+        "count": 10,
     }
 
 
@@ -225,7 +292,14 @@ async def test_preview_tool_uses_registry_lookup_and_normalization_pipeline(
 @pytest.mark.asyncio
 async def test_preview_tool_fails_explicitly_for_unsupported_source(tmp_path: Path) -> None:
     tool = DatasetPreviewTool(
-        _repository_with_source(tmp_path, source="unsupported-source"),
+        _repository_with_source(
+            tmp_path,
+            source="unsupported-source",
+            dataset_id=DATASET_ID,
+            source_locator=REPORT_LOCATOR,
+            title="Money Supply",
+            description="Official monetary aggregate dataset published by SAMA.",
+        ),
         SourceConnectorResolver({"sama": SAMAConnector()}),
     )
 

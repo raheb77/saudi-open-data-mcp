@@ -20,10 +20,19 @@ from saudi_open_data_mcp.tools import health as health_module
 from saudi_open_data_mcp.tools.preview import DatasetPreviewResult, PreviewStatus
 
 REPORT_LOCATOR = "report.aspx?cid=55"
+DATA_GOV_SA_DATASET_ID = "data-gov-sa-census-marital-status"
+DATA_GOV_SA_SOURCE_LOCATOR = (
+    "/ar/datasets/view/104380ce-60b6-46bc-ba0a-6d5e10ac46cb/"
+    "preview/parsed/Census%20Marital%20Status%20CSV.json"
+)
 
 
 def _report_url() -> str:
     return f"https://www.sama.gov.sa/en-US/EconomicReports/Pages/{REPORT_LOCATOR}"
+
+
+def _data_gov_sa_preview_url() -> str:
+    return f"https://open.data.gov.sa{DATA_GOV_SA_SOURCE_LOCATOR}"
 
 
 def _runtime_config(tmp_path: Path) -> RuntimeConfig:
@@ -44,6 +53,13 @@ async def test_server_registers_current_mcp_surface(
             headers={"content-type": "application/json"},
         )
     )
+    respx.get(_data_gov_sa_preview_url()).mock(
+        return_value=httpx.Response(
+            200,
+            json={"rows": [{"status": "single", "count": 10}]},
+            headers={"content-type": "application/json"},
+        )
+    )
     app = create_server(_runtime_config(tmp_path))
 
     resources = await app.get_resources()
@@ -60,7 +76,7 @@ async def test_server_registers_current_mcp_surface(
     }
 
     catalog_payload = json.loads(await resources["resource://catalog"].read())
-    assert catalog_payload["dataset_count"] == 3
+    assert catalog_payload["dataset_count"] == 4
     assert catalog_payload["datasets"][0]["dataset_id"] == "sama-balance-of-payments"
 
     metadata_result = await tools["dataset_metadata"].run(
@@ -172,11 +188,12 @@ async def test_server_registers_current_mcp_surface(
     assert all_datasets_result.structured_content["normalized_query"] == ""
     assert all_datasets_result.structured_content["status"] == "results"
     assert all_datasets_result.structured_content["mode"] == "all_datasets"
-    assert all_datasets_result.structured_content["match_count"] == 3
+    assert all_datasets_result.structured_content["match_count"] == 4
     assert [
         match["dataset_id"] for match in all_datasets_result.structured_content["matches"]
     ] == [
         "sama-balance-of-payments",
+        "data-gov-sa-census-marital-status",
         "sama-interest-rates",
         "sama-money-supply",
     ]
@@ -194,6 +211,22 @@ async def test_server_registers_current_mcp_surface(
             "source": "sama",
             "record_index": 0,
             "fields": {"period": "2026-01", "value": 1},
+        }
+    ]
+
+    data_gov_preview_result = await tools["preview_dataset"].run(
+        {"dataset_id": DATA_GOV_SA_DATASET_ID}
+    )
+    assert data_gov_preview_result.structured_content["status"] == "record_derivable"
+    assert data_gov_preview_result.structured_content["dataset_id"] == DATA_GOV_SA_DATASET_ID
+    assert data_gov_preview_result.structured_content["failure"] is None
+    assert data_gov_preview_result.structured_content["limitations"] == []
+    assert data_gov_preview_result.structured_content["records"] == [
+        {
+            "dataset_id": DATA_GOV_SA_DATASET_ID,
+            "source": "data-gov-sa",
+            "record_index": 0,
+            "fields": {"status": "single", "count": 10},
         }
     ]
 
@@ -363,8 +396,8 @@ async def test_server_wires_preview_through_connector_resolver(
     captured: dict[str, object] = {}
     resolver_sentinel = object()
 
-    def _resolver_factory(connectors):
-        captured["connectors"] = connectors
+    def _resolver_factory(*, sama_base_url: str):
+        captured["sama_base_url"] = sama_base_url
         return resolver_sentinel
 
     class PreviewToolSpy:
@@ -377,7 +410,7 @@ async def test_server_wires_preview_through_connector_resolver(
                 status=PreviewStatus.MISSING,
             )
 
-    monkeypatch.setattr(server_module, "SourceConnectorResolver", _resolver_factory)
+    monkeypatch.setattr(server_module, "build_default_connector_resolver", _resolver_factory)
     monkeypatch.setattr(server_module, "DatasetPreviewTool", PreviewToolSpy)
 
     app = server_module.create_server(_runtime_config(tmp_path))
@@ -386,7 +419,7 @@ async def test_server_wires_preview_through_connector_resolver(
 
     assert preview_result.structured_content["status"] == "missing"
     assert captured["connector_resolver"] is resolver_sentinel
-    assert set(captured["connectors"]) == {"sama"}
+    assert captured["sama_base_url"] == "https://www.sama.gov.sa"
 
 
 def _write_snapshot_with_mtime(
