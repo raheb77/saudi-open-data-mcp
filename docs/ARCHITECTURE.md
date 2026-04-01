@@ -12,9 +12,9 @@ The project does not treat MCP as the core product. MCP is the interface layer t
 - health checks
 - reliable AI-facing tool interfaces
 
-## Assumptions for v0.1
+## Assumptions for the Current MVP
 
-- Initial source scope is SAMA only.
+- Current source scope is SAMA plus one narrow `data.gov.sa` pilot dataset.
 - Python 3.12 is the runtime.
 - FastMCP 2.x is the MCP framework.
 - `httpx` is the only HTTP client. `requests` is out of scope.
@@ -29,10 +29,10 @@ The architecture separates source-specific code from normalized contracts and fr
 
 This separation exists for operational reasons, not style:
 
-- Source isolation limits the impact of upstream changes to connector modules and source-specific normalization mappings.
+- Source isolation limits the impact of upstream changes to connector modules and source-specific normalization mappings and validators.
 - Typed normalized contracts keep AI-facing outputs deterministic. The enforcement mechanism is Pydantic v2 models for all normalized outputs.
 - Registry-backed metadata prevents tool modules from inventing dataset descriptors or health state at request time. The enforcement mechanism is mandatory registry reads for dataset metadata and health metadata.
-- MCP transports remain thin because business logic lives behind internal application orchestration, not inside MCP entry points. The enforcement mechanism is that `server.py`, `tools/`, and `resources/` expose MCP interfaces but do not fetch raw payloads or perform normalization.
+- MCP transports remain thin because business logic lives behind internal application orchestration, not inside MCP entry points. The enforcement mechanism is that `server.py`, `tools/`, and `resources/` expose MCP interfaces but do not fetch raw payloads or perform normalization, and connector resolution is pushed below `server.py`.
 
 ## Three-Layer Architecture
 
@@ -55,6 +55,7 @@ Required mechanisms:
 - `httpx` clients with explicit timeouts
 - retry policy implemented inside connectors
 - source allowlist enforced by connector configuration
+- connector resolution by `descriptor.source` outside `server.py`
 - raw payload snapshotting handled outside MCP-facing modules
 
 ### 2. Normalization and Contract Layer
@@ -75,7 +76,8 @@ Required mechanisms:
 
 - Pydantic v2 models defined in `normalization/` for canonical outputs
 - explicit mapping code from raw payload shape to canonical schema
-- validation logic kept inside `normalization/`
+- normalization dispatch by raw payload source
+- validation logic kept inside `normalization/` and dispatched by source
 - schema version identifiers stored in the registry
 - registry-backed dataset descriptors, caveats, and health metadata stored in SQLite
 
@@ -114,7 +116,7 @@ These supporting modules enforce operational boundaries across the three layers.
 
 Responsibilities:
 
-- call approved official SAMA endpoints
+- call approved official source endpoints
 - define request URLs, headers, timeouts, and retry behavior
 - return raw source payloads and source retrieval metadata
 
@@ -128,6 +130,7 @@ Enforcement:
 
 - external I/O is concentrated in this package
 - all upstream HTTP usage goes through `httpx`
+- connector selection happens by source through a small resolver, not by branching in `server.py`
 - downstream callers receive connector outputs through controlled internal orchestration and typed contracts
 
 ### `storage/`
@@ -165,6 +168,7 @@ Must not:
 Enforcement:
 
 - normalization consumes connector outputs, not URLs
+- normalization selects source-specific mapping and validation behavior from the raw payload source
 - canonical outputs are defined as Pydantic models inside `normalization/`
 - validation logic stays inside `normalization/`
 - validation failures stop normalization before MCP response assembly

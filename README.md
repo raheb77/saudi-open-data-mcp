@@ -19,13 +19,13 @@ The current codebase is organized around three layers.
 
 ### Data Access Layer
 
-- `connectors/` defines the typed connector contract and the current SAMA connector.
+- `connectors/` defines the typed connector contract and the current source-specific connectors for SAMA plus one narrow `data.gov.sa` pilot dataset.
 - `storage/` provides raw snapshot persistence for connector payloads.
 - `httpx` is the only HTTP client in the core path.
 
 ### Normalization & Contract Layer
 
-- `normalization/` contains field mapping, validation, the normalization pipeline, and the current minimal canonical record layer.
+- `normalization/` contains source-aware field mapping, source-aware validation, the normalization pipeline, and the current minimal canonical record layer.
 - `registry/` owns dataset descriptors, health metadata, SQLite persistence, and deterministic bootstrap data.
 - Canonical records are produced only for narrow supported JSON shapes:
   - top-level list of objects
@@ -74,15 +74,14 @@ preview_dataset({"dataset_id": "sama-money-supply"})
 ## What Works Now
 
 - Architecture documents and ADRs are in place and aligned with the codebase.
-- The connector contract is typed and implemented for SAMA.
-- A narrow `data.gov.sa` connector path is implemented for one seeded pilot dataset.
+- The connector contract is typed and implemented for SAMA plus one narrow `data.gov.sa` pilot dataset.
 - Raw payload snapshots can be written and read locally.
 - Local snapshot freshness is evaluated deterministically from filesystem evidence only.
 - Registry models, SQLite repository behavior, and deterministic bootstrap data are implemented.
 - Registry descriptors now distinguish canonical `dataset_id` from source-specific `source_locator`.
-- Normalization field mapping, validation, pipeline composition, and minimal canonical record extraction are implemented.
+- Normalization field mapping, validation, pipeline composition, and minimal canonical record extraction are implemented and dispatched by source.
 - The MCP server is wired with a real working surface for catalog, metadata, health, download, query, search, and preview.
-- Preview uses the current connector and normalization path and can return either:
+- Preview resolves the connector by descriptor source and uses the current normalization dispatch path; it can return either:
   - `record_derivable`
   - `limited`
   - `failed`
