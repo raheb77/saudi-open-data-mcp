@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..connectors.base import RawPayload
+from .errors import UnknownNormalizationSourceError
 
 
 class MappingBodyKind(StrEnum):
@@ -62,6 +64,17 @@ class FieldMappingResult(BaseModel):
 
 
 def get_field_mapping(raw_payload: RawPayload) -> FieldMappingResult:
+    """Map a raw payload into a typed normalization-ready field structure.
+
+    Dispatch stays inside the normalization layer and selects the registered
+    source-specific mapper by `raw_payload.source`.
+    """
+
+    mapper = _resolve_field_mapper(raw_payload.source)
+    return mapper(raw_payload)
+
+
+def _map_sama_field_mapping(raw_payload: RawPayload) -> FieldMappingResult:
     """Map a raw SAMA payload into a typed normalization-ready field structure.
 
     This layer does not invent canonical business records. It separates:
@@ -69,11 +82,6 @@ def get_field_mapping(raw_payload: RawPayload) -> FieldMappingResult:
     - raw response body
     - canonical fields that later validation and pipeline steps can inspect
     """
-
-    if raw_payload.source != "sama":
-        raise ValueError(
-            f"field mapping currently supports source 'sama' only, got '{raw_payload.source}'"
-        )
 
     response_metadata = _build_response_metadata(raw_payload)
     raw_body = _extract_raw_body(raw_payload)
@@ -118,6 +126,25 @@ def get_field_mapping(raw_payload: RawPayload) -> FieldMappingResult:
         can_derive_records=can_derive_records,
         limitations=limitations,
     )
+
+
+FieldMapper = Callable[[RawPayload], FieldMappingResult]
+
+_FIELD_MAPPERS: dict[str, FieldMapper] = {
+    "sama": _map_sama_field_mapping,
+}
+
+
+def _resolve_field_mapper(source: str) -> FieldMapper:
+    """Resolve the field mapper registered for a source."""
+
+    normalized_source = source.strip()
+    mapper = _FIELD_MAPPERS.get(normalized_source)
+    if mapper is None:
+        raise UnknownNormalizationSourceError(
+            f"No field mapping registered for source '{source}'"
+        )
+    return mapper
 
 
 def _build_response_metadata(raw_payload: RawPayload) -> RawResponseMetadata:

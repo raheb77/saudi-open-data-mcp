@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .errors import UnknownNormalizationSourceError
 from .field_mapping import (
     JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
     FieldMappingResult,
@@ -59,8 +61,16 @@ def validate_field_mapping(mapping_result: FieldMappingResult) -> FieldMappingVa
     - invalid mappings that fail explicitly
     """
 
+    validator = _resolve_field_mapping_validator(mapping_result.source)
+    return validator(mapping_result)
+
+
+def _validate_sama_field_mapping(
+    mapping_result: FieldMappingResult,
+) -> FieldMappingValidationResult:
+    """Validate the current SAMA field mapping contract."""
+
     dataset_locator = validate_dataset_id(mapping_result.dataset_locator)
-    _validate_supported_source(mapping_result.source)
     _validate_common_fields(mapping_result, dataset_locator)
 
     if mapping_result.body_kind is MappingBodyKind.JSON:
@@ -80,12 +90,23 @@ def validate_field_mapping(mapping_result: FieldMappingResult) -> FieldMappingVa
         limitations=mapping_result.limitations,
     )
 
+FieldMappingValidator = Callable[[FieldMappingResult], FieldMappingValidationResult]
 
-def _validate_supported_source(source: str) -> None:
-    """Validate supported mapping sources."""
+_FIELD_MAPPING_VALIDATORS: dict[str, FieldMappingValidator] = {
+    "sama": _validate_sama_field_mapping,
+}
 
-    if source != "sama":
-        raise ValueError(f"validation currently supports source 'sama' only, got '{source}'")
+
+def _resolve_field_mapping_validator(source: str) -> FieldMappingValidator:
+    """Resolve the field-mapping validator registered for a source."""
+
+    normalized_source = source.strip()
+    validator = _FIELD_MAPPING_VALIDATORS.get(normalized_source)
+    if validator is None:
+        raise UnknownNormalizationSourceError(
+            f"No field mapping validator registered for source '{source}'"
+        )
+    return validator
 
 
 def _validate_common_fields(mapping_result: FieldMappingResult, dataset_locator: str) -> None:

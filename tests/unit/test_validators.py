@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import pytest
 
+from saudi_open_data_mcp.normalization import validators as validators_module
+from saudi_open_data_mcp.normalization.errors import UnknownNormalizationSourceError
 from saudi_open_data_mcp.normalization.field_mapping import (
     JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
     FieldMappingResult,
@@ -109,6 +111,88 @@ def test_unsupported_json_mapping_passes_as_limited() -> None:
     assert result.record_extraction_shape is RecordExtractionShape.NONE
     assert result.can_derive_records is False
     assert result.limitations == (JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,)
+
+
+def test_validation_dispatches_by_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    mapping_result = FieldMappingResult(
+        source="source-2",
+        dataset_locator="dataset-1",
+        response_metadata=RawResponseMetadata(
+            url="https://example.com/dataset-1",
+            status_code=200,
+            content_type="application/json",
+        ),
+        body_kind=MappingBodyKind.JSON,
+        raw_body={"rows": []},
+        canonical_fields={
+            "dataset_locator": "dataset-1",
+            "response_url": "https://example.com/dataset-1",
+            "response_status_code": 200,
+            "response_content_type": "application/json",
+            "structured_body": {"rows": []},
+        },
+        record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
+        can_derive_records=True,
+        limitations=(),
+    )
+    sentinel_result = FieldMappingValidationResult(
+        source="source-2",
+        dataset_locator="dataset-1",
+        body_kind=MappingBodyKind.JSON,
+        status=MappingValidationStatus.RECORD_DERIVABLE,
+        record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
+        can_derive_records=True,
+        canonical_fields=dict(mapping_result.canonical_fields),
+        limitations=(),
+    )
+    seen_sources: list[str] = []
+
+    def _source_two_validator(
+        result: FieldMappingResult,
+    ) -> FieldMappingValidationResult:
+        seen_sources.append(result.source)
+        return sentinel_result
+
+    monkeypatch.setitem(
+        validators_module._FIELD_MAPPING_VALIDATORS,
+        "source-2",
+        _source_two_validator,
+    )
+
+    result = validate_field_mapping(mapping_result)
+
+    assert result is sentinel_result
+    assert seen_sources == ["source-2"]
+
+
+def test_validation_fails_explicitly_for_unsupported_source() -> None:
+    mapping_result = FieldMappingResult(
+        source="other-source",
+        dataset_locator="dataset-1",
+        response_metadata=RawResponseMetadata(
+            url="https://example.com/dataset-1",
+            status_code=200,
+            content_type="application/json",
+        ),
+        body_kind=MappingBodyKind.JSON,
+        raw_body={"rows": []},
+        canonical_fields={
+            "dataset_locator": "dataset-1",
+            "response_url": "https://example.com/dataset-1",
+            "response_status_code": 200,
+            "response_content_type": "application/json",
+            "structured_body": {"rows": []},
+        },
+        record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
+        can_derive_records=True,
+        limitations=(),
+    )
+
+    with pytest.raises(
+        UnknownNormalizationSourceError,
+        match="No field mapping validator registered for source 'other-source'",
+    ):
+        validate_field_mapping(mapping_result)
 
 
 def test_inconsistent_mapping_result_fails_validation() -> None:

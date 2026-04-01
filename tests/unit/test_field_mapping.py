@@ -5,9 +5,13 @@ from __future__ import annotations
 import pytest
 
 from saudi_open_data_mcp.connectors.base import RawPayload
+from saudi_open_data_mcp.normalization import field_mapping as field_mapping_module
+from saudi_open_data_mcp.normalization.errors import UnknownNormalizationSourceError
 from saudi_open_data_mcp.normalization.field_mapping import (
     FieldMappingResult,
     MappingBodyKind,
+    RawResponseMetadata,
+    RecordExtractionShape,
     get_field_mapping,
 )
 
@@ -69,7 +73,57 @@ def test_html_raw_payload_maps_to_limited_explicit_result() -> None:
     }
 
 
-def test_field_mapping_enforces_source_specific_assumptions() -> None:
+def test_field_mapping_dispatches_by_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    raw_payload = RawPayload(
+        source="source-2",
+        dataset_id="dataset-1",
+        content={
+            "url": "https://example.com/dataset-1",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {"rows": []},
+        },
+    )
+    sentinel_result = FieldMappingResult(
+        source="source-2",
+        dataset_locator="dataset-1",
+        response_metadata=RawResponseMetadata(
+            url="https://example.com/dataset-1",
+            status_code=200,
+            content_type="application/json",
+        ),
+        body_kind=MappingBodyKind.JSON,
+        raw_body={"rows": []},
+        canonical_fields={
+            "dataset_locator": "dataset-1",
+            "response_url": "https://example.com/dataset-1",
+            "response_status_code": 200,
+            "response_content_type": "application/json",
+            "structured_body": {"rows": []},
+        },
+        record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
+        can_derive_records=True,
+        limitations=(),
+    )
+    seen_sources: list[str] = []
+
+    def _source_two_mapper(payload: RawPayload) -> FieldMappingResult:
+        seen_sources.append(payload.source)
+        return sentinel_result
+
+    monkeypatch.setitem(
+        field_mapping_module._FIELD_MAPPERS,
+        "source-2",
+        _source_two_mapper,
+    )
+
+    result = get_field_mapping(raw_payload)
+
+    assert result is sentinel_result
+    assert seen_sources == ["source-2"]
+
+
+def test_field_mapping_fails_explicitly_for_unsupported_source() -> None:
     raw_payload = RawPayload(
         source="other-source",
         dataset_id="dataset-1",
@@ -81,7 +135,10 @@ def test_field_mapping_enforces_source_specific_assumptions() -> None:
         },
     )
 
-    with pytest.raises(ValueError, match="supports source 'sama' only"):
+    with pytest.raises(
+        UnknownNormalizationSourceError,
+        match="No field mapping registered for source 'other-source'",
+    ):
         get_field_mapping(raw_payload)
 
 

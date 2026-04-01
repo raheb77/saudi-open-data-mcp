@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.normalization import pipeline as pipeline_module
+from saudi_open_data_mcp.normalization.errors import UnknownNormalizationSourceError
 from saudi_open_data_mcp.normalization.pipeline import (
     NormalizationFailureStage,
     NormalizationPipeline,
@@ -94,6 +95,29 @@ def test_invalid_raw_payload_content_fails_explicitly_at_mapping_stage() -> None
     assert result.status is NormalizationPipelineStatus.FAILED
     assert result.failure is not None
     assert result.failure.stage is NormalizationFailureStage.MAPPING
+    assert result.mapping_result is None
+    assert result.validation_result is None
+
+
+def test_unsupported_source_fails_explicitly_at_mapping_stage() -> None:
+    raw_payload = RawPayload(
+        source="other-source",
+        dataset_id="dataset-1",
+        content={
+            "url": "https://example.com/dataset-1",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {"rows": []},
+        },
+    )
+
+    result = NormalizationPipeline().normalize(raw_payload)
+
+    assert result.status is NormalizationPipelineStatus.FAILED
+    assert result.failure is not None
+    assert result.failure.stage is NormalizationFailureStage.MAPPING
+    assert result.failure.error_type == UnknownNormalizationSourceError.__name__
+    assert "other-source" in result.failure.message
     assert result.mapping_result is None
     assert result.validation_result is None
 
