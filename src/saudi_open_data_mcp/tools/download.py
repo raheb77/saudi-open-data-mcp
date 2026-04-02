@@ -36,7 +36,11 @@ class DatasetDownloadReason(StrEnum):
 
 
 class DatasetDownloadResult(BaseModel):
-    """Typed local artifact lookup result."""
+    """Typed local artifact lookup result.
+
+    `snapshot_path` is a local filesystem artifact/debug path. It is not part
+    of the canonical public dataset identity contract.
+    """
 
     model_config = ConfigDict(extra="forbid")
 

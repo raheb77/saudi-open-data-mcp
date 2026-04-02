@@ -143,12 +143,18 @@ python src/saudi_open_data_mcp/cli.py run-stdio
 python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
 ```
 
+Use the source-tree CLI or the local helper scripts as the verified operator
+path. Installed module entrypoints and packaged console scripts are still not
+part of the supported workflow.
+
 `run-stdio` is the primary host/operator path. It starts the MCP server over stdio for Claude Desktop and other command-based MCP hosts.
 
 `run-http` starts the same app over streamable HTTP. Treat that path as MCP-aware and session-aware only. It is suitable for MCP inspectors and MCP clients, not generic browser probing.
 
-By default, local registry and snapshot state resolve under the repo's `.local/` directory; set `REGISTRY_PATH` or `SNAPSHOT_DIR` to override them explicitly.
-Source base URLs can also be overridden explicitly with `SAMA_BASE_URL` and `DATA_GOV_SA_BASE_URL`.
+By default, local registry and snapshot state resolve under the repo's
+`.local/` directory; set `REGISTRY_PATH` or `SNAPSHOT_DIR` to override them
+explicitly. For reproducible host runs, prefer explicit `REGISTRY_PATH`,
+`SNAPSHOT_DIR`, `SAMA_BASE_URL`, and `DATA_GOV_SA_BASE_URL` values.
 
 Local state expectations:
 
@@ -156,6 +162,7 @@ Local state expectations:
 - `query_dataset` only works when a local snapshot exists and the normalization layer can derive canonical records from that snapshot.
 - If no local snapshot exists, `download_dataset` returns `artifact_missing` and `query_dataset` returns `snapshot_missing`.
 - On a fresh checkout, those local-only states are the expected result until snapshots have been written under the configured snapshot directory.
+- When present, `snapshot_path` is a local artifact/debug path, not a canonical dataset identifier.
 
 The helper script remains available for local HTTP development:
 

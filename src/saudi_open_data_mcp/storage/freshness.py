@@ -32,7 +32,11 @@ class SnapshotFreshnessReason(StrEnum):
 
 
 class SnapshotFreshnessResult(BaseModel):
-    """Typed local snapshot freshness result."""
+    """Typed local snapshot freshness result.
+
+    `snapshot_path` is local runtime evidence only. It is not a canonical
+    dataset identifier.
+    """
 
     model_config = ConfigDict(extra="forbid")
 

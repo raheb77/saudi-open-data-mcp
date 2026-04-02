@@ -18,6 +18,12 @@ from saudi_open_data_mcp.registry.bootstrap import bootstrap_registry
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 
+DATA_GOV_SA_DATASET_ID = "data-gov-sa-census-marital-status"
+DATA_GOV_SA_SOURCE_LOCATOR = (
+    "/ar/datasets/view/104380ce-60b6-46bc-ba0a-6d5e10ac46cb/"
+    "preview/parsed/Census%20Marital%20Status%20CSV.json"
+)
+
 
 def test_cli_check_startup_mode_returns_success() -> None:
     assert cli_module.main(["--check-startup"]) == 0
@@ -144,6 +150,61 @@ async def test_source_tree_cli_stdio_uses_explicit_runtime_paths_outside_repo_ro
     assert result.structured_content["status"] == "available"
     assert result.structured_content["dataset_id"] == "sama-money-supply"
     assert result.structured_content["snapshot_path"] == str(snapshot_path)
+
+
+@pytest.mark.asyncio
+async def test_source_tree_cli_stdio_supports_data_gov_sa_query_with_explicit_runtime_paths(
+    tmp_path: Path,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    python = Path(sys.prefix) / "bin" / "python"
+    registry_path = tmp_path / "runtime" / "registry.sqlite"
+    snapshot_store = SnapshotStore(tmp_path / "runtime" / "snapshots")
+    outside_repo_root = tmp_path / "outside-repo-root"
+    outside_repo_root.mkdir()
+
+    bootstrap_registry(RegistryRepository(registry_path))
+    snapshot_store.write_snapshot(
+        RawPayload(
+            source="data-gov-sa",
+            dataset_id=DATA_GOV_SA_SOURCE_LOCATOR,
+            content={
+                "url": f"https://open.data.gov.sa{DATA_GOV_SA_SOURCE_LOCATOR}",
+                "status_code": 200,
+                "content_type": "application/json",
+                "body": [{"marital_status": "Single", "count": 123}],
+            },
+        )
+    )
+
+    transport = StdioTransport(
+        command=str(python),
+        args=[str(root / "src" / "saudi_open_data_mcp" / "cli.py"), "run-stdio"],
+        cwd=str(outside_repo_root),
+        env={
+            "LOG_LEVEL": "ERROR",
+            "REGISTRY_PATH": str(registry_path),
+            "SNAPSHOT_DIR": str(snapshot_store.root),
+        },
+    )
+
+    async with Client(transport) as client:
+        result = await client.call_tool(
+            "query_dataset",
+            {
+                "dataset_id": DATA_GOV_SA_DATASET_ID,
+                "filters": {"marital_status": "Single"},
+                "limit": 1,
+            },
+        )
+
+    assert result.structured_content["status"] == "success"
+    assert result.structured_content["dataset_id"] == DATA_GOV_SA_DATASET_ID
+    assert result.structured_content["source"] == "data-gov-sa"
+    assert result.structured_content["matched_records"][0]["dataset_id"] == (
+        DATA_GOV_SA_DATASET_ID
+    )
+    assert result.structured_content["matched_records"][0]["source"] == "data-gov-sa"
 
 
 @pytest.mark.asyncio
