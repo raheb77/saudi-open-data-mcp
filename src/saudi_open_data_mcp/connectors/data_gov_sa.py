@@ -11,8 +11,6 @@ from .base import Connector, RawPayload, RawPayloadSnapshotWriter, RequestPolicy
 from .errors import (
     InvalidSourceResponseError,
     SourceAccessPolicyViolationError,
-    SourceTimeoutError,
-    SourceUnavailableError,
 )
 
 
@@ -101,42 +99,28 @@ class DataGovSaConnector(Connector):
         return approved_url
 
     async def _send_request(self, url: str, source_locator: str) -> httpx.Response:
-        """Send a single timeout-aware request to the approved data.gov.sa URL."""
+        """Send a timeout-aware request to the approved data.gov.sa URL with retries."""
 
-        try:
+        async def send_once() -> httpx.Response:
             if self._client is None:
                 async with httpx.AsyncClient() as client:
-                    response = await client.get(
+                    return await client.get(
                         url,
                         follow_redirects=True,
                         timeout=self.build_timeout(),
                     )
-            else:
-                response = await self._client.get(
-                    url,
-                    follow_redirects=True,
-                    timeout=self.build_timeout(),
-                )
-            response.raise_for_status()
-            return response
-        except httpx.TimeoutException as exc:
-            raise SourceTimeoutError(
-                source_name=self.source_name,
-                dataset_id=source_locator,
-                message="data.gov.sa source request timed out",
-            ) from exc
-        except httpx.HTTPStatusError as exc:
-            raise SourceUnavailableError(
-                source_name=self.source_name,
-                dataset_id=source_locator,
-                message=f"data.gov.sa source returned HTTP {exc.response.status_code}",
-            ) from exc
-        except httpx.RequestError as exc:
-            raise SourceUnavailableError(
-                source_name=self.source_name,
-                dataset_id=source_locator,
-                message="data.gov.sa source request failed",
-            ) from exc
+
+            return await self._client.get(
+                url,
+                follow_redirects=True,
+                timeout=self.build_timeout(),
+            )
+
+        return await self.execute_request_with_retries(
+            send_once,
+            dataset_id=source_locator,
+            source_label="data.gov.sa",
+        )
 
     def _build_raw_payload(self, source_locator: str, response: httpx.Response) -> RawPayload:
         """Convert an HTTP response into a typed raw payload."""

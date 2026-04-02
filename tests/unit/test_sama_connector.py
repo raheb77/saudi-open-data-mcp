@@ -71,6 +71,71 @@ async def test_timeout_maps_to_source_timeout_error() -> None:
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_transient_unavailable_failure_retries_then_succeeds() -> None:
+    route = respx.get(_report_url()).mock(
+        side_effect=[
+            httpx.Response(503, text="service unavailable"),
+            httpx.Response(
+                200,
+                json={"rows": [{"period": "2026-01", "value": 1}]},
+                headers={"content-type": "application/json"},
+            ),
+        ]
+    )
+    connector = SAMAConnector(request_policy=RequestPolicy(timeout_seconds=0.1, max_retries=1))
+
+    payload = await connector.fetch_dataset_payload(REPORT_LOCATOR)
+
+    assert payload.content["body"] == {"rows": [{"period": "2026-01", "value": 1}]}
+    assert route.call_count == 2
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_retry_budget_exhaustion_preserves_source_unavailable_error() -> None:
+    route = respx.get(_report_url()).mock(
+        side_effect=[
+            httpx.Response(503, text="service unavailable"),
+            httpx.Response(503, text="service unavailable"),
+        ]
+    )
+    connector = SAMAConnector(request_policy=RequestPolicy(timeout_seconds=0.1, max_retries=1))
+
+    with pytest.raises(SourceUnavailableError) as exc_info:
+        await connector.fetch_dataset_payload(REPORT_LOCATOR)
+
+    assert exc_info.value.dataset_id == REPORT_LOCATOR
+    assert exc_info.value.message == "SAMA source returned HTTP 503"
+    assert route.call_count == 2
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_invalid_source_response_is_not_retried() -> None:
+    route = respx.get(_report_url()).mock(
+        side_effect=[
+            httpx.Response(
+                200,
+                text="not valid json",
+                headers={"content-type": "application/json"},
+            ),
+            httpx.Response(
+                200,
+                json={"rows": [{"period": "2026-01", "value": 1}]},
+                headers={"content-type": "application/json"},
+            ),
+        ]
+    )
+    connector = SAMAConnector(request_policy=RequestPolicy(timeout_seconds=0.1, max_retries=1))
+
+    with pytest.raises(InvalidSourceResponseError):
+        await connector.fetch_dataset_payload(REPORT_LOCATOR)
+
+    assert route.call_count == 1
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_unavailable_source_maps_to_source_unavailable_error() -> None:
     respx.get(_report_url()).mock(
         return_value=httpx.Response(503, text="service unavailable")

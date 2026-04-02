@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
 import httpx
@@ -136,3 +137,46 @@ class Connector(ABC):
             raise ValueError("retries_used must be greater than or equal to zero")
         retryable = (SourceUnavailableError, SourceTimeoutError)
         return retries_used < self.request_policy.max_retries and isinstance(error, retryable)
+
+    async def execute_request_with_retries(
+        self,
+        send_request: Callable[[], Awaitable[httpx.Response]],
+        *,
+        dataset_id: str,
+        source_label: str,
+    ) -> httpx.Response:
+        """Execute a connector request with bounded retries for transient failures."""
+
+        retries_used = 0
+
+        while True:
+            try:
+                response = await send_request()
+                response.raise_for_status()
+                return response
+            except httpx.TimeoutException as exc:
+                cause = exc
+                error = SourceTimeoutError(
+                    source_name=self.source_name,
+                    dataset_id=dataset_id,
+                    message=f"{source_label} source request timed out",
+                )
+            except httpx.HTTPStatusError as exc:
+                cause = exc
+                error = SourceUnavailableError(
+                    source_name=self.source_name,
+                    dataset_id=dataset_id,
+                    message=f"{source_label} source returned HTTP {exc.response.status_code}",
+                )
+            except httpx.RequestError as exc:
+                cause = exc
+                error = SourceUnavailableError(
+                    source_name=self.source_name,
+                    dataset_id=dataset_id,
+                    message=f"{source_label} source request failed",
+                )
+
+            if not self.should_retry(error, retries_used):
+                raise error from cause
+
+            retries_used += 1
