@@ -24,6 +24,7 @@ from saudi_open_data_mcp.registry.models import (
     UpdateFrequency,
 )
 from saudi_open_data_mcp.registry.repository import RegistryRepository
+from saudi_open_data_mcp.security.rate_limit import RateLimitPolicy
 from saudi_open_data_mcp.tools.preview import (
     DatasetPreviewResult,
     DatasetPreviewTool,
@@ -344,3 +345,77 @@ async def test_non_connector_failures_keep_standard_string_representation(
     assert result.failure.stage is PreviewFailureStage.FETCH
     assert result.failure.error_type == "FormattedError"
     assert result.failure.message == "formatted generic failure"
+
+
+@pytest.mark.asyncio
+async def test_preview_tool_enforces_in_process_rate_limit(tmp_path: Path) -> None:
+    requested_locators: list[str] = []
+    times = iter((100.0, 100.0))
+
+    class ConnectorSpy:
+        async def fetch_dataset_payload(self, dataset_id: str) -> RawPayload:
+            requested_locators.append(dataset_id)
+            return RawPayload(
+                source="sama",
+                dataset_id=dataset_id,
+                content={
+                    "url": _report_url(),
+                    "status_code": 200,
+                    "content_type": "application/json",
+                    "body": {"rows": []},
+                },
+            )
+
+    tool = DatasetPreviewTool(
+        _repository(tmp_path),
+        SourceConnectorResolver({"sama": ConnectorSpy()}),
+        rate_limit_policy=RateLimitPolicy(requests=1, window_seconds=60),
+        time_source=lambda: next(times),
+    )
+
+    first_result = await tool.preview_dataset(DATASET_ID)
+    second_result = await tool.preview_dataset(DATASET_ID)
+
+    assert first_result.status is PreviewStatus.RECORD_DERIVABLE
+    assert second_result.status is PreviewStatus.FAILED
+    assert second_result.failure is not None
+    assert second_result.failure.stage is PreviewFailureStage.FETCH
+    assert second_result.failure.error_type == "RateLimitExceededError"
+    assert second_result.failure.message == (
+        "preview_dataset rate limit exceeded: 1 requests per 60 seconds"
+    )
+    assert requested_locators == [REPORT_LOCATOR]
+
+
+@pytest.mark.asyncio
+async def test_preview_tool_rate_limit_resets_after_window(tmp_path: Path) -> None:
+    requested_locators: list[str] = []
+    times = iter((100.0, 161.0))
+
+    class ConnectorSpy:
+        async def fetch_dataset_payload(self, dataset_id: str) -> RawPayload:
+            requested_locators.append(dataset_id)
+            return RawPayload(
+                source="sama",
+                dataset_id=dataset_id,
+                content={
+                    "url": _report_url(),
+                    "status_code": 200,
+                    "content_type": "application/json",
+                    "body": {"rows": []},
+                },
+            )
+
+    tool = DatasetPreviewTool(
+        _repository(tmp_path),
+        SourceConnectorResolver({"sama": ConnectorSpy()}),
+        rate_limit_policy=RateLimitPolicy(requests=1, window_seconds=60),
+        time_source=lambda: next(times),
+    )
+
+    first_result = await tool.preview_dataset(DATASET_ID)
+    second_result = await tool.preview_dataset(DATASET_ID)
+
+    assert first_result.status is PreviewStatus.RECORD_DERIVABLE
+    assert second_result.status is PreviewStatus.RECORD_DERIVABLE
+    assert requested_locators == [REPORT_LOCATOR, REPORT_LOCATOR]

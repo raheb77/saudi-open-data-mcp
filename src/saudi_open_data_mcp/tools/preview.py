@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from enum import StrEnum
+from time import monotonic
 from typing import Any, Protocol, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -15,6 +17,7 @@ from saudi_open_data_mcp.normalization.pipeline import (
 )
 from saudi_open_data_mcp.registry.models import DatasetDescriptor
 from saudi_open_data_mcp.registry.repository import RegistryRepository
+from saudi_open_data_mcp.security.rate_limit import InMemoryRateLimiter, RateLimitPolicy
 
 
 class PreviewStatus(StrEnum):
@@ -118,10 +121,16 @@ class DatasetPreviewTool:
         connector_resolver: PreviewConnectorResolver,
         *,
         normalization_pipeline: PreviewPipeline | None = None,
+        rate_limit_policy: RateLimitPolicy | None = None,
+        time_source: Callable[[], float] | None = None,
     ) -> None:
         self._repository = repository
         self._connector_resolver = connector_resolver
         self._normalization_pipeline = normalization_pipeline or NormalizationPipeline()
+        self._rate_limiter = InMemoryRateLimiter(
+            rate_limit_policy or RateLimitPolicy(),
+            clock=time_source or monotonic,
+        )
 
     async def preview_dataset(self, dataset_id: str) -> DatasetPreviewResult:
         """Fetch a raw payload for a canonical dataset id and return a preview."""
@@ -143,6 +152,7 @@ class DatasetPreviewTool:
 
         try:
             connector = self._connector_resolver.resolve(descriptor.source)
+            self._rate_limiter.enforce()
             raw_payload = await connector.fetch_dataset_payload(descriptor.source_locator)
         except Exception as exc:
             return self._failed_result(
