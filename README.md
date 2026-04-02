@@ -105,7 +105,9 @@ Another important limitation: `query_dataset` only works on local snapshots that
 
 ## Local Setup
 
-This repo uses a `src/` layout. The verified local development path is the source-tree CLI; local commands do not require manually setting `PYTHONPATH`.
+This repo uses a `src/` layout. For the current phase, the source-tree CLI is
+the official runtime contract; local commands do not require manually setting
+`PYTHONPATH`.
 
 Install and sync with `uv`:
 
@@ -144,8 +146,8 @@ python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
 ```
 
 Use the source-tree CLI or the local helper scripts as the verified operator
-path. Installed module entrypoints and packaged console scripts are still not
-part of the supported workflow.
+path for this phase. Installed module entrypoints and packaged console scripts
+are still not part of the supported workflow.
 
 `run-stdio` is the primary host/operator path. It starts the MCP server over stdio for Claude Desktop and other command-based MCP hosts.
 
@@ -169,6 +171,10 @@ The helper script remains available for local HTTP development:
 ```bash
 ./scripts/run_local_http.sh
 ```
+
+Container files are included for startup validation and local environment
+checks only. `Dockerfile` and `docker-compose.yml` are not the serving
+deployment path yet.
 
 ## MCP Host Registration
 
@@ -212,7 +218,10 @@ If you prefer a single command path, the repo also includes a stdio helper scrip
 }
 ```
 
-Current limitation to keep explicit: the supported host registration path is stdio through the source-tree CLI. Installed module entrypoints and packaged console scripts are not part of the verified workflow.
+Current limitation to keep explicit: the supported host registration path is
+stdio through the source-tree CLI. Installed module entrypoints, packaged
+console scripts, and containerized serving deployment are not part of the
+verified workflow yet.
 
 ## HTTP Testing Notes
 

@@ -10,5 +10,6 @@ COPY src /app/src
 
 RUN pip install --no-cache-dir .
 
-# Intentionally uses the supported source-tree CLI path for the current repo workflow, rather than an installed-package entrypoint.
+# Intentionally uses the source-tree CLI for startup validation only.
+# This container is not the serving deployment path yet.
 CMD ["python", "src/saudi_open_data_mcp/cli.py", "check-startup"]
