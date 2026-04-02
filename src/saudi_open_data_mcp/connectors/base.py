@@ -138,6 +138,11 @@ class Connector(ABC):
         retryable = (SourceUnavailableError, SourceTimeoutError)
         return retries_used < self.request_policy.max_retries and isinstance(error, retryable)
 
+    def should_retry_http_status(self, status_code: int) -> bool:
+        """Return whether an HTTP status is transient enough to retry."""
+
+        return status_code in {408, 429} or 500 <= status_code <= 599
+
     async def execute_request_with_retries(
         self,
         send_request: Callable[[], Awaitable[httpx.Response]],
@@ -163,11 +168,14 @@ class Connector(ABC):
                 )
             except httpx.HTTPStatusError as exc:
                 cause = exc
+                status_code = exc.response.status_code
                 error = SourceUnavailableError(
                     source_name=self.source_name,
                     dataset_id=dataset_id,
-                    message=f"{source_label} source returned HTTP {exc.response.status_code}",
+                    message=f"{source_label} source returned HTTP {status_code}",
                 )
+                if not self.should_retry_http_status(status_code):
+                    raise error from cause
             except httpx.RequestError as exc:
                 cause = exc
                 error = SourceUnavailableError(
