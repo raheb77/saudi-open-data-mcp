@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from enum import StrEnum
 from time import monotonic
@@ -15,10 +16,16 @@ from saudi_open_data_mcp.normalization.pipeline import (
     NormalizationPipelineStatus,
     NormalizationResult,
 )
+from saudi_open_data_mcp.observability import get_logger, get_metrics, log_event
 from saudi_open_data_mcp.registry.models import DatasetDescriptor
 from saudi_open_data_mcp.registry.repository import RegistryRepository
-from saudi_open_data_mcp.security.rate_limit import InMemoryRateLimiter, RateLimitPolicy
+from saudi_open_data_mcp.security.rate_limit import (
+    InMemoryRateLimiter,
+    RateLimitPolicy,
+)
 from saudi_open_data_mcp.security.sanitization import sanitize_dataset_id
+
+LOGGER = get_logger(__name__)
 
 
 class PreviewStatus(StrEnum):
@@ -136,9 +143,22 @@ class DatasetPreviewTool:
     async def preview_dataset(self, dataset_id: str) -> DatasetPreviewResult:
         """Fetch a raw payload for a canonical dataset id and return a preview."""
 
+        metrics = get_metrics()
+        metrics.increment("preview.requests")
+
         try:
             requested_dataset_id = sanitize_dataset_id(dataset_id)
         except ValueError as exc:
+            metrics.increment("preview.results.failed")
+            log_event(
+                LOGGER,
+                logging.WARNING,
+                "preview.request.failed",
+                stage=PreviewFailureStage.LOOKUP.value,
+                error_type=type(exc).__name__,
+                message=str(exc),
+                dataset_id_length=len(dataset_id),
+            )
             return self._failed_result(
                 dataset_id=dataset_id,
                 stage=PreviewFailureStage.LOOKUP,
@@ -147,6 +167,13 @@ class DatasetPreviewTool:
 
         descriptor = self._repository.get_dataset(requested_dataset_id)
         if descriptor is None:
+            metrics.increment("preview.results.missing")
+            log_event(
+                LOGGER,
+                logging.INFO,
+                "preview.request.missing",
+                dataset_id=requested_dataset_id,
+            )
             return DatasetPreviewResult(
                 dataset_id=requested_dataset_id,
                 status=PreviewStatus.MISSING,
@@ -157,6 +184,16 @@ class DatasetPreviewTool:
             self._rate_limiter.enforce()
             raw_payload = await connector.fetch_dataset_payload(descriptor.source_locator)
         except Exception as exc:
+            metrics.increment("preview.results.failed")
+            log_event(
+                LOGGER,
+                logging.WARNING,
+                "preview.request.failed",
+                dataset_id=requested_dataset_id,
+                stage=PreviewFailureStage.FETCH.value,
+                error_type=type(exc).__name__,
+                message=_public_failure_message(exc),
+            )
             return self._failed_result(
                 dataset_id=requested_dataset_id,
                 stage=PreviewFailureStage.FETCH,
@@ -169,6 +206,24 @@ class DatasetPreviewTool:
         )
 
         if normalization_result.status is NormalizationPipelineStatus.FAILED:
+            metrics.increment("preview.results.failed")
+            log_event(
+                LOGGER,
+                logging.WARNING,
+                "preview.request.failed",
+                dataset_id=normalization_result.dataset_id,
+                stage=PreviewFailureStage.NORMALIZATION.value,
+                error_type=(
+                    normalization_result.failure.error_type
+                    if normalization_result.failure is not None
+                    else "NormalizationPipelineError"
+                ),
+                message=(
+                    normalization_result.failure.message
+                    if normalization_result.failure is not None
+                    else "Normalization pipeline failed without structured failure details"
+                ),
+            )
             return DatasetPreviewResult(
                 dataset_id=normalization_result.dataset_id,
                 status=PreviewStatus.FAILED,
@@ -187,11 +242,23 @@ class DatasetPreviewTool:
                 ),
             )
 
+        preview_status = PreviewStatus(normalization_result.status.value)
+        limitations = _collect_limitations(normalization_result)
+        metrics.increment(f"preview.results.{preview_status.value}")
+        log_event(
+            LOGGER,
+            logging.INFO,
+            "preview.request.completed",
+            dataset_id=normalization_result.dataset_id,
+            status=preview_status.value,
+            record_count=len(normalization_result.records),
+            limitation_count=len(limitations),
+        )
         return DatasetPreviewResult(
             dataset_id=normalization_result.dataset_id,
-            status=PreviewStatus(normalization_result.status.value),
+            status=preview_status,
             records=normalization_result.records,
-            limitations=_collect_limitations(normalization_result),
+            limitations=limitations,
         )
 
     @staticmethod

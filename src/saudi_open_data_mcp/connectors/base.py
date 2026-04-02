@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
 import httpx
 from pydantic import BaseModel, Field
+
+from saudi_open_data_mcp.observability import get_logger, get_metrics, log_event
 
 from .errors import (
     ConnectorConfigurationError,
@@ -17,6 +20,8 @@ from .errors import (
     SourceTimeoutError,
     SourceUnavailableError,
 )
+
+LOGGER = get_logger(__name__)
 
 
 class RequestPolicy(BaseModel):
@@ -207,8 +212,10 @@ class Connector(ABC):
         """Execute a connector request with bounded retries for transient failures."""
 
         retries_used = 0
+        metrics = get_metrics()
 
         while True:
+            metrics.increment(f"connector.request_attempts.{self.source_name}")
             try:
                 response = await send_request()
                 response.raise_for_status()
@@ -239,7 +246,31 @@ class Connector(ABC):
                 )
 
             if not self.should_retry(error, retries_used):
+                metrics.increment(f"connector.request_failures.{self.source_name}")
+                log_event(
+                    LOGGER,
+                    logging.WARNING,
+                    "connector.request.failed",
+                    source=self.source_name,
+                    dataset_id=dataset_id,
+                    error_type=type(error).__name__,
+                    message=error.message,
+                    retries_used=retries_used,
+                )
                 raise error from cause
 
+            backoff_seconds = self.retry_backoff_seconds(retries_used)
+            metrics.increment(f"connector.request_retries.{self.source_name}")
+            log_event(
+                LOGGER,
+                logging.INFO,
+                "connector.request.retry_scheduled",
+                source=self.source_name,
+                dataset_id=dataset_id,
+                error_type=type(error).__name__,
+                message=error.message,
+                retries_used=retries_used,
+                backoff_seconds=backoff_seconds,
+            )
             await self.sleep_before_retry(retries_used)
             retries_used += 1

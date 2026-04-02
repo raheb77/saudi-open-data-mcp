@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
+
 from fastmcp import FastMCP
 
 from .config import RuntimeConfig, load_config
 from .connectors.resolver import build_default_connector_resolver
+from .observability import configure_logging, get_logger, get_metrics, log_event
 from .registry.bootstrap import bootstrap_registry
 from .registry.repository import RegistryRepository
 from .resources.catalog import CatalogResource
@@ -15,13 +18,25 @@ from .tools.preview import DatasetPreviewTool
 from .tools.query import DatasetQueryTool
 from .tools.search import DatasetSearchTool
 
+LOGGER = get_logger(__name__)
+
 
 def create_server(config: RuntimeConfig | None = None) -> FastMCP:
     """Create the FastMCP application and wire the current MCP surface."""
 
     runtime_config = config or load_config()
+    configure_logging(runtime_config.log_level)
+    metrics = get_metrics()
+    metrics.increment("server.startup.attempts")
+    log_event(
+        LOGGER,
+        logging.INFO,
+        "server.startup.begin",
+        app_name=runtime_config.app_name,
+    )
+
     repository = RegistryRepository(runtime_config.registry_path)
-    bootstrap_registry(repository)
+    bootstrapped_descriptors = bootstrap_registry(repository)
     snapshot_store = SnapshotStore(runtime_config.snapshot_dir)
     connector_resolver = build_default_connector_resolver(
         sama_base_url=runtime_config.source.base_url,
@@ -41,6 +56,14 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
     )
     query_tool = DatasetQueryTool(repository, snapshot_store)
     search_tool = DatasetSearchTool(repository)
+    metrics.increment("server.startup.success")
+    log_event(
+        LOGGER,
+        logging.INFO,
+        "server.startup.ready",
+        app_name=runtime_config.app_name,
+        dataset_count=len(bootstrapped_descriptors),
+    )
 
     app = FastMCP(runtime_config.app_name)
 
