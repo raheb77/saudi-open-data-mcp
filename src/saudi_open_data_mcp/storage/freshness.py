@@ -32,11 +32,7 @@ class SnapshotFreshnessReason(StrEnum):
 
 
 class SnapshotFreshnessResult(BaseModel):
-    """Typed local snapshot freshness result.
-
-    `snapshot_path` is local runtime evidence only. It is not a canonical
-    dataset identifier.
-    """
+    """Typed local snapshot freshness result."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -44,7 +40,7 @@ class SnapshotFreshnessResult(BaseModel):
     dataset_id: str
     status: SnapshotFreshnessStatus
     reason: SnapshotFreshnessReason
-    snapshot_path: Path
+    artifact_present: bool
     reference_time: datetime
     snapshot_modified_at: datetime | None = None
     snapshot_age: timedelta | None = None
@@ -75,7 +71,7 @@ def evaluate_snapshot_freshness(
             dataset_id=dataset_id,
             status=SnapshotFreshnessStatus.MISSING,
             reason=SnapshotFreshnessReason.NO_SNAPSHOT,
-            snapshot_path=snapshot_path,
+            artifact_present=False,
             reference_time=evaluated_at,
             update_frequency=update_frequency,
         )
@@ -92,7 +88,7 @@ def evaluate_snapshot_freshness(
             dataset_id=dataset_id,
             status=SnapshotFreshnessStatus.UNKNOWN,
             reason=SnapshotFreshnessReason.NO_FREQUENCY_EVIDENCE,
-            snapshot_path=snapshot_path,
+            artifact_present=True,
             reference_time=evaluated_at,
             snapshot_modified_at=modified_at,
             snapshot_age=snapshot_age,
@@ -112,7 +108,7 @@ def evaluate_snapshot_freshness(
         dataset_id=dataset_id,
         status=status,
         reason=reason,
-        snapshot_path=snapshot_path,
+        artifact_present=True,
         reference_time=evaluated_at,
         snapshot_modified_at=modified_at,
         snapshot_age=snapshot_age,

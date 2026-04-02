@@ -52,7 +52,6 @@ def test_get_dataset_download_returns_explicit_missing_result_for_unknown_datase
     assert result.reason is DatasetDownloadReason.DATASET_NOT_IN_REGISTRY
     assert result.local_snapshot_exists is False
     assert result.source is None
-    assert result.snapshot_path is None
     assert result.freshness is None
 
 
@@ -72,12 +71,9 @@ def test_get_dataset_download_returns_explicit_missing_local_artifact(
     assert result.dataset_id == descriptor.dataset_id
     assert result.local_snapshot_exists is False
     assert result.source == "sama"
-    assert result.snapshot_path == snapshot_store.snapshot_path(
-        "sama",
-        descriptor.source_locator,
-    )
     assert result.freshness is not None
     assert result.freshness.dataset_id == descriptor.dataset_id
+    assert result.freshness.artifact_present is False
     assert result.freshness.status is SnapshotFreshnessStatus.MISSING
 
 
@@ -100,10 +96,9 @@ def test_get_dataset_download_uses_source_locator_not_canonical_dataset_id_for_l
     assert result.status is DatasetDownloadStatus.ARTIFACT_MISSING
     assert result.reason is DatasetDownloadReason.NO_LOCAL_SNAPSHOT
     assert result.dataset_id == descriptor.dataset_id
-    assert result.snapshot_path == snapshot_store.snapshot_path(
-        "sama",
-        descriptor.source_locator,
-    )
+    assert result.local_snapshot_exists is False
+    assert result.freshness is not None
+    assert result.freshness.artifact_present is False
 
 
 def test_get_dataset_download_returns_available_local_artifact_result(
@@ -117,7 +112,7 @@ def test_get_dataset_download_returns_available_local_artifact_result(
     reference_time = datetime(2026, 1, 15, 12, 0, tzinfo=UTC)
 
     repository.upsert_dataset(descriptor)
-    snapshot_path = _write_snapshot_with_mtime(
+    _write_snapshot_with_mtime(
         snapshot_store,
         snapshot_dataset_id=descriptor.source_locator,
         modified_at=snapshot_time,
@@ -132,9 +127,9 @@ def test_get_dataset_download_returns_available_local_artifact_result(
     assert result.dataset_id == descriptor.dataset_id
     assert result.local_snapshot_exists is True
     assert result.source == "sama"
-    assert result.snapshot_path == snapshot_path
     assert result.freshness is not None
     assert result.freshness.dataset_id == descriptor.dataset_id
+    assert result.freshness.artifact_present is True
     assert result.freshness.status is SnapshotFreshnessStatus.FRESH
     assert result.freshness.snapshot_modified_at == snapshot_time
 
@@ -150,7 +145,7 @@ def test_get_dataset_download_keeps_available_result_when_freshness_is_stale(
     reference_time = datetime(2026, 2, 15, 12, 0, tzinfo=UTC)
 
     repository.upsert_dataset(descriptor)
-    snapshot_path = _write_snapshot_with_mtime(
+    _write_snapshot_with_mtime(
         snapshot_store,
         snapshot_dataset_id=descriptor.source_locator,
         modified_at=snapshot_time,
@@ -165,9 +160,9 @@ def test_get_dataset_download_keeps_available_result_when_freshness_is_stale(
     assert result.dataset_id == descriptor.dataset_id
     assert result.local_snapshot_exists is True
     assert result.source == "sama"
-    assert result.snapshot_path == snapshot_path
     assert result.freshness is not None
     assert result.freshness.dataset_id == descriptor.dataset_id
+    assert result.freshness.artifact_present is True
     assert result.freshness.status is SnapshotFreshnessStatus.STALE
     assert result.freshness.snapshot_modified_at == snapshot_time
 

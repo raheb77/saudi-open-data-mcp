@@ -59,12 +59,9 @@ def test_get_dataset_health_returns_typed_health_for_known_dataset(tmp_path: Pat
     assert result.known_issues == descriptor.known_issues
     assert result.freshness is not None
     assert result.freshness.dataset_id == descriptor.dataset_id
+    assert result.freshness.artifact_present is False
     assert result.freshness.status is SnapshotFreshnessStatus.MISSING
     assert result.freshness.reason is SnapshotFreshnessReason.NO_SNAPSHOT
-    assert result.freshness.snapshot_path == snapshot_store.snapshot_path(
-        descriptor.source,
-        descriptor.source_locator,
-    )
 
 
 def test_get_dataset_health_returns_explicit_missing_result_for_unknown_dataset(
@@ -129,6 +126,7 @@ def test_get_dataset_health_includes_deterministic_recent_snapshot_freshness(
     assert result.status == "found"
     assert result.freshness is not None
     assert result.freshness.dataset_id == descriptor.dataset_id
+    assert result.freshness.artifact_present is True
     assert result.freshness.status is SnapshotFreshnessStatus.FRESH
     assert result.freshness.reason is SnapshotFreshnessReason.WITHIN_EXPECTED_WINDOW
     assert result.freshness.snapshot_modified_at == snapshot_time
@@ -153,12 +151,9 @@ def test_get_dataset_health_ignores_snapshot_stored_only_under_canonical_dataset
     assert result.status == "found"
     assert result.freshness is not None
     assert result.freshness.dataset_id == descriptor.dataset_id
+    assert result.freshness.artifact_present is False
     assert result.freshness.status is SnapshotFreshnessStatus.MISSING
     assert result.freshness.reason is SnapshotFreshnessReason.NO_SNAPSHOT
-    assert result.freshness.snapshot_path == snapshot_store.snapshot_path(
-        descriptor.source,
-        descriptor.source_locator,
-    )
 
 
 def test_health_tool_module_does_not_import_connectors() -> None:

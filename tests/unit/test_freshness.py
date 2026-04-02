@@ -30,6 +30,7 @@ def test_missing_snapshot_returns_explicit_missing_freshness_result(tmp_path: Pa
 
     assert result.status is SnapshotFreshnessStatus.MISSING
     assert result.reason is SnapshotFreshnessReason.NO_SNAPSHOT
+    assert result.artifact_present is False
     assert result.snapshot_modified_at is None
     assert result.snapshot_age is None
     assert result.reference_time == reference_time
@@ -41,7 +42,7 @@ def test_existing_snapshot_is_classified_fresh_with_fixed_reference_time(
     store = SnapshotStore(tmp_path)
     snapshot_time = datetime(2026, 1, 14, 6, 0, tzinfo=UTC)
     reference_time = datetime(2026, 1, 15, 0, 0, tzinfo=UTC)
-    snapshot_path = _write_snapshot_with_mtime(
+    _write_snapshot_with_mtime(
         store,
         dataset_id="money-supply",
         modified_at=snapshot_time,
@@ -55,7 +56,7 @@ def test_existing_snapshot_is_classified_fresh_with_fixed_reference_time(
         update_frequency=UpdateFrequency.DAILY,
     )
 
-    assert result.snapshot_path == snapshot_path
+    assert result.artifact_present is True
     assert result.status is SnapshotFreshnessStatus.FRESH
     assert result.reason is SnapshotFreshnessReason.WITHIN_EXPECTED_WINDOW
     assert result.snapshot_modified_at == snapshot_time
@@ -82,6 +83,7 @@ def test_existing_snapshot_is_classified_stale_when_age_exceeds_frequency_window
         update_frequency=UpdateFrequency.WEEKLY,
     )
 
+    assert result.artifact_present is True
     assert result.status is SnapshotFreshnessStatus.STALE
     assert result.reason is SnapshotFreshnessReason.EXCEEDED_EXPECTED_WINDOW
     assert result.snapshot_age == timedelta(days=9)
@@ -107,6 +109,7 @@ def test_existing_snapshot_without_frequency_remains_explicitly_unknown(
         update_frequency=None,
     )
 
+    assert result.artifact_present is True
     assert result.status is SnapshotFreshnessStatus.UNKNOWN
     assert result.reason is SnapshotFreshnessReason.NO_FREQUENCY_EVIDENCE
     assert result.snapshot_age == timedelta(days=31)

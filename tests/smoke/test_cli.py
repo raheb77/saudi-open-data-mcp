@@ -109,7 +109,6 @@ async def test_source_tree_cli_stdio_uses_explicit_runtime_paths_outside_repo_ro
     python = Path(sys.prefix) / "bin" / "python"
     registry_path = tmp_path / "runtime" / "registry.sqlite"
     snapshot_store = SnapshotStore(tmp_path / "runtime" / "snapshots")
-    snapshot_path = snapshot_store.snapshot_path("sama", "report.aspx?cid=55")
     outside_repo_root = tmp_path / "outside-repo-root"
     outside_repo_root.mkdir()
 
@@ -149,7 +148,10 @@ async def test_source_tree_cli_stdio_uses_explicit_runtime_paths_outside_repo_ro
 
     assert result.structured_content["status"] == "available"
     assert result.structured_content["dataset_id"] == "sama-money-supply"
-    assert result.structured_content["snapshot_path"] == str(snapshot_path)
+    assert result.structured_content["local_snapshot_exists"] is True
+    assert result.structured_content["freshness"]["artifact_present"] is True
+    assert "snapshot_path" not in result.structured_content
+    assert "snapshot_path" not in result.structured_content["freshness"]
 
 
 @pytest.mark.asyncio
@@ -265,7 +267,10 @@ async def test_source_tree_cli_stdio_uses_default_anchored_paths_outside_repo_ro
 
         assert result.structured_content["status"] == "available"
         assert result.structured_content["dataset_id"] == "sama-money-supply"
-        assert result.structured_content["snapshot_path"] == str(snapshot_path)
+        assert result.structured_content["local_snapshot_exists"] is True
+        assert result.structured_content["freshness"]["artifact_present"] is True
+        assert "snapshot_path" not in result.structured_content
+        assert "snapshot_path" not in result.structured_content["freshness"]
     finally:
         _restore_optional_bytes(registry_path, original_registry)
         _restore_optional_bytes(snapshot_path, original_snapshot)

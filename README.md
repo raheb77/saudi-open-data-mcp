@@ -162,7 +162,7 @@ Local state expectations:
 - `query_dataset` only works when a local snapshot exists and the normalization layer can derive canonical records from that snapshot.
 - If no local snapshot exists, `download_dataset` returns `artifact_missing` and `query_dataset` returns `snapshot_missing`.
 - On a fresh checkout, those local-only states are the expected result until snapshots have been written under the configured snapshot directory.
-- When present, `snapshot_path` is a local artifact/debug path, not a canonical dataset identifier.
+- Public download and health outputs expose artifact presence plus freshness evidence, not local snapshot paths.
 
 The helper script remains available for local HTTP development:
 

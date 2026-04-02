@@ -36,11 +36,7 @@ class DatasetDownloadReason(StrEnum):
 
 
 class DatasetDownloadResult(BaseModel):
-    """Typed local artifact lookup result.
-
-    `snapshot_path` is a local filesystem artifact/debug path. It is not part
-    of the canonical public dataset identity contract.
-    """
+    """Typed local artifact lookup result."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -49,7 +45,6 @@ class DatasetDownloadResult(BaseModel):
     reason: DatasetDownloadReason
     local_snapshot_exists: bool
     source: NonEmptyText | None = None
-    snapshot_path: Path | None = None
     freshness: SnapshotFreshnessResult | None = None
 
     @model_validator(mode="after")
@@ -59,27 +54,19 @@ class DatasetDownloadResult(BaseModel):
                 raise ValueError("missing results require dataset_not_in_registry")
             if self.local_snapshot_exists:
                 raise ValueError("missing results must not claim a local snapshot")
-            if (
-                self.source is not None
-                or self.snapshot_path is not None
-                or self.freshness is not None
-            ):
-                raise ValueError(
-                    "missing results must not include source, snapshot_path, or freshness"
-                )
+            if self.source is not None or self.freshness is not None:
+                raise ValueError("missing results must not include source or freshness")
             return self
 
-        if self.source is None or self.snapshot_path is None or self.freshness is None:
-            raise ValueError(
-                "known dataset download results must include source, snapshot_path, and freshness"
-            )
+        if self.source is None or self.freshness is None:
+            raise ValueError("known dataset download results must include source and freshness")
 
         if self.freshness.dataset_id != self.dataset_id:
             raise ValueError("freshness.dataset_id must match dataset_id")
         if self.freshness.source != self.source:
             raise ValueError("freshness.source must match source")
-        if self.freshness.snapshot_path != self.snapshot_path:
-            raise ValueError("freshness.snapshot_path must match snapshot_path")
+        if self.freshness.artifact_present != self.local_snapshot_exists:
+            raise ValueError("freshness.artifact_present must match local_snapshot_exists")
 
         if self.status is DatasetDownloadStatus.ARTIFACT_MISSING:
             if self.reason is not DatasetDownloadReason.NO_LOCAL_SNAPSHOT:
@@ -88,6 +75,10 @@ class DatasetDownloadResult(BaseModel):
                 raise ValueError("artifact_missing results must not claim a local snapshot")
             if self.freshness.status is not SnapshotFreshnessStatus.MISSING:
                 raise ValueError("artifact_missing results require missing freshness evidence")
+            if self.freshness.artifact_present:
+                raise ValueError(
+                    "artifact_missing results must not claim freshness artifact evidence"
+                )
             return self
 
         if self.reason is not DatasetDownloadReason.LOCAL_SNAPSHOT_AVAILABLE:
@@ -96,6 +87,8 @@ class DatasetDownloadResult(BaseModel):
             raise ValueError("available results must claim a local snapshot")
         if self.freshness.status is SnapshotFreshnessStatus.MISSING:
             raise ValueError("available results must not carry missing freshness evidence")
+        if not self.freshness.artifact_present:
+            raise ValueError("available results must carry positive freshness artifact evidence")
         return self
 
     @classmethod
@@ -123,7 +116,6 @@ class DatasetDownloadResult(BaseModel):
             reason=DatasetDownloadReason.NO_LOCAL_SNAPSHOT,
             local_snapshot_exists=False,
             source=descriptor.source,
-            snapshot_path=freshness.snapshot_path,
             freshness=freshness,
         )
 
@@ -141,7 +133,6 @@ class DatasetDownloadResult(BaseModel):
             reason=DatasetDownloadReason.LOCAL_SNAPSHOT_AVAILABLE,
             local_snapshot_exists=True,
             source=descriptor.source,
-            snapshot_path=freshness.snapshot_path,
             freshness=freshness,
         )
 

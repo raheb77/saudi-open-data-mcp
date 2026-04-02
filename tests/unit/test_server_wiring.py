@@ -94,6 +94,8 @@ async def test_server_registers_current_mcp_surface(
     assert health_result.structured_content["schema_version"] == "0.1.0"
     assert health_result.structured_content["freshness"]["status"] == "missing"
     assert health_result.structured_content["freshness"]["reason"] == "no_snapshot"
+    assert health_result.structured_content["freshness"]["artifact_present"] is False
+    assert "snapshot_path" not in health_result.structured_content["freshness"]
 
     download_result = await tools["download_dataset"].run(
         {"dataset_id": "sama-money-supply"}
@@ -105,6 +107,9 @@ async def test_server_registers_current_mcp_surface(
     assert download_result.structured_content["source"] == "sama"
     assert download_result.structured_content["freshness"]["status"] == "missing"
     assert download_result.structured_content["freshness"]["reason"] == "no_snapshot"
+    assert download_result.structured_content["freshness"]["artifact_present"] is False
+    assert "snapshot_path" not in download_result.structured_content
+    assert "snapshot_path" not in download_result.structured_content["freshness"]
 
     missing_query_result = await tools["query_dataset"].run(
         {"dataset_id": "sama-money-supply"}
@@ -264,7 +269,6 @@ async def test_server_missing_dataset_lookup_stays_explicit(
         "reason": "dataset_not_in_registry",
         "local_snapshot_exists": False,
         "source": None,
-        "snapshot_path": None,
         "freshness": None,
     }
     assert query_result.structured_content == {
@@ -317,6 +321,8 @@ async def test_server_health_tool_can_expose_recent_snapshot_freshness(
     assert health_result.structured_content["freshness"]["status"] == "fresh"
     assert health_result.structured_content["freshness"]["reason"] == "within_expected_window"
     assert health_result.structured_content["freshness"]["dataset_id"] == "sama-money-supply"
+    assert health_result.structured_content["freshness"]["artifact_present"] is True
+    assert "snapshot_path" not in health_result.structured_content["freshness"]
 
 
 async def test_server_download_tool_can_expose_local_snapshot_availability(
@@ -325,7 +331,7 @@ async def test_server_download_tool_can_expose_local_snapshot_availability(
 ) -> None:
     reference_time = datetime(2026, 1, 15, 12, 0, tzinfo=UTC)
     snapshot_store = SnapshotStore(tmp_path / "snapshots")
-    snapshot_path = _write_snapshot_with_mtime(
+    _write_snapshot_with_mtime(
         snapshot_store,
         dataset_id=REPORT_LOCATOR,
         modified_at=datetime(2026, 1, 1, 0, 0, tzinfo=UTC),
@@ -354,14 +360,16 @@ async def test_server_download_tool_can_expose_local_snapshot_availability(
     assert download_result.structured_content["status"] == "available"
     assert download_result.structured_content["reason"] == "local_snapshot_available"
     assert download_result.structured_content["local_snapshot_exists"] is True
-    assert download_result.structured_content["snapshot_path"] == str(snapshot_path)
     assert download_result.structured_content["freshness"]["status"] == "fresh"
     assert download_result.structured_content["freshness"]["reason"] == (
         "within_expected_window"
     )
+    assert download_result.structured_content["freshness"]["artifact_present"] is True
     assert download_result.structured_content["freshness"]["dataset_id"] == (
         "sama-money-supply"
     )
+    assert "snapshot_path" not in download_result.structured_content
+    assert "snapshot_path" not in download_result.structured_content["freshness"]
 
 
 @respx.mock
