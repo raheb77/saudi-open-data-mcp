@@ -21,6 +21,8 @@ def test_load_config_defaults() -> None:
     assert config.source.name == "sama"
     assert config.source.base_url == "https://www.sama.gov.sa"
     assert config.source.data_gov_sa_base_url == "https://open.data.gov.sa"
+    assert config.transport.http_host == "127.0.0.1"
+    assert config.transport.http_port == 8000
 
 
 def test_load_config_respects_data_gov_sa_base_url_override(

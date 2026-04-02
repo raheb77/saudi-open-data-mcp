@@ -28,7 +28,7 @@ class SourceConfig(BaseModel):
 class TransportConfig(BaseModel):
     """Transport configuration."""
 
-    http_host: str = "0.0.0.0"
+    http_host: str = "127.0.0.1"
     http_port: int = 8000
 
 
@@ -67,7 +67,7 @@ def load_config() -> RuntimeConfig:
         cache_dir=_path_from_env("CACHE_DIR", DEFAULT_CACHE_DIR),
         log_level=getenv("LOG_LEVEL", "INFO"),
         transport=TransportConfig(
-            http_host=getenv("HTTP_HOST", "0.0.0.0"),
+            http_host=getenv("HTTP_HOST", "127.0.0.1"),
             http_port=int(getenv("HTTP_PORT", "8000")),
         ),
     )

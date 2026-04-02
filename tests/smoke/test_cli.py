@@ -60,6 +60,31 @@ def test_cli_run_http_dispatches_to_server(monkeypatch) -> None:
     ]
 
 
+def test_cli_run_http_uses_loopback_default_host(monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
+
+    class DummyApp:
+        async def run_http_async(self, **kwargs) -> None:
+            calls.append(kwargs)
+
+    config = RuntimeConfig()
+
+    monkeypatch.setattr(cli_module, "load_config", lambda: config)
+    monkeypatch.setattr(cli_module, "create_server", lambda runtime_config=None: DummyApp())
+
+    exit_code = cli_module.main(["run-http"])
+
+    assert exit_code == 0
+    assert calls == [
+        {
+            "transport": "streamable-http",
+            "host": "127.0.0.1",
+            "port": 8000,
+            "log_level": "INFO",
+        }
+    ]
+
+
 def test_cli_run_stdio_dispatches_to_server(monkeypatch) -> None:
     calls: list[dict[str, object]] = []
 
