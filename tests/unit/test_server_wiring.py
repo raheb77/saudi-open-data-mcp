@@ -396,8 +396,9 @@ async def test_server_wires_preview_through_connector_resolver(
     captured: dict[str, object] = {}
     resolver_sentinel = object()
 
-    def _resolver_factory(*, sama_base_url: str):
+    def _resolver_factory(*, sama_base_url: str, data_gov_sa_base_url: str):
         captured["sama_base_url"] = sama_base_url
+        captured["data_gov_sa_base_url"] = data_gov_sa_base_url
         return resolver_sentinel
 
     class PreviewToolSpy:
@@ -413,13 +414,23 @@ async def test_server_wires_preview_through_connector_resolver(
     monkeypatch.setattr(server_module, "build_default_connector_resolver", _resolver_factory)
     monkeypatch.setattr(server_module, "DatasetPreviewTool", PreviewToolSpy)
 
-    app = server_module.create_server(_runtime_config(tmp_path))
+    app = server_module.create_server(
+        RuntimeConfig(
+            registry_path=tmp_path / "registry.sqlite",
+            snapshot_dir=tmp_path / "snapshots",
+            source={
+                "base_url": "https://www.sama.gov.sa",
+                "data_gov_sa_base_url": "https://open.data.gov.sa",
+            },
+        )
+    )
     tools = await app.get_tools()
     preview_result = await tools["preview_dataset"].run({"dataset_id": "missing-dataset"})
 
     assert preview_result.structured_content["status"] == "missing"
     assert captured["connector_resolver"] is resolver_sentinel
     assert captured["sama_base_url"] == "https://www.sama.gov.sa"
+    assert captured["data_gov_sa_base_url"] == "https://open.data.gov.sa"
 
 
 def _write_snapshot_with_mtime(

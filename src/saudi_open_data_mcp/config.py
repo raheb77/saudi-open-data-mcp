@@ -19,6 +19,7 @@ class SourceConfig(BaseModel):
 
     name: str = "sama"
     base_url: str = "https://www.sama.gov.sa"
+    data_gov_sa_base_url: str = "https://open.data.gov.sa"
     approved_only: bool = True
 
 
@@ -52,7 +53,13 @@ def load_config() -> RuntimeConfig:
     """Load deterministic runtime settings from the environment."""
 
     return RuntimeConfig(
-        source=SourceConfig(base_url=getenv("SAMA_BASE_URL", "https://www.sama.gov.sa")),
+        source=SourceConfig(
+            base_url=getenv("SAMA_BASE_URL", "https://www.sama.gov.sa"),
+            data_gov_sa_base_url=getenv(
+                "DATA_GOV_SA_BASE_URL",
+                "https://open.data.gov.sa",
+            ),
+        ),
         registry_path=_path_from_env("REGISTRY_PATH", DEFAULT_REGISTRY_PATH),
         snapshot_dir=_path_from_env("SNAPSHOT_DIR", DEFAULT_SNAPSHOT_DIR),
         cache_dir=_path_from_env("CACHE_DIR", DEFAULT_CACHE_DIR),

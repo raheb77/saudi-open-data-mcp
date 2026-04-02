@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from saudi_open_data_mcp.config import load_config
 from saudi_open_data_mcp.resources.catalog import (
     CatalogDatasetSummary,
@@ -17,6 +19,18 @@ def test_load_config_defaults() -> None:
 
     assert config.app_name == "saudi-open-data-mcp"
     assert config.source.name == "sama"
+    assert config.source.base_url == "https://www.sama.gov.sa"
+    assert config.source.data_gov_sa_base_url == "https://open.data.gov.sa"
+
+
+def test_load_config_respects_data_gov_sa_base_url_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DATA_GOV_SA_BASE_URL", "https://example.data.gov.sa")
+
+    config = load_config()
+
+    assert config.source.data_gov_sa_base_url == "https://example.data.gov.sa"
 
 
 def test_catalog_resource_types_import_cleanly() -> None:

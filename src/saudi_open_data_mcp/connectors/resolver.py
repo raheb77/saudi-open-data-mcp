@@ -32,12 +32,16 @@ class SourceConnectorResolver:
         return connector
 
 
-def build_default_connector_resolver(*, sama_base_url: str) -> SourceConnectorResolver:
+def build_default_connector_resolver(
+    *,
+    sama_base_url: str,
+    data_gov_sa_base_url: str,
+) -> SourceConnectorResolver:
     """Build the current source-to-connector resolver for live preview access."""
 
     return SourceConnectorResolver(
         {
             "sama": SAMAConnector(base_url=sama_base_url),
-            "data-gov-sa": DataGovSaConnector(),
+            "data-gov-sa": DataGovSaConnector(base_url=data_gov_sa_base_url),
         }
     )
