@@ -1,3 +1,3 @@
-"""MCP resource placeholders."""
+"""MCP resources."""
 
 __all__ = []

@@ -1,4 +1,4 @@
-"""Package for the saudi-open-data-mcp scaffold."""
+"""Package for saudi-open-data-mcp."""
 
 from importlib.metadata import PackageNotFoundError, version
 
