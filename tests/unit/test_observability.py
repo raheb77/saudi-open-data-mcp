@@ -54,11 +54,17 @@ def _log_events(caplog: pytest.LogCaptureFixture) -> list[dict[str, object]]:
     return [json.loads(record.getMessage()) for record in caplog.records]
 
 
-@pytest.fixture(autouse=True)
-def _reset_metrics() -> None:
-    reset_metrics()
-    yield
-    reset_metrics()
+def _assert_event(
+    events: list[dict[str, object]],
+    expected_fields: dict[str, object],
+) -> None:
+    for event in events:
+        if all(event.get(key) == value for key, value in expected_fields.items()):
+            assert isinstance(event.get("time"), str)
+            assert event["time"]
+            return
+
+    raise AssertionError(f"Expected log event not found: {expected_fields!r}")
 
 
 def test_create_server_emits_startup_logs_and_metrics(
@@ -74,19 +80,25 @@ def test_create_server_emits_startup_logs_and_metrics(
     assert metrics.get("server.startup.success") == 1
 
     events = _log_events(caplog)
-    assert {
-        "event": "server.startup.begin",
-        "level": "info",
-        "logger": "saudi_open_data_mcp.server",
-        "app_name": "saudi-open-data-mcp",
-    } in events
-    assert {
-        "event": "server.startup.ready",
-        "level": "info",
-        "logger": "saudi_open_data_mcp.server",
-        "app_name": "saudi-open-data-mcp",
-        "dataset_count": 4,
-    } in events
+    _assert_event(
+        events,
+        {
+            "event": "server.startup.begin",
+            "level": "info",
+            "logger": "saudi_open_data_mcp.server",
+            "app_name": "saudi-open-data-mcp",
+        },
+    )
+    _assert_event(
+        events,
+        {
+            "event": "server.startup.ready",
+            "level": "info",
+            "logger": "saudi_open_data_mcp.server",
+            "app_name": "saudi-open-data-mcp",
+            "dataset_count": 4,
+        },
+    )
 
 
 @pytest.mark.asyncio
@@ -122,15 +134,18 @@ async def test_preview_tool_emits_completion_logs_and_metrics(
     assert metrics.get("preview.results.record_derivable") == 1
 
     events = _log_events(caplog)
-    assert {
-        "event": "preview.request.completed",
-        "level": "info",
-        "logger": "saudi_open_data_mcp.tools.preview",
-        "dataset_id": "sama-money-supply",
-        "status": "record_derivable",
-        "record_count": 1,
-        "limitation_count": 0,
-    } in events
+    _assert_event(
+        events,
+        {
+            "event": "preview.request.completed",
+            "level": "info",
+            "logger": "saudi_open_data_mcp.tools.preview",
+            "dataset_id": "sama-money-supply",
+            "status": "record_derivable",
+            "record_count": 1,
+            "limitation_count": 0,
+        },
+    )
 
 
 @pytest.mark.asyncio
@@ -161,15 +176,18 @@ async def test_preview_tool_emits_failure_logs_and_metrics(
     assert metrics.get("preview.results.failed") == 1
 
     events = _log_events(caplog)
-    assert {
-        "event": "preview.request.failed",
-        "level": "warning",
-        "logger": "saudi_open_data_mcp.tools.preview",
-        "dataset_id": "sama-money-supply",
-        "stage": "fetch",
-        "error_type": "SourceUnavailableError",
-        "message": "SAMA source request failed for preview testing",
-    } in events
+    _assert_event(
+        events,
+        {
+            "event": "preview.request.failed",
+            "level": "warning",
+            "logger": "saudi_open_data_mcp.tools.preview",
+            "dataset_id": "sama-money-supply",
+            "stage": "fetch",
+            "error_type": "SourceUnavailableError",
+            "message": "SAMA source request failed for preview testing",
+        },
+    )
 
 
 @pytest.mark.asyncio
@@ -221,17 +239,20 @@ async def test_connector_retry_and_failure_emit_logs_and_metrics(
     assert metrics.get("connector.request_failures.dummy") == 0
 
     retry_events = _log_events(caplog)
-    assert {
-        "event": "connector.request.retry_scheduled",
-        "level": "info",
-        "logger": "saudi_open_data_mcp.connectors.base",
-        "source": "dummy",
-        "dataset_id": "dataset-1",
-        "error_type": "SourceUnavailableError",
-        "message": "Dummy source returned HTTP 503",
-        "retries_used": 0,
-        "backoff_seconds": 0.0,
-    } in retry_events
+    _assert_event(
+        retry_events,
+        {
+            "event": "connector.request.retry_scheduled",
+            "level": "info",
+            "logger": "saudi_open_data_mcp.connectors.base",
+            "source": "dummy",
+            "dataset_id": "dataset-1",
+            "error_type": "SourceUnavailableError",
+            "message": "Dummy source returned HTTP 503",
+            "retries_used": 0,
+            "backoff_seconds": 0.0,
+        },
+    )
 
     caplog.clear()
     reset_metrics()
@@ -264,16 +285,19 @@ async def test_connector_retry_and_failure_emit_logs_and_metrics(
     assert metrics.get("connector.request_failures.dummy") == 1
 
     failure_events = _log_events(caplog)
-    assert {
-        "event": "connector.request.failed",
-        "level": "warning",
-        "logger": "saudi_open_data_mcp.connectors.base",
-        "source": "dummy",
-        "dataset_id": "dataset-1",
-        "error_type": "SourceUnavailableError",
-        "message": "Dummy source returned HTTP 503",
-        "retries_used": 1,
-    } in failure_events
+    _assert_event(
+        failure_events,
+        {
+            "event": "connector.request.failed",
+            "level": "warning",
+            "logger": "saudi_open_data_mcp.connectors.base",
+            "source": "dummy",
+            "dataset_id": "dataset-1",
+            "error_type": "SourceUnavailableError",
+            "message": "Dummy source returned HTTP 503",
+            "retries_used": 1,
+        },
+    )
 
 
 async def _next_response(responses: object) -> httpx.Response:

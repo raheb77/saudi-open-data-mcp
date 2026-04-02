@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -33,6 +34,7 @@ def log_event(
     """Emit a structured JSON log event with deterministic field ordering."""
 
     payload = {
+        "time": datetime.now(UTC).isoformat(),
         "event": event,
         "level": logging.getLevelName(level).lower(),
         "logger": logger.name,
