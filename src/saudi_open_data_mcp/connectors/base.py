@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
@@ -23,6 +24,7 @@ class RequestPolicy(BaseModel):
 
     timeout_seconds: float = Field(default=10.0, gt=0)
     max_retries: int = Field(default=2, ge=0)
+    retry_backoff_seconds: float = Field(default=0.1, ge=0, le=1.0)
 
     def to_httpx_timeout(self) -> httpx.Timeout:
         """Convert policy settings into an `httpx` timeout object."""
@@ -143,6 +145,58 @@ class Connector(ABC):
 
         return status_code in {408, 429} or 500 <= status_code <= 599
 
+    def retry_backoff_seconds(self, retries_used: int) -> float:
+        """Return the bounded delay applied before the next retry attempt."""
+
+        if retries_used < 0:
+            raise ValueError("retries_used must be greater than or equal to zero")
+        return self.request_policy.retry_backoff_seconds
+
+    async def sleep_before_retry(self, retries_used: int) -> None:
+        """Sleep for the configured deterministic retry backoff."""
+
+        delay_seconds = self.retry_backoff_seconds(retries_used)
+        if delay_seconds > 0:
+            await asyncio.sleep(delay_seconds)
+
+    def build_async_client(self) -> httpx.AsyncClient:
+        """Build the default transient HTTP client for a single fetch call."""
+
+        return httpx.AsyncClient()
+
+    async def execute_get_with_retries(
+        self,
+        *,
+        client: httpx.AsyncClient | None,
+        url: str,
+        dataset_id: str,
+        source_label: str,
+    ) -> httpx.Response:
+        """Execute a GET request with per-call client reuse and bounded retries."""
+
+        timeout = self.build_timeout()
+
+        async def send_with(client_instance: httpx.AsyncClient) -> httpx.Response:
+            return await client_instance.get(
+                url,
+                follow_redirects=True,
+                timeout=timeout,
+            )
+
+        if client is not None:
+            return await self.execute_request_with_retries(
+                lambda: send_with(client),
+                dataset_id=dataset_id,
+                source_label=source_label,
+            )
+
+        async with self.build_async_client() as managed_client:
+            return await self.execute_request_with_retries(
+                lambda: send_with(managed_client),
+                dataset_id=dataset_id,
+                source_label=source_label,
+            )
+
     async def execute_request_with_retries(
         self,
         send_request: Callable[[], Awaitable[httpx.Response]],
@@ -187,4 +241,5 @@ class Connector(ABC):
             if not self.should_retry(error, retries_used):
                 raise error from cause
 
+            await self.sleep_before_retry(retries_used)
             retries_used += 1

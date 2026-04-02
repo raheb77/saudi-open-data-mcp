@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import httpx
 import pytest
@@ -72,6 +73,14 @@ async def test_timeout_maps_to_source_timeout_error() -> None:
 @pytest.mark.asyncio
 @respx.mock
 async def test_transient_unavailable_failure_retries_then_succeeds() -> None:
+    class RecordingConnector(SAMAConnector):
+        def __init__(self, *args, **kwargs) -> None:
+            super().__init__(*args, **kwargs)
+            self.backoff_delays: list[float] = []
+
+        async def sleep_before_retry(self, retries_used: int) -> None:
+            self.backoff_delays.append(self.retry_backoff_seconds(retries_used))
+
     route = respx.get(_report_url()).mock(
         side_effect=[
             httpx.Response(503, text="service unavailable"),
@@ -82,12 +91,88 @@ async def test_transient_unavailable_failure_retries_then_succeeds() -> None:
             ),
         ]
     )
-    connector = SAMAConnector(request_policy=RequestPolicy(timeout_seconds=0.1, max_retries=1))
+    connector = RecordingConnector(
+        request_policy=RequestPolicy(
+            timeout_seconds=0.1,
+            max_retries=1,
+            retry_backoff_seconds=0.2,
+        )
+    )
 
     payload = await connector.fetch_dataset_payload(REPORT_LOCATOR)
 
     assert payload.content["body"] == {"rows": [{"period": "2026-01", "value": 1}]}
     assert route.call_count == 2
+    assert connector.backoff_delays == [0.2]
+
+
+@pytest.mark.asyncio
+async def test_retries_reuse_one_transient_client_per_fetch_call() -> None:
+    class FakeAsyncClient:
+        def __init__(self, responses: list[httpx.Response]) -> None:
+            self._responses = iter(responses)
+            self.get_call_count = 0
+            self.closed = False
+
+        async def __aenter__(self) -> FakeAsyncClient:
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb) -> None:
+            self.closed = True
+
+        async def get(
+            self,
+            url: str,
+            *,
+            follow_redirects: bool,
+            timeout: httpx.Timeout,
+        ) -> httpx.Response:
+            self.get_call_count += 1
+            return next(self._responses)
+
+    class RecordingConnector(SAMAConnector):
+        def __init__(self, *args, **kwargs) -> None:
+            super().__init__(*args, **kwargs)
+            self.backoff_delays: list[float] = []
+            self.created_clients: list[FakeAsyncClient] = []
+
+        def build_async_client(self) -> httpx.AsyncClient:
+            client = FakeAsyncClient(
+                [
+                    httpx.Response(
+                        503,
+                        request=httpx.Request("GET", _report_url()),
+                        text="service unavailable",
+                    ),
+                    httpx.Response(
+                        200,
+                        request=httpx.Request("GET", _report_url()),
+                        json={"rows": [{"period": "2026-01", "value": 1}]},
+                        headers={"content-type": "application/json"},
+                    ),
+                ]
+            )
+            self.created_clients.append(client)
+            return cast(httpx.AsyncClient, client)
+
+        async def sleep_before_retry(self, retries_used: int) -> None:
+            self.backoff_delays.append(self.retry_backoff_seconds(retries_used))
+
+    connector = RecordingConnector(
+        request_policy=RequestPolicy(
+            timeout_seconds=0.1,
+            max_retries=1,
+            retry_backoff_seconds=0.2,
+        )
+    )
+
+    payload = await connector.fetch_dataset_payload(REPORT_LOCATOR)
+
+    assert payload.content["body"] == {"rows": [{"period": "2026-01", "value": 1}]}
+    assert connector.backoff_delays == [0.2]
+    assert len(connector.created_clients) == 1
+    assert connector.created_clients[0].get_call_count == 2
+    assert connector.created_clients[0].closed is True
 
 
 @pytest.mark.asyncio

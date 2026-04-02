@@ -106,23 +106,9 @@ class SAMAConnector(Connector):
     async def _send_request(self, url: str, dataset_locator: str) -> httpx.Response:
         """Send a timeout-aware request to the approved SAMA URL with bounded retries."""
 
-        async def send_once() -> httpx.Response:
-            if self._client is None:
-                async with httpx.AsyncClient() as client:
-                    return await client.get(
-                        url,
-                        follow_redirects=True,
-                        timeout=self.build_timeout(),
-                    )
-
-            return await self._client.get(
-                url,
-                follow_redirects=True,
-                timeout=self.build_timeout(),
-            )
-
-        return await self.execute_request_with_retries(
-            send_once,
+        return await self.execute_get_with_retries(
+            client=self._client,
+            url=url,
             dataset_id=dataset_locator,
             source_label="SAMA",
         )
