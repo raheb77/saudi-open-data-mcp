@@ -148,6 +148,7 @@ python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
 `run-http` starts the same app over streamable HTTP. Treat that path as MCP-aware and session-aware only. It is suitable for MCP inspectors and MCP clients, not generic browser probing.
 
 By default, local registry and snapshot state resolve under the repo's `.local/` directory; set `REGISTRY_PATH` or `SNAPSHOT_DIR` to override them explicitly.
+Source base URLs can also be overridden explicitly with `SAMA_BASE_URL` and `DATA_GOV_SA_BASE_URL`.
 
 Local state expectations:
 
@@ -181,7 +182,9 @@ Claude Desktop example:
       ],
       "cwd": "/absolute/path/to/saudi-open-data-mcp",
       "env": {
-        "LOG_LEVEL": "ERROR"
+        "LOG_LEVEL": "ERROR",
+        "SAMA_BASE_URL": "https://www.sama.gov.sa",
+        "DATA_GOV_SA_BASE_URL": "https://open.data.gov.sa"
       }
     }
   }
