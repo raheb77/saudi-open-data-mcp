@@ -15,6 +15,7 @@ from saudi_open_data_mcp.registry.models import (
     UpdateFrequency,
 )
 from saudi_open_data_mcp.registry.repository import RegistryRepository
+from saudi_open_data_mcp.security.sanitization import sanitize_dataset_id
 
 
 class PublicDatasetMetadata(BaseModel):
@@ -97,8 +98,9 @@ class DatasetMetadataTool:
     def get_dataset_metadata(self, dataset_id: str) -> DatasetMetadataLookupResult:
         """Return exact-match dataset metadata from the registry."""
 
-        descriptor = self._repository.get_dataset(dataset_id)
+        normalized_dataset_id = sanitize_dataset_id(dataset_id)
+        descriptor = self._repository.get_dataset(normalized_dataset_id)
         if descriptor is None:
-            return DatasetMetadataLookupResult.missing(dataset_id)
+            return DatasetMetadataLookupResult.missing(normalized_dataset_id)
 
         return DatasetMetadataLookupResult.found(descriptor)

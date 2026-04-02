@@ -18,9 +18,15 @@ from saudi_open_data_mcp.normalization.pipeline import (
 )
 from saudi_open_data_mcp.registry.models import DatasetDescriptor, NonEmptyText
 from saudi_open_data_mcp.registry.repository import RegistryRepository
+from saudi_open_data_mcp.security.sanitization import (
+    sanitize_dataset_id,
+    sanitize_query_filter_key,
+    sanitize_query_filter_string_value,
+)
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 
 QueryFilterValue = str | int | float | bool | None
+MAX_QUERY_RESULT_LIMIT = 1000
 
 
 class DatasetQueryStatus(StrEnum):
@@ -346,10 +352,7 @@ class DatasetQueryTool:
 def _validate_dataset_id(dataset_id: str) -> str:
     """Validate and normalize an exact registry dataset identifier."""
 
-    value = dataset_id.strip()
-    if not value:
-        raise ValueError("dataset_id must not be empty")
-    return value
+    return sanitize_dataset_id(dataset_id)
 
 
 def _normalize_limit(limit: int | None) -> int | None:
@@ -359,6 +362,10 @@ def _normalize_limit(limit: int | None) -> int | None:
         return None
     if limit < 1:
         raise ValueError("limit must be greater than or equal to 1")
+    if limit > MAX_QUERY_RESULT_LIMIT:
+        raise ValueError(
+            f"limit must be less than or equal to {MAX_QUERY_RESULT_LIMIT}"
+        )
     return limit
 
 
@@ -374,13 +381,13 @@ def _normalize_filters(
     for key, value in filters.items():
         if not isinstance(key, str):
             raise ValueError("query filter keys must be strings")
-        normalized_key = key.strip()
-        if not normalized_key:
-            raise ValueError("query filter keys must not be empty")
+        normalized_key = sanitize_query_filter_key(key)
         if not isinstance(value, (str, int, float, bool)) and value is not None:
             raise ValueError(
                 "query filter values must be strings, numbers, booleans, or null"
             )
+        if isinstance(value, str):
+            value = sanitize_query_filter_string_value(value)
         normalized[normalized_key] = value
     return normalized
 

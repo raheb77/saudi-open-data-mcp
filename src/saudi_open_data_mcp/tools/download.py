@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 from saudi_open_data_mcp.registry.models import DatasetDescriptor, NonEmptyText
 from saudi_open_data_mcp.registry.repository import RegistryRepository
+from saudi_open_data_mcp.security.sanitization import sanitize_dataset_id
 from saudi_open_data_mcp.storage.freshness import (
     SnapshotFreshnessResult,
     SnapshotFreshnessStatus,
@@ -160,9 +161,10 @@ class DatasetDownloadTool:
     ) -> DatasetDownloadResult:
         """Return local artifact state for an exact registry dataset identifier."""
 
-        descriptor = self._repository.get_dataset(dataset_id)
+        normalized_dataset_id = sanitize_dataset_id(dataset_id)
+        descriptor = self._repository.get_dataset(normalized_dataset_id)
         if descriptor is None:
-            return DatasetDownloadResult.missing(dataset_id)
+            return DatasetDownloadResult.missing(normalized_dataset_id)
 
         freshness = evaluate_snapshot_freshness(
             source=descriptor.source,

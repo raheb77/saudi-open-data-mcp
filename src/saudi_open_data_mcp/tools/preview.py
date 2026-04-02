@@ -18,6 +18,7 @@ from saudi_open_data_mcp.normalization.pipeline import (
 from saudi_open_data_mcp.registry.models import DatasetDescriptor
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.security.rate_limit import InMemoryRateLimiter, RateLimitPolicy
+from saudi_open_data_mcp.security.sanitization import sanitize_dataset_id
 
 
 class PreviewStatus(StrEnum):
@@ -135,12 +136,13 @@ class DatasetPreviewTool:
     async def preview_dataset(self, dataset_id: str) -> DatasetPreviewResult:
         """Fetch a raw payload for a canonical dataset id and return a preview."""
 
-        requested_dataset_id = dataset_id.strip()
-        if not requested_dataset_id:
+        try:
+            requested_dataset_id = sanitize_dataset_id(dataset_id)
+        except ValueError as exc:
             return self._failed_result(
                 dataset_id=dataset_id,
                 stage=PreviewFailureStage.LOOKUP,
-                error=ValueError("dataset_id must not be empty"),
+                error=exc,
             )
 
         descriptor = self._repository.get_dataset(requested_dataset_id)

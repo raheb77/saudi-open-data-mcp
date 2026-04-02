@@ -14,6 +14,7 @@ from saudi_open_data_mcp.registry.models import (
     UpdateFrequency,
 )
 from saudi_open_data_mcp.registry.repository import RegistryRepository
+from saudi_open_data_mcp.security.sanitization import sanitize_search_query
 
 
 class DatasetSearchMode(StrEnum):
@@ -127,8 +128,9 @@ class DatasetSearchTool:
     def search_datasets(self, query: str) -> DatasetSearchResult:
         """Search registry-backed datasets using repository substring matching."""
 
-        descriptors = self._repository.search_datasets(query)
+        validated_query = sanitize_search_query(query)
+        descriptors = self._repository.search_datasets(validated_query)
         return DatasetSearchResult.from_descriptors(
-            query=query,
+            query=validated_query,
             descriptors=descriptors,
         )

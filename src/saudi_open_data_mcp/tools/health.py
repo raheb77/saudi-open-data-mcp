@@ -16,6 +16,7 @@ from saudi_open_data_mcp.registry.models import (
     SchemaVersion,
 )
 from saudi_open_data_mcp.registry.repository import RegistryRepository
+from saudi_open_data_mcp.security.sanitization import sanitize_dataset_id
 from saudi_open_data_mcp.storage.freshness import (
     SnapshotFreshnessResult,
     evaluate_snapshot_freshness,
@@ -116,11 +117,12 @@ class DatasetHealthTool:
     ) -> DatasetHealthLookupResult:
         """Return exact-match dataset health from the registry."""
 
-        descriptor = self._repository.get_dataset(dataset_id)
+        normalized_dataset_id = sanitize_dataset_id(dataset_id)
+        descriptor = self._repository.get_dataset(normalized_dataset_id)
         if descriptor is None:
-            return DatasetHealthLookupResult.missing(dataset_id)
+            return DatasetHealthLookupResult.missing(normalized_dataset_id)
 
-        health_metadata = self._repository.get_health(dataset_id)
+        health_metadata = self._repository.get_health(normalized_dataset_id)
         health_status = (
             health_metadata.health_status
             if health_metadata is not None
