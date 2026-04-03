@@ -2,6 +2,11 @@ services:
   app:
     build:
       context: .
-    # Intentionally uses the source-tree CLI for startup validation only.
-    # This compose file is not the serving deployment path yet.
-    command: ["python", "src/saudi_open_data_mcp/cli.py", "check-startup"]
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - saudi-open-data-mcp-data:/var/lib/saudi-open-data-mcp
+    restart: unless-stopped
+
+volumes:
+  saudi-open-data-mcp-data:

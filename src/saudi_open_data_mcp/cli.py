@@ -49,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     run_http_parser = subparsers.add_parser(
         "run-http",
-        help="Run the current FastMCP app over local HTTP using configured defaults.",
+        help="Run the current FastMCP app over streamable HTTP using configured defaults.",
     )
     run_http_parser.add_argument(
         "--host",

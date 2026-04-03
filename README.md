@@ -105,9 +105,9 @@ Another important limitation: `query_dataset` only works on local snapshots that
 
 ## Local Setup
 
-This repo uses a `src/` layout. For the current phase, the source-tree CLI is
-the official runtime contract; local commands do not require manually setting
-`PYTHONPATH`.
+This repo uses a `src/` layout. For the current phase, the source-tree CLI
+remains the supported local development path; local commands do not require
+manually setting `PYTHONPATH`.
 
 Install and sync with `uv`:
 
@@ -145,13 +145,16 @@ python src/saudi_open_data_mcp/cli.py run-stdio
 python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
 ```
 
-Use the source-tree CLI or the local helper scripts as the verified operator
-path for this phase. Installed module entrypoints and packaged console scripts
-are still not part of the supported workflow.
+Use the source-tree CLI or the local helper scripts for development and local
+host integration. Installed module entrypoints and packaged console scripts are
+still not part of the supported local workflow.
 
-`run-stdio` is the primary host/operator path. It starts the MCP server over stdio for Claude Desktop and other command-based MCP hosts.
+`run-stdio` remains the primary local host/operator path for Claude Desktop and
+other command-based MCP hosts.
 
-`run-http` starts the same app over streamable HTTP. Treat that path as MCP-aware and session-aware only. It is suitable for MCP inspectors and MCP clients, not generic browser probing.
+`run-http` starts the same app over streamable HTTP. Treat that path as
+MCP-aware and session-aware only. It is suitable for MCP inspectors and MCP
+clients, not generic browser probing.
 
 By default, local registry and snapshot state resolve under the repo's
 `.local/` directory; set `REGISTRY_PATH` or `SNAPSHOT_DIR` to override them
@@ -172,13 +175,79 @@ The helper script remains available for local HTTP development:
 ./scripts/run_local_http.sh
 ```
 
-Container files are included for startup validation and local environment
-checks only. `Dockerfile` and `docker-compose.yml` are not the serving
-deployment path yet.
+## Official Internal Container Serving
+
+The official internal serving path for this phase is containerized streamable
+HTTP.
+
+Chosen serving mode:
+
+- `run-http` over FastMCP streamable HTTP
+
+Why this mode:
+
+- it gives one long-running service shape for internal operators
+- it fits container process supervision better than stdio
+- it keeps the same MCP surface and tool semantics already exercised locally
+
+The canonical container entrypoint is:
+
+```text
+python src/saudi_open_data_mcp/cli.py run-http
+```
+
+The image sets container-specific runtime defaults:
+
+- `HTTP_HOST=0.0.0.0`
+- `HTTP_PORT=8000`
+- `REGISTRY_PATH=/var/lib/saudi-open-data-mcp/registry.sqlite`
+- `SNAPSHOT_DIR=/var/lib/saudi-open-data-mcp/snapshots`
+- `CACHE_DIR=/var/lib/saudi-open-data-mcp/cache`
+
+Build and serve with Docker Compose:
+
+```bash
+docker compose up --build
+```
+
+The provided compose file publishes the service on `127.0.0.1:8000` on the
+host and persists runtime state in a Docker-managed volume mounted at
+`/var/lib/saudi-open-data-mcp`.
+
+Direct container run example:
+
+```bash
+docker build -t saudi-open-data-mcp .
+docker run --rm \
+  -p 127.0.0.1:8000:8000 \
+  -v saudi-open-data-mcp-data:/var/lib/saudi-open-data-mcp \
+  saudi-open-data-mcp
+```
+
+Container/runtime expectations:
+
+- registry bootstrap still happens on startup
+- no scheduler or background refresh is added in this phase
+- no auth or public-internet deployment hardening is added in this phase
+- persistent storage is expected if you want registry and snapshot state to
+  survive container replacement
+- `SAMA_BASE_URL`, `DATA_GOV_SA_BASE_URL`, and `LOG_LEVEL` remain the main
+  operator-facing overrides
+
+Startup/readiness contract:
+
+- the container's job is to start the MCP HTTP service and stay running
+- there is no plain HTTP health endpoint in this phase
+- `/mcp` must be checked with an MCP-aware client if you want real session
+  readiness validation
+- naive `GET /` or `GET /mcp` probing can still return `404` or `406` and that
+  is not, by itself, a serving failure
 
 ## MCP Host Registration
 
-For real MCP host registration, use stdio first. That is the primary supported operator path in this repo.
+For local desktop MCP host registration, use stdio. That remains the supported
+development/operator path for command-based hosts and is separate from the
+official internal container serving path.
 
 For stdio-based MCP hosts, use the source-tree CLI directly with absolute paths.
 
@@ -218,14 +287,14 @@ If you prefer a single command path, the repo also includes a stdio helper scrip
 }
 ```
 
-Current limitation to keep explicit: the supported host registration path is
-stdio through the source-tree CLI. Installed module entrypoints, packaged
-console scripts, and containerized serving deployment are not part of the
-verified workflow yet.
+Current limitation to keep explicit: local host registration remains stdio
+through the source-tree CLI. The official container serving path is HTTP, not a
+desktop stdio-host replacement.
 
 ## HTTP Testing Notes
 
-HTTP is available, but it is not a plain REST surface. Use an MCP-aware client against `/mcp`.
+HTTP is the official internal container serving mode, but it is not a plain
+REST surface. Use an MCP-aware client against `/mcp`.
 
 Start the server in one shell:
 

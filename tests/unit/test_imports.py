@@ -35,6 +35,18 @@ def test_load_config_respects_data_gov_sa_base_url_override(
     assert config.source.data_gov_sa_base_url == "https://example.data.gov.sa"
 
 
+def test_load_config_respects_http_transport_overrides(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HTTP_HOST", "0.0.0.0")
+    monkeypatch.setenv("HTTP_PORT", "8080")
+
+    config = load_config()
+
+    assert config.transport.http_host == "0.0.0.0"
+    assert config.transport.http_port == 8080
+
+
 def test_catalog_resource_types_import_cleanly() -> None:
     assert CatalogDatasetSummary.__name__ == "CatalogDatasetSummary"
     assert CatalogSummary.__name__ == "CatalogSummary"
