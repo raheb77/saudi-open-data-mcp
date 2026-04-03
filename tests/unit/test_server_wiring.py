@@ -13,6 +13,8 @@ import respx
 from saudi_open_data_mcp import server as server_module
 from saudi_open_data_mcp.config import RuntimeConfig
 from saudi_open_data_mcp.connectors.base import RawPayload
+from saudi_open_data_mcp.registry.models import DatasetHealthStatus, HealthMetadata
+from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.server import create_server
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 from saudi_open_data_mcp.tools import download as download_module
@@ -289,6 +291,30 @@ async def test_server_missing_dataset_lookup_stays_explicit(
         "limitations": [],
         "failure": None,
     }
+
+
+async def test_server_startup_preserves_existing_health_state(tmp_path: Path) -> None:
+    runtime_config = _runtime_config(tmp_path)
+    updated_health = HealthMetadata(
+        dataset_id="sama-money-supply",
+        health_status=DatasetHealthStatus.DEGRADED,
+    )
+
+    create_server(runtime_config)
+    repository = RegistryRepository(runtime_config.registry_path)
+    repository.upsert_health(updated_health)
+
+    app = create_server(runtime_config)
+    tools = await app.get_tools()
+    health_result = await tools["dataset_health"].run({"dataset_id": "sama-money-supply"})
+
+    assert health_result.structured_content["status"] == "found"
+    assert health_result.structured_content["health_status"] == "degraded"
+    assert repository.get_health("sama-money-supply") == updated_health
+    assert repository.get_dataset("sama-money-supply") is not None
+    assert repository.get_dataset("sama-money-supply").health_status is (
+        DatasetHealthStatus.DEGRADED
+    )
 
 
 async def test_server_health_tool_can_expose_recent_snapshot_freshness(

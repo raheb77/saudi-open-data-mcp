@@ -84,6 +84,57 @@ class RegistryRepository:
                 (descriptor.dataset_id, descriptor.health_status.value),
             )
 
+    def seed_dataset(self, descriptor: DatasetDescriptor) -> None:
+        """Insert a bootstrap descriptor only when it is missing."""
+
+        with self._connect() as connection:
+            existing_descriptor = connection.execute(
+                """
+                SELECT 1
+                FROM dataset_descriptors
+                WHERE dataset_id = ?
+                """,
+                (descriptor.dataset_id,),
+            ).fetchone()
+            if existing_descriptor is not None:
+                return
+
+            connection.execute(
+                """
+                INSERT INTO dataset_descriptors (
+                    dataset_id,
+                    source,
+                    source_locator,
+                    title,
+                    description,
+                    schema_version,
+                    update_frequency,
+                    health_status,
+                    caveats_json,
+                    known_issues_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    descriptor.dataset_id,
+                    descriptor.source,
+                    descriptor.source_locator,
+                    descriptor.title,
+                    descriptor.description,
+                    descriptor.schema_version,
+                    descriptor.update_frequency.value,
+                    descriptor.health_status.value,
+                    self._dump_notes(descriptor.caveats),
+                    self._dump_notes(descriptor.known_issues),
+                ),
+            )
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO dataset_health (dataset_id, health_status)
+                VALUES (?, ?)
+                """,
+                (descriptor.dataset_id, descriptor.health_status.value),
+            )
+
     def get_dataset(self, dataset_id: str) -> DatasetDescriptor | None:
         """Return a typed dataset descriptor for ``dataset_id`` when present."""
 

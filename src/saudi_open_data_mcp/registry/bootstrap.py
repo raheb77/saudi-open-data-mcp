@@ -87,6 +87,6 @@ def bootstrap_registry(repository: RegistryRepository) -> list[DatasetDescriptor
         descriptor.model_copy(deep=True) for descriptor in INITIAL_DATASET_DESCRIPTORS
     ]
     for descriptor in bootstrapped_descriptors:
-        repository.upsert_dataset(descriptor)
+        repository.seed_dataset(descriptor)
 
     return bootstrapped_descriptors
