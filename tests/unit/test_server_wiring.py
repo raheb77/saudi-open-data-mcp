@@ -13,6 +13,10 @@ import respx
 from saudi_open_data_mcp import server as server_module
 from saudi_open_data_mcp.config import RuntimeConfig
 from saudi_open_data_mcp.connectors.base import RawPayload
+from saudi_open_data_mcp.registry.bootstrap import (
+    INITIAL_DATASET_DESCRIPTORS,
+    WAVE_1_HOT_SET_TIER_A_DATASET_IDS,
+)
 from saudi_open_data_mcp.registry.models import DatasetHealthStatus, HealthMetadata
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.server import create_server
@@ -22,6 +26,10 @@ from saudi_open_data_mcp.tools import health as health_module
 from saudi_open_data_mcp.tools.preview import DatasetPreviewResult, PreviewStatus
 
 REPORT_LOCATOR = "report.aspx?cid=55"
+POS_PAGE_LOCATOR = "/en-US/Indices/Pages/POS.aspx"
+WEEKLY_MONEY_SUPPLY_PAGE_LOCATOR = "/en-US/Indices/Pages/WeeklyMoneySupply.aspx"
+REPO_RATE_PAGE_LOCATOR = "/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx"
+REVERSE_REPO_RATE_PAGE_LOCATOR = "/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx"
 DATA_GOV_SA_DATASET_ID = "data-gov-sa-census-marital-status"
 DATA_GOV_SA_SOURCE_LOCATOR = (
     "/ar/datasets/view/104380ce-60b6-46bc-ba0a-6d5e10ac46cb/"
@@ -35,6 +43,10 @@ def _report_url() -> str:
 
 def _data_gov_sa_preview_url() -> str:
     return f"https://open.data.gov.sa{DATA_GOV_SA_SOURCE_LOCATOR}"
+
+
+def _page_url(locator: str) -> str:
+    return f"https://www.sama.gov.sa{locator}"
 
 
 def _runtime_config(tmp_path: Path) -> RuntimeConfig:
@@ -63,6 +75,9 @@ async def test_server_registers_current_mcp_surface(
         )
     )
     app = create_server(_runtime_config(tmp_path))
+    repository = RegistryRepository(tmp_path / "registry.sqlite")
+    expected_datasets = repository.list_datasets()
+    assert len(expected_datasets) == len(INITIAL_DATASET_DESCRIPTORS)
 
     resources = await app.get_resources()
     tools = await app.get_tools()
@@ -72,14 +87,15 @@ async def test_server_registers_current_mcp_surface(
         "download_dataset",
         "dataset_health",
         "dataset_metadata",
+        "materialize_hot_set",
         "preview_dataset",
         "query_dataset",
         "search_datasets",
     }
 
     catalog_payload = json.loads(await resources["resource://catalog"].read())
-    assert catalog_payload["dataset_count"] == 4
-    assert catalog_payload["datasets"][0]["dataset_id"] == "sama-balance-of-payments"
+    assert catalog_payload["dataset_count"] == len(expected_datasets)
+    assert catalog_payload["datasets"][0]["dataset_id"] == expected_datasets[0].dataset_id
 
     metadata_result = await tools["dataset_metadata"].run(
         {"dataset_id": "sama-money-supply"}
@@ -175,35 +191,25 @@ async def test_server_registers_current_mcp_surface(
     ]
 
     search_result = await tools["search_datasets"].run({"query": "money"})
+    expected_money_matches = repository.search_datasets("money")
     assert search_result.structured_content["query"] == "money"
     assert search_result.structured_content["normalized_query"] == "money"
     assert search_result.structured_content["status"] == "results"
     assert search_result.structured_content["mode"] == "filtered"
-    assert search_result.structured_content["match_count"] == 1
-    assert search_result.structured_content["matches"] == [
-        {
-            "dataset_id": "sama-money-supply",
-            "source": "sama",
-            "title": "Money Supply",
-            "update_frequency": "monthly",
-            "health_status": "unknown",
-        }
-    ]
+    assert search_result.structured_content["match_count"] == len(expected_money_matches)
+    assert [
+        match["dataset_id"] for match in search_result.structured_content["matches"]
+    ] == [descriptor.dataset_id for descriptor in expected_money_matches]
 
     all_datasets_result = await tools["search_datasets"].run({"query": "   "})
     assert all_datasets_result.structured_content["query"] == "   "
     assert all_datasets_result.structured_content["normalized_query"] == ""
     assert all_datasets_result.structured_content["status"] == "results"
     assert all_datasets_result.structured_content["mode"] == "all_datasets"
-    assert all_datasets_result.structured_content["match_count"] == 4
+    assert all_datasets_result.structured_content["match_count"] == len(expected_datasets)
     assert [
         match["dataset_id"] for match in all_datasets_result.structured_content["matches"]
-    ] == [
-        "sama-balance-of-payments",
-        "data-gov-sa-census-marital-status",
-        "sama-interest-rates",
-        "sama-money-supply",
-    ]
+    ] == [descriptor.dataset_id for descriptor in expected_datasets]
 
     preview_result = await tools["preview_dataset"].run(
         {"dataset_id": "sama-money-supply"}
@@ -236,6 +242,85 @@ async def test_server_registers_current_mcp_surface(
             "fields": {"status": "single", "count": 10},
         }
     ]
+
+
+@respx.mock
+async def test_server_materialize_hot_set_persists_wave_one_safe_subset(
+    tmp_path: Path,
+) -> None:
+    pos_route = respx.get(_page_url(POS_PAGE_LOCATOR)).mock(
+        return_value=httpx.Response(
+            200,
+            text="<html><body>official weekly pos page</body></html>",
+            headers={"content-type": "text/html; charset=utf-8"},
+        )
+    )
+    weekly_money_route = respx.get(_page_url(WEEKLY_MONEY_SUPPLY_PAGE_LOCATOR)).mock(
+        return_value=httpx.Response(
+            200,
+            text="<html><body>official weekly money supply page</body></html>",
+            headers={"content-type": "text/html; charset=utf-8"},
+        )
+    )
+    repo_route = respx.get(_page_url(REPO_RATE_PAGE_LOCATOR)).mock(
+        return_value=httpx.Response(
+            200,
+            text="<html><body>official repo rate page</body></html>",
+            headers={"content-type": "text/html; charset=utf-8"},
+        )
+    )
+    reverse_repo_route = respx.get(_page_url(REVERSE_REPO_RATE_PAGE_LOCATOR)).mock(
+        return_value=httpx.Response(
+            200,
+            text="<html><body>official reverse repo rate page</body></html>",
+            headers={"content-type": "text/html; charset=utf-8"},
+        )
+    )
+    deposits_route = respx.get(_report_url()).mock(
+        return_value=httpx.Response(
+            200,
+            json={"rows": [{"series": "deposits", "value": 1}]},
+            headers={"content-type": "application/json"},
+        )
+    )
+    app = create_server(_runtime_config(tmp_path))
+    tools = await app.get_tools()
+
+    result = await tools["materialize_hot_set"].run({})
+
+    assert result.structured_content["include_optional"] is False
+    assert result.structured_content["requested_dataset_count"] == len(
+        WAVE_1_HOT_SET_TIER_A_DATASET_IDS
+    )
+    assert result.structured_content["materialized_count"] == len(
+        WAVE_1_HOT_SET_TIER_A_DATASET_IDS
+    )
+    assert result.structured_content["failed_count"] == 0
+    assert [
+        item["dataset_id"] for item in result.structured_content["results"]
+    ] == list(WAVE_1_HOT_SET_TIER_A_DATASET_IDS)
+    assert pos_route.called
+    assert weekly_money_route.called
+    assert repo_route.called
+    assert reverse_repo_route.called
+    assert deposits_route.called
+
+    weekly_download = await tools["download_dataset"].run(
+        {"dataset_id": "sama-money-supply-weekly"}
+    )
+    deposits_download = await tools["download_dataset"].run(
+        {"dataset_id": "sama-deposits-core"}
+    )
+    legacy_download = await tools["download_dataset"].run(
+        {"dataset_id": "sama-balance-of-payments"}
+    )
+
+    assert weekly_download.structured_content["status"] == "available"
+    assert weekly_download.structured_content["local_snapshot_exists"] is True
+    assert deposits_download.structured_content["status"] == "available"
+    assert deposits_download.structured_content["local_snapshot_exists"] is True
+    assert legacy_download.structured_content["status"] == "artifact_missing"
+    assert legacy_download.structured_content["local_snapshot_exists"] is False
 
 
 async def test_server_missing_dataset_lookup_stays_explicit(

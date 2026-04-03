@@ -1,10 +1,4 @@
-"""SAMA raw payload connector.
-
-In v0.1, the public `dataset_id` argument is currently treated as a
-SAMA-specific report locator rather than a canonical semantic dataset identifier.
-That canonical identity is expected to be resolved later at the registry and
-normalization boundary.
-"""
+"""SAMA raw payload connector."""
 
 from __future__ import annotations
 
@@ -25,6 +19,14 @@ class SAMAConnector(Connector):
 
     source_name = "sama"
     approved_base_url = "https://www.sama.gov.sa"
+    approved_page_paths = frozenset(
+        {
+            "/en-US/Indices/Pages/POS.aspx",
+            "/en-US/Indices/Pages/WeeklyMoneySupply.aspx",
+            "/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
+            "/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
+        }
+    )
 
     def __init__(
         self,
@@ -41,15 +43,11 @@ class SAMAConnector(Connector):
             self.request_policy = request_policy
 
     async def fetch_dataset_payload(self, dataset_id: str) -> RawPayload:
-        """Fetch a raw SAMA report payload from the approved report route.
-
-        In v0.1, `dataset_id` is treated as a report locator such as
-        `report.aspx?cid=55`, not as a canonical registry identifier.
-        """
+        """Fetch a raw SAMA payload from an approved report or page locator."""
 
         dataset_locator = dataset_id
-        report_url = self._build_report_url(dataset_locator)
-        response = await self._send_request(report_url, dataset_locator)
+        source_url = self._build_source_url(dataset_locator)
+        response = await self._send_request(source_url, dataset_locator)
         payload = self._build_raw_payload(dataset_locator, response)
 
         if self.snapshot_store is not None:
@@ -57,8 +55,8 @@ class SAMAConnector(Connector):
 
         return payload
 
-    def _build_report_url(self, dataset_locator: str) -> str:
-        """Build and validate the approved SAMA report URL for a report locator."""
+    def _build_source_url(self, dataset_locator: str) -> str:
+        """Build and validate the approved SAMA source URL for a locator."""
 
         normalized = dataset_locator.strip()
         if not normalized:
@@ -87,17 +85,31 @@ class SAMAConnector(Connector):
                 dataset_id=dataset_locator,
             )
 
-        if candidate_parts.path != "/en-US/EconomicReports/Pages/report.aspx":
+        if candidate_parts.path == "/en-US/EconomicReports/Pages/report.aspx":
+            if not candidate_parts.query:
+                raise SourceAccessPolicyViolationError(
+                    source_name=self.source_name,
+                    message=(
+                        "SAMA report payload requests must include a dataset query string"
+                    ),
+                    dataset_id=dataset_locator,
+                )
+            return approved_url
+
+        if candidate_parts.query or candidate_parts.fragment:
             raise SourceAccessPolicyViolationError(
                 source_name=self.source_name,
-                message="SAMA connector only fetches report.aspx payload routes in v0.1",
+                message="SAMA page payload requests must not include query or fragment data",
                 dataset_id=dataset_locator,
             )
 
-        if not candidate_parts.query:
+        if candidate_parts.path not in self.approved_page_paths:
             raise SourceAccessPolicyViolationError(
                 source_name=self.source_name,
-                message="SAMA report payload requests must include a dataset query string",
+                message=(
+                    "SAMA connector only fetches report.aspx payload routes and the "
+                    "approved Wave 1 page locators"
+                ),
                 dataset_id=dataset_locator,
             )
 

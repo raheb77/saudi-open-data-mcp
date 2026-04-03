@@ -6,6 +6,8 @@ from pathlib import Path
 
 from saudi_open_data_mcp.registry.bootstrap import (
     INITIAL_DATASET_DESCRIPTORS,
+    WAVE_1_HOT_SET_OPTIONAL_DATASET_IDS,
+    WAVE_1_HOT_SET_TIER_A_DATASET_IDS,
     bootstrap_registry,
 )
 from saudi_open_data_mcp.registry.models import (
@@ -24,17 +26,27 @@ def test_bootstrap_inserts_expected_initial_descriptors(tmp_path: Path) -> None:
     assert bootstrapped_descriptors == list(INITIAL_DATASET_DESCRIPTORS)
     assert repository.list_datasets() == bootstrapped_descriptors
     assert all(isinstance(item, DatasetDescriptor) for item in bootstrapped_descriptors)
-    assert all(
-        descriptor.source_locator.startswith("report.aspx?cid=")
-        for descriptor in bootstrapped_descriptors
-        if descriptor.source == "sama"
+    descriptors_by_id = {
+        descriptor.dataset_id: descriptor for descriptor in bootstrapped_descriptors
+    }
+
+    assert set(WAVE_1_HOT_SET_TIER_A_DATASET_IDS).issubset(descriptors_by_id)
+    assert set(WAVE_1_HOT_SET_OPTIONAL_DATASET_IDS).issubset(descriptors_by_id)
+    assert descriptors_by_id["sama-pos-weekly"].source_locator == "/en-US/Indices/Pages/POS.aspx"
+    assert (
+        descriptors_by_id["sama-money-supply-weekly"].source_locator
+        == "/en-US/Indices/Pages/WeeklyMoneySupply.aspx"
     )
+    assert (
+        descriptors_by_id["sama-repo-rate"].source_locator
+        == "/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx"
+    )
+    assert (
+        descriptors_by_id["sama-reverse-repo-rate"].source_locator
+        == "/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx"
+    )
+    assert descriptors_by_id["sama-deposits-core"].source_locator == "report.aspx?cid=55"
     assert any(descriptor.source == "data-gov-sa" for descriptor in bootstrapped_descriptors)
-    assert any(
-        descriptor.source_locator.startswith("/ar/datasets/view/")
-        for descriptor in bootstrapped_descriptors
-        if descriptor.source == "data-gov-sa"
-    )
 
 
 def test_bootstrap_is_idempotent_and_deterministic(tmp_path: Path) -> None:

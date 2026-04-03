@@ -13,6 +13,7 @@ from .resources.catalog import CatalogResource
 from .storage.snapshots import SnapshotStore
 from .tools.download import DatasetDownloadTool
 from .tools.health import DatasetHealthTool
+from .tools.materialize import HotSetMaterializationTool
 from .tools.metadata import DatasetMetadataTool
 from .tools.preview import DatasetPreviewTool
 from .tools.query import DatasetQueryTool
@@ -50,6 +51,11 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
     )
     download_tool = DatasetDownloadTool(repository, snapshot_store)
     metadata_tool = DatasetMetadataTool(repository)
+    materialize_tool = HotSetMaterializationTool(
+        repository,
+        connector_resolver,
+        snapshot_store,
+    )
     preview_tool = DatasetPreviewTool(
         repository,
         connector_resolver,
@@ -101,6 +107,18 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
     )
     def download_dataset(dataset_id: str) -> dict:
         return download_tool.get_dataset_download(dataset_id).model_dump(mode="json")
+
+    @app.tool(
+        name="materialize_hot_set",
+        description=(
+            "Fetch and persist the fixed Wave 1 SAMA hot-set into local snapshots. "
+            "Tier B remains opt-in via include_optional."
+        ),
+    )
+    async def materialize_hot_set(include_optional: bool = False) -> dict:
+        return (
+            await materialize_tool.materialize_hot_set(include_optional=include_optional)
+        ).model_dump(mode="json")
 
     @app.tool(
         name="query_dataset",

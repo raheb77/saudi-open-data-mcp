@@ -27,13 +27,18 @@ def test_registry_and_normalization_scaffold_compose(tmp_path: Path) -> None:
 
     bootstrapped_descriptors = bootstrap_registry(repository)
     result = NormalizationPipeline().normalize(payload)
+    descriptors_by_id = {
+        descriptor.dataset_id: descriptor for descriptor in bootstrapped_descriptors
+    }
 
     assert bootstrapped_descriptors == repository.list_datasets()
     assert all(isinstance(item, DatasetDescriptor) for item in bootstrapped_descriptors)
-    assert all(
-        item.source_locator.startswith("report.aspx?cid=")
-        for item in bootstrapped_descriptors
-        if item.source == "sama"
+    assert descriptors_by_id["sama-money-supply"].source_locator == "report.aspx?cid=55"
+    assert descriptors_by_id["sama-deposits-core"].source_locator == "report.aspx?cid=55"
+    assert descriptors_by_id["sama-pos-weekly"].source_locator == "/en-US/Indices/Pages/POS.aspx"
+    assert (
+        descriptors_by_id["sama-money-supply-weekly"].source_locator
+        == "/en-US/Indices/Pages/WeeklyMoneySupply.aspx"
     )
     assert any(item.source == "data-gov-sa" for item in bootstrapped_descriptors)
     assert result.dataset_id == "report.aspx?cid=55"

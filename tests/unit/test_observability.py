@@ -14,6 +14,7 @@ from saudi_open_data_mcp.connectors.base import Connector, RawPayload, RequestPo
 from saudi_open_data_mcp.connectors.errors import SourceUnavailableError
 from saudi_open_data_mcp.connectors.resolver import SourceConnectorResolver
 from saudi_open_data_mcp.observability import get_metrics, reset_metrics
+from saudi_open_data_mcp.registry.bootstrap import INITIAL_DATASET_DESCRIPTORS
 from saudi_open_data_mcp.registry.models import (
     DatasetDescriptor,
     DatasetHealthStatus,
@@ -96,7 +97,7 @@ def test_create_server_emits_startup_logs_and_metrics(
             "level": "info",
             "logger": "saudi_open_data_mcp.server",
             "app_name": "saudi-open-data-mcp",
-            "dataset_count": 4,
+            "dataset_count": len(INITIAL_DATASET_DESCRIPTORS),
         },
     )
 

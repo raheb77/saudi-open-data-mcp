@@ -20,10 +20,16 @@ from saudi_open_data_mcp.connectors.sama import SAMAConnector
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 
 REPORT_LOCATOR = "report.aspx?cid=55"
+POS_PAGE_LOCATOR = "/en-US/Indices/Pages/POS.aspx"
+UNAPPROVED_WAVE_ONE_PAGE_LOCATOR = "/en-US/FinExc/Pages/Currency.aspx"
 
 
 def _report_url() -> str:
     return f"https://www.sama.gov.sa/en-US/EconomicReports/Pages/{REPORT_LOCATOR}"
+
+
+def _page_url(locator: str) -> str:
+    return f"https://www.sama.gov.sa{locator}"
 
 
 @pytest.mark.asyncio
@@ -49,11 +55,39 @@ async def test_fetch_dataset_payload_returns_raw_payload() -> None:
 
 
 @pytest.mark.asyncio
+@respx.mock
+async def test_fetch_dataset_payload_allows_approved_wave_one_page_locator() -> None:
+    route = respx.get(_page_url(POS_PAGE_LOCATOR)).mock(
+        return_value=httpx.Response(
+            200,
+            text="<html><body>official weekly pos page</body></html>",
+            headers={"content-type": "text/html; charset=utf-8"},
+        )
+    )
+    connector = SAMAConnector()
+
+    payload = await connector.fetch_dataset_payload(POS_PAGE_LOCATOR)
+
+    assert route.called
+    assert payload.dataset_id == POS_PAGE_LOCATOR
+    assert payload.content["url"] == _page_url(POS_PAGE_LOCATOR)
+    assert payload.content["content_type"] == "text/html"
+
+
+@pytest.mark.asyncio
 async def test_approved_url_enforcement_rejects_unapproved_hosts() -> None:
     connector = SAMAConnector()
 
     with pytest.raises(SourceAccessPolicyViolationError):
         await connector.fetch_dataset_payload("https://example.com/report.aspx?cid=55")
+
+
+@pytest.mark.asyncio
+async def test_unapproved_page_locator_is_rejected() -> None:
+    connector = SAMAConnector()
+
+    with pytest.raises(SourceAccessPolicyViolationError):
+        await connector.fetch_dataset_payload(UNAPPROVED_WAVE_ONE_PAGE_LOCATOR)
 
 
 @pytest.mark.asyncio
