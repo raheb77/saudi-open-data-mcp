@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,6 +23,7 @@ from saudi_open_data_mcp.security.rate_limit import RateLimitPolicy
 from saudi_open_data_mcp.storage.freshness import SnapshotFreshnessStatus
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 from saudi_open_data_mcp.tools.preview import (
+    LOCAL_PREVIEW_MISS_NOTICE,
     STALE_FALLBACK_NOTICE,
     DatasetPreviewResult,
     DatasetPreviewTool,
@@ -156,6 +159,36 @@ async def test_fresh_snapshot_is_served_locally(tmp_path: Path) -> None:
     assert len(result.records) == 1
     assert result.records[0].dataset_id == DATASET_ID
     assert connector.calls == []
+
+
+@pytest.mark.asyncio
+async def test_fresh_snapshot_local_miss_logs_and_refreshes_live(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO)
+    snapshot_path = _snapshot_store(tmp_path).snapshot_path("sama", REPORT_LOCATOR)
+    snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+    snapshot_path.write_text("not valid raw payload json", encoding="utf-8")
+    timestamp = datetime(2026, 1, 14, 12, 0, tzinfo=UTC).timestamp()
+    os.utime(snapshot_path, (timestamp, timestamp))
+
+    connector = _ConnectorSpy([_payload()])
+    tool = _tool(tmp_path, connector)
+
+    result = await tool.preview_dataset(DATASET_ID, reference_time=REFERENCE_TIME)
+
+    assert result.status is PreviewStatus.RECORD_DERIVABLE
+    assert result.resolution_outcome is PreviewResolutionOutcome.REFRESH_THEN_SERVE
+    assert result.data_origin is PreviewDataOrigin.LIVE_REFRESH
+    assert result.freshness_status is SnapshotFreshnessStatus.FRESH
+    assert result.resolution_notice == LOCAL_PREVIEW_MISS_NOTICE
+    assert connector.calls == [REPORT_LOCATOR]
+    assert any(
+        json.loads(record.getMessage()).get("event")
+        == "preview.request.local_artifact_unusable"
+        for record in caplog.records
+    )
 
 
 @pytest.mark.asyncio

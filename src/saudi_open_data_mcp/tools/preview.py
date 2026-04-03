@@ -34,6 +34,7 @@ from saudi_open_data_mcp.storage.freshness import (
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 
 LOGGER = get_logger(__name__)
+LOCAL_PREVIEW_MISS_NOTICE = "local preview artifact was unavailable; refreshed live instead"
 STALE_FALLBACK_NOTICE = "serving stale snapshot because live refresh failed"
 
 
@@ -210,9 +211,15 @@ class DatasetPreviewResult(BaseModel):
                 raise ValueError(
                     "serve_stale_with_notice results must expose stale freshness_status"
                 )
+        elif (
+            self.resolution_outcome is PreviewResolutionOutcome.REFRESH_THEN_SERVE
+            and self.resolution_notice is not None
+        ):
+            pass
         elif self.resolution_notice is not None:
             raise ValueError(
-                "resolution_notice is only valid for serve_stale_with_notice results"
+                "resolution_notice is only valid for serve_stale_with_notice or "
+                "refresh_then_serve results"
             )
 
         if self.status is PreviewStatus.FAILED:
@@ -339,6 +346,7 @@ class DatasetPreviewTool:
             update_frequency=descriptor.update_frequency,
             freshness=freshness,
         )
+        refresh_notice: str | None = None
 
         if initial_outcome is PreviewResolutionOutcome.SERVE_LOCAL:
             local_result = self._read_local_preview_result(
@@ -349,6 +357,15 @@ class DatasetPreviewTool:
             )
             if local_result is not None:
                 return local_result
+            log_event(
+                LOGGER,
+                logging.INFO,
+                "preview.request.local_artifact_unusable",
+                dataset_id=descriptor.dataset_id,
+                resolution_outcome=initial_outcome.value,
+                freshness_status=freshness.status.value,
+            )
+            refresh_notice = LOCAL_PREVIEW_MISS_NOTICE
 
         if initial_outcome is PreviewResolutionOutcome.SERVE_STALE_WITH_NOTICE:
             stale_result = self._read_local_preview_result(
@@ -388,6 +405,7 @@ class DatasetPreviewTool:
                 freshness=refreshed_freshness,
                 resolution_outcome=PreviewResolutionOutcome.REFRESH_THEN_SERVE,
                 data_origin=PreviewDataOrigin.LIVE_REFRESH,
+                resolution_notice=refresh_notice,
             )
 
         fallback_outcome = self._resolution_policy.refresh_failure_outcome(
