@@ -216,6 +216,10 @@ async def test_server_registers_current_mcp_surface(
     )
     assert preview_result.structured_content["status"] == "record_derivable"
     assert preview_result.structured_content["dataset_id"] == "sama-money-supply"
+    assert preview_result.structured_content["resolution_outcome"] == "refresh_then_serve"
+    assert preview_result.structured_content["data_origin"] == "live_refresh"
+    assert preview_result.structured_content["freshness_status"] == "fresh"
+    assert preview_result.structured_content["snapshot_modified_at"] is not None
     assert preview_result.structured_content["failure"] is None
     assert preview_result.structured_content["limitations"] == []
     assert preview_result.structured_content["records"] == [
@@ -232,6 +236,12 @@ async def test_server_registers_current_mcp_surface(
     )
     assert data_gov_preview_result.structured_content["status"] == "record_derivable"
     assert data_gov_preview_result.structured_content["dataset_id"] == DATA_GOV_SA_DATASET_ID
+    assert data_gov_preview_result.structured_content["resolution_outcome"] == (
+        "refresh_then_serve"
+    )
+    assert data_gov_preview_result.structured_content["data_origin"] == "live_refresh"
+    assert data_gov_preview_result.structured_content["freshness_status"] == "unknown"
+    assert data_gov_preview_result.structured_content["snapshot_modified_at"] is not None
     assert data_gov_preview_result.structured_content["failure"] is None
     assert data_gov_preview_result.structured_content["limitations"] == []
     assert data_gov_preview_result.structured_content["records"] == [
@@ -372,6 +382,11 @@ async def test_server_missing_dataset_lookup_stays_explicit(
     assert preview_result.structured_content == {
         "dataset_id": "missing-dataset",
         "status": "missing",
+        "resolution_outcome": None,
+        "data_origin": None,
+        "freshness_status": None,
+        "snapshot_modified_at": None,
+        "resolution_notice": None,
         "records": [],
         "limitations": [],
         "failure": None,
@@ -500,6 +515,11 @@ async def test_server_preview_tool_keeps_html_preview_limited(tmp_path: Path) ->
     )
 
     assert preview_result.structured_content["status"] == "limited"
+    assert preview_result.structured_content["resolution_outcome"] == "refresh_then_serve"
+    assert preview_result.structured_content["data_origin"] == "live_refresh"
+    assert preview_result.structured_content["freshness_status"] == "fresh"
+    assert preview_result.structured_content["snapshot_modified_at"] is not None
+    assert preview_result.structured_content["resolution_notice"] is None
     assert preview_result.structured_content["failure"] is None
     assert preview_result.structured_content["dataset_id"] == "sama-money-supply"
     assert preview_result.structured_content["records"] == []

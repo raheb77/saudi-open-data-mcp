@@ -22,6 +22,7 @@ from saudi_open_data_mcp.registry.models import (
 )
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.server import create_server
+from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 from saudi_open_data_mcp.tools.preview import DatasetPreviewTool, PreviewStatus
 
 
@@ -125,6 +126,7 @@ async def test_preview_tool_emits_completion_logs_and_metrics(
     tool = DatasetPreviewTool(
         _repository(tmp_path),
         SourceConnectorResolver({"sama": ConnectorSpy()}),
+        snapshot_store=SnapshotStore(tmp_path / "snapshots"),
     )
 
     result = await tool.preview_dataset("sama-money-supply")
@@ -167,6 +169,7 @@ async def test_preview_tool_emits_failure_logs_and_metrics(
     tool = DatasetPreviewTool(
         _repository(tmp_path),
         SourceConnectorResolver({"sama": FailingConnector()}),
+        snapshot_store=SnapshotStore(tmp_path / "snapshots"),
     )
 
     result = await tool.preview_dataset("sama-money-supply")

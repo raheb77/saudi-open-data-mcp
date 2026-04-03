@@ -98,7 +98,11 @@ def test_query_tool_rejects_excessive_limit(tmp_path: Path) -> None:
 async def test_preview_tool_returns_lookup_failure_for_invalid_dataset_id(
     tmp_path: Path,
 ) -> None:
-    tool = DatasetPreviewTool(_repository(tmp_path), connector_resolver={})  # type: ignore[arg-type]
+    tool = DatasetPreviewTool(
+        _repository(tmp_path),
+        connector_resolver={},  # type: ignore[arg-type]
+        snapshot_store=SnapshotStore(tmp_path / "snapshots"),
+    )
 
     null_byte_result = await tool.preview_dataset("bad\x00dataset")
     overlong_result = await tool.preview_dataset("x" * 257)

@@ -59,6 +59,7 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
     preview_tool = DatasetPreviewTool(
         repository,
         connector_resolver,
+        snapshot_store=snapshot_store,
     )
     query_tool = DatasetQueryTool(repository, snapshot_store)
     search_tool = DatasetSearchTool(repository)
