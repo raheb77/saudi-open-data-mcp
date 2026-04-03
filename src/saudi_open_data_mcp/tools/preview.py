@@ -30,6 +30,7 @@ from saudi_open_data_mcp.storage.freshness import (
     SnapshotFreshnessResult,
     SnapshotFreshnessStatus,
     evaluate_snapshot_freshness,
+    has_defined_freshness_window,
 )
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 
@@ -83,7 +84,17 @@ class PreviewFailure(BaseModel):
 
 
 class PreviewResolutionPolicy(BaseModel):
-    """Deterministic preview resolution policy for local/live hybrid reads."""
+    """Deterministic preview resolution policy for local/live hybrid reads.
+
+    Current policy semantics:
+
+    - ``serve_local`` serves a usable local snapshot directly.
+    - ``refresh_then_serve`` performs a live refresh, persists it, then serves it.
+    - ``serve_stale_with_notice`` serves a stale local snapshot only after an
+      allowed degraded-path decision.
+    - ``fail_closed`` returns a structured failure instead of silently
+      inventing data.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -104,10 +115,7 @@ class PreviewResolutionPolicy(BaseModel):
             return PreviewResolutionOutcome.SERVE_LOCAL
 
         if freshness.status is SnapshotFreshnessStatus.UNKNOWN:
-            if update_frequency in {
-                UpdateFrequency.UNSPECIFIED,
-                UpdateFrequency.AD_HOC,
-            }:
+            if not has_defined_freshness_window(update_frequency):
                 if self.serve_unknown_frequency_locally:
                     return PreviewResolutionOutcome.SERVE_LOCAL
                 return PreviewResolutionOutcome.REFRESH_THEN_SERVE
@@ -139,6 +147,20 @@ class PreviewResolutionPolicy(BaseModel):
         ):
             return PreviewResolutionOutcome.SERVE_STALE_WITH_NOTICE
         return PreviewResolutionOutcome.FAIL_CLOSED
+
+    @staticmethod
+    def local_artifact_unusable_outcome(
+        *,
+        initial_outcome: PreviewResolutionOutcome,
+    ) -> PreviewResolutionOutcome:
+        """Resolve the next step when a local-serving path has no usable artifact."""
+
+        if initial_outcome in {
+            PreviewResolutionOutcome.SERVE_LOCAL,
+            PreviewResolutionOutcome.SERVE_STALE_WITH_NOTICE,
+        }:
+            return PreviewResolutionOutcome.REFRESH_THEN_SERVE
+        return initial_outcome
 
 
 class DatasetPreviewResult(BaseModel):
@@ -346,6 +368,7 @@ class DatasetPreviewTool:
             update_frequency=descriptor.update_frequency,
             freshness=freshness,
         )
+        next_outcome = initial_outcome
         refresh_notice: str | None = None
 
         if initial_outcome is PreviewResolutionOutcome.SERVE_LOCAL:
@@ -366,6 +389,9 @@ class DatasetPreviewTool:
                 freshness_status=freshness.status.value,
             )
             refresh_notice = LOCAL_PREVIEW_MISS_NOTICE
+            next_outcome = self._resolution_policy.local_artifact_unusable_outcome(
+                initial_outcome=initial_outcome,
+            )
 
         if initial_outcome is PreviewResolutionOutcome.SERVE_STALE_WITH_NOTICE:
             stale_result = self._read_local_preview_result(
@@ -377,8 +403,11 @@ class DatasetPreviewTool:
             )
             if stale_result is not None:
                 return stale_result
+            next_outcome = self._resolution_policy.local_artifact_unusable_outcome(
+                initial_outcome=initial_outcome,
+            )
 
-        if initial_outcome is PreviewResolutionOutcome.FAIL_CLOSED:
+        if next_outcome is PreviewResolutionOutcome.FAIL_CLOSED:
             return self._closed_failure_result(
                 descriptor=descriptor,
                 stage=PreviewFailureStage.FETCH,

@@ -6,12 +6,15 @@ import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.registry.models import UpdateFrequency
 from saudi_open_data_mcp.storage.freshness import (
     SnapshotFreshnessReason,
     SnapshotFreshnessStatus,
     evaluate_snapshot_freshness,
+    has_defined_freshness_window,
 )
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 
@@ -109,6 +112,41 @@ def test_existing_snapshot_without_frequency_remains_explicitly_unknown(
         update_frequency=None,
     )
 
+    assert result.artifact_present is True
+    assert result.status is SnapshotFreshnessStatus.UNKNOWN
+    assert result.reason is SnapshotFreshnessReason.NO_FREQUENCY_EVIDENCE
+    assert result.snapshot_age == timedelta(days=31)
+
+
+@pytest.mark.parametrize(
+    "update_frequency",
+    [
+        UpdateFrequency.UNSPECIFIED,
+        UpdateFrequency.AD_HOC,
+    ],
+)
+def test_existing_snapshot_with_undefined_frequency_window_remains_unknown(
+    tmp_path: Path,
+    update_frequency: UpdateFrequency,
+) -> None:
+    store = SnapshotStore(tmp_path)
+    snapshot_time = datetime(2026, 1, 1, 0, 0, tzinfo=UTC)
+    reference_time = datetime(2026, 2, 1, 0, 0, tzinfo=UTC)
+    _write_snapshot_with_mtime(
+        store,
+        dataset_id="repo-rate",
+        modified_at=snapshot_time,
+    )
+
+    result = evaluate_snapshot_freshness(
+        source="sama",
+        dataset_id="repo-rate",
+        snapshot_store=store,
+        reference_time=reference_time,
+        update_frequency=update_frequency,
+    )
+
+    assert has_defined_freshness_window(update_frequency) is False
     assert result.artifact_present is True
     assert result.status is SnapshotFreshnessStatus.UNKNOWN
     assert result.reason is SnapshotFreshnessReason.NO_FREQUENCY_EVIDENCE
