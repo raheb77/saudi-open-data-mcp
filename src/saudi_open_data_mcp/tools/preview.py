@@ -54,6 +54,7 @@ class PreviewFailureStage(StrEnum):
 
     LOOKUP = "lookup"
     FETCH = "fetch"
+    SNAPSHOT = "snapshot"
     NORMALIZATION = "normalization"
 
 
@@ -418,29 +419,37 @@ class DatasetPreviewTool:
             )
 
         refresh_error: Exception
+        refresh_failure_stage: PreviewFailureStage
         try:
             self._rate_limiter.enforce()
             connector = self._connector_resolver.resolve(descriptor.source)
             raw_payload = await connector.fetch_dataset_payload(descriptor.source_locator)
-            self._snapshot_store.write_snapshot(raw_payload)
         except RateLimitExceededError as exc:
             metrics.increment("preview.rate_limited")
             refresh_error = exc
+            refresh_failure_stage = PreviewFailureStage.FETCH
         except Exception as exc:
             refresh_error = exc
+            refresh_failure_stage = PreviewFailureStage.FETCH
         else:
-            refreshed_freshness = self._evaluate_freshness(
-                descriptor=descriptor,
-                reference_time=reference_time,
-            )
-            return self._result_from_payload(
-                descriptor=descriptor,
-                raw_payload=raw_payload,
-                freshness=refreshed_freshness,
-                resolution_outcome=PreviewResolutionOutcome.REFRESH_THEN_SERVE,
-                data_origin=PreviewDataOrigin.LIVE_REFRESH,
-                resolution_notice=refresh_notice,
-            )
+            try:
+                self._snapshot_store.write_snapshot(raw_payload)
+            except Exception as exc:
+                refresh_error = exc
+                refresh_failure_stage = PreviewFailureStage.SNAPSHOT
+            else:
+                refreshed_freshness = self._evaluate_freshness(
+                    descriptor=descriptor,
+                    reference_time=reference_time,
+                )
+                return self._result_from_payload(
+                    descriptor=descriptor,
+                    raw_payload=raw_payload,
+                    freshness=refreshed_freshness,
+                    resolution_outcome=PreviewResolutionOutcome.REFRESH_THEN_SERVE,
+                    data_origin=PreviewDataOrigin.LIVE_REFRESH,
+                    resolution_notice=refresh_notice,
+                )
 
         fallback_outcome = self._resolution_policy.refresh_failure_outcome(
             freshness=freshness,
@@ -458,7 +467,7 @@ class DatasetPreviewTool:
 
         return self._closed_failure_result(
             descriptor=descriptor,
-            stage=PreviewFailureStage.FETCH,
+            stage=refresh_failure_stage,
             error=refresh_error,
             freshness=freshness,
         )

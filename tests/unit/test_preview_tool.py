@@ -301,6 +301,34 @@ async def test_missing_snapshot_failed_refresh_fails_closed(tmp_path: Path) -> N
 
 
 @pytest.mark.asyncio
+async def test_missing_snapshot_write_failure_after_successful_fetch_is_distinguished(
+    tmp_path: Path,
+) -> None:
+    class WriteFailingSnapshotStore(SnapshotStore):
+        def write_snapshot(self, payload: RawPayload) -> Path:
+            raise OSError("snapshot write failed for preview testing")
+
+    connector = _ConnectorSpy([_payload()])
+    tool = DatasetPreviewTool(
+        _repository(tmp_path),
+        SourceConnectorResolver({"sama": connector}),
+        snapshot_store=WriteFailingSnapshotStore(tmp_path / "snapshots"),
+    )
+
+    result = await tool.preview_dataset(DATASET_ID, reference_time=REFERENCE_TIME)
+
+    assert result.status is PreviewStatus.FAILED
+    assert result.resolution_outcome is PreviewResolutionOutcome.FAIL_CLOSED
+    assert result.data_origin is None
+    assert result.freshness_status is SnapshotFreshnessStatus.MISSING
+    assert result.failure is not None
+    assert result.failure.stage is PreviewFailureStage.SNAPSHOT
+    assert result.failure.error_type == "OSError"
+    assert result.failure.message == "snapshot write failed for preview testing"
+    assert connector.calls == [REPORT_LOCATOR]
+
+
+@pytest.mark.asyncio
 async def test_rate_limit_applies_only_to_refresh_path_not_local_reads(
     tmp_path: Path,
 ) -> None:

@@ -323,6 +323,61 @@ async def test_preview_tool_emits_failure_logs_and_metrics(
 
 
 @pytest.mark.asyncio
+async def test_preview_tool_emits_snapshot_write_failure_logs_and_metrics(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO)
+
+    class ConnectorSpy:
+        async def fetch_dataset_payload(self, dataset_id: str) -> RawPayload:
+            return RawPayload(
+                source="sama",
+                dataset_id=dataset_id,
+                content={
+                    "url": "https://www.sama.gov.sa/en-US/EconomicReports/Pages/report.aspx?cid=55",
+                    "status_code": 200,
+                    "content_type": "application/json",
+                    "body": {"rows": [{"period": "2026-01", "value": 1}]},
+                },
+            )
+
+    class WriteFailingSnapshotStore(SnapshotStore):
+        def write_snapshot(self, payload: RawPayload) -> Path:
+            raise OSError("snapshot write failed for preview testing")
+
+    tool = DatasetPreviewTool(
+        _repository(tmp_path),
+        SourceConnectorResolver({"sama": ConnectorSpy()}),
+        snapshot_store=WriteFailingSnapshotStore(tmp_path / "snapshots"),
+    )
+
+    result = await tool.preview_dataset("sama-money-supply")
+
+    assert result.status is PreviewStatus.FAILED
+    metrics = get_metrics()
+    assert metrics.get("preview.requests") == 1
+    assert metrics.get("preview.failures") == 1
+    assert metrics.get("preview.local_snapshot") == 0
+    assert metrics.get("preview.live_refresh") == 0
+    assert metrics.get("preview.stale_fallback") == 0
+
+    events = _log_events(caplog)
+    _assert_event(
+        events,
+        {
+            "event": "preview.request.failed",
+            "level": "warning",
+            "logger": "saudi_open_data_mcp.tools.preview",
+            "dataset_id": "sama-money-supply",
+            "stage": "snapshot",
+            "error_type": "OSError",
+            "message": "snapshot write failed for preview testing",
+        },
+    )
+
+
+@pytest.mark.asyncio
 async def test_preview_tool_emits_local_snapshot_metrics(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
     snapshot_store = SnapshotStore(tmp_path / "snapshots")
