@@ -28,7 +28,7 @@ class ConnectorConfigurationError(ConnectorError):
 
 
 class ConnectorNotImplementedError(ConnectorError):
-    """Raised when a scaffold connector is invoked."""
+    """Raised when a connector capability is not implemented."""
 
 
 class UnknownSourceError(ConnectorError):

@@ -78,14 +78,14 @@ class DataGovSaConnector(Connector):
         if "/datasets/view/" not in candidate_parts.path:
             raise SourceAccessPolicyViolationError(
                 source_name=self.source_name,
-                message="data.gov.sa connector only fetches dataset preview routes in v0.2",
+                message="data.gov.sa connector only fetches dataset preview routes",
                 dataset_id=source_locator,
             )
 
         if "/preview/parsed/" not in candidate_parts.path:
             raise SourceAccessPolicyViolationError(
                 source_name=self.source_name,
-                message="data.gov.sa connector only fetches parsed preview routes in v0.2",
+                message="data.gov.sa connector only fetches parsed preview routes",
                 dataset_id=source_locator,
             )
 

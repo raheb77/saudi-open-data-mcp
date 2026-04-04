@@ -110,7 +110,7 @@ class Connector(ABC):
 
         raise ConnectorNotImplementedError(
             source_name=self.connector_identity.source_name,
-            message="catalog metadata fetching is not implemented for this connector scaffold",
+            message="catalog metadata fetching is not implemented for this connector",
         )
 
     @abstractmethod
