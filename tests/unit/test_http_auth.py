@@ -220,6 +220,52 @@ async def test_read_capability_is_required_for_resource_reads() -> None:
     assert response.json() == {"error": "insufficient capability: read"}
 
 
+@pytest.mark.asyncio
+async def test_unmapped_tool_calls_fail_closed_with_internal_error() -> None:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=_app()),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/mcp",
+            headers={"Authorization": "Bearer internal-test-token"},
+            json={
+                "jsonrpc": "2.0",
+                "id": "1",
+                "method": "tools/call",
+                "params": {"name": "future_tool", "arguments": {}},
+            },
+        )
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "error": "authorization coverage missing for tool: future_tool"
+    }
+
+
+@pytest.mark.asyncio
+async def test_unmapped_resource_reads_fail_closed_with_internal_error() -> None:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=_app()),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/mcp",
+            headers={"Authorization": "Bearer internal-test-token"},
+            json={
+                "jsonrpc": "2.0",
+                "id": "1",
+                "method": "resources/read",
+                "params": {"uri": "resource://future"},
+            },
+        )
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "error": "authorization coverage missing for resource: resource://future"
+    }
+
+
 def test_middleware_builder_keeps_token_masked_in_repr() -> None:
     middleware = build_http_auth_middleware(
         SecretStr("internal-test-token"),

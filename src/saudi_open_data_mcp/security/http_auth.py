@@ -27,6 +27,12 @@ class HTTPAuthCapability(StrEnum):
 
 
 ALL_HTTP_AUTH_CAPABILITIES = frozenset(HTTPAuthCapability)
+READ_RESOURCE_URIS = frozenset(
+    {
+        "resource://catalog",
+        "resource://observability",
+    }
+)
 READ_TOOL_NAMES = frozenset(
     {
         "dataset_metadata",
@@ -38,6 +44,9 @@ READ_TOOL_NAMES = frozenset(
 )
 REFRESH_TOOL_NAMES = frozenset({"preview_dataset"})
 MATERIALIZE_TOOL_NAMES = frozenset({"materialize_hot_set"})
+ALL_CAPABILITY_MAPPED_TOOL_NAMES = (
+    READ_TOOL_NAMES | REFRESH_TOOL_NAMES | MATERIALIZE_TOOL_NAMES
+)
 READ_MCP_METHODS = frozenset(
     {
         "resources/list",
@@ -144,6 +153,22 @@ class HTTPBearerAuthMiddleware:
                 f"insufficient capability: {authz_decision.required_capability.value}"
             )(scope, replay_receive, send)
             return
+        if authz_decision.coverage_error is not None:
+            log_event(
+                LOGGER,
+                logging.ERROR,
+                "http.authz.coverage_missing",
+                path=scope.get("path"),
+                mcp_method=authz_decision.mcp_method,
+                target=authz_decision.target,
+                message=authz_decision.coverage_error,
+            )
+            await _internal_error_response(authz_decision.coverage_error)(
+                scope,
+                replay_receive,
+                send,
+            )
+            return
 
         await self.app(scope, replay_receive, send)
 
@@ -230,10 +255,12 @@ class _AuthorizationDecision:
         mcp_method: str | None,
         target: str | None,
         required_capability: HTTPAuthCapability | None,
+        coverage_error: str | None = None,
     ) -> None:
         self.mcp_method = mcp_method
         self.target = target
         self.required_capability = required_capability
+        self.coverage_error = coverage_error
 
 
 async def _buffer_http_request_body(receive) -> tuple[bytes, Any]:
@@ -304,6 +331,14 @@ def _authorization_decision(
             uri = params.get("uri")
             if isinstance(uri, str):
                 target = uri
+        if method == "resources/read" and isinstance(target, str):
+            if target not in READ_RESOURCE_URIS:
+                return _AuthorizationDecision(
+                    mcp_method=method,
+                    target=target,
+                    required_capability=None,
+                    coverage_error=f"authorization coverage missing for resource: {target}",
+                )
         return _AuthorizationDecision(
             mcp_method=method,
             target=target,
@@ -337,6 +372,11 @@ def _authorization_decision(
         mcp_method=method,
         target=tool_name,
         required_capability=_required_capability_for_tool_name(tool_name),
+        coverage_error=(
+            None
+            if tool_name in ALL_CAPABILITY_MAPPED_TOOL_NAMES
+            else f"authorization coverage missing for tool: {tool_name}"
+        ),
     )
 
 
@@ -370,4 +410,13 @@ def _forbidden_response(message: str) -> JSONResponse:
     return JSONResponse(
         {"error": message},
         status_code=403,
+    )
+
+
+def _internal_error_response(message: str) -> JSONResponse:
+    """Return the standard internal coverage-failure response payload."""
+
+    return JSONResponse(
+        {"error": message},
+        status_code=500,
     )
