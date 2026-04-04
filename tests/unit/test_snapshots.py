@@ -126,3 +126,40 @@ def test_existing_snapshot_remains_intact_when_replace_fails_before_commit(
     )
     assert base_store.read_snapshot("sama", "money-supply") == original_payload
     assert list(final_path.parent.glob("*.tmp")) == []
+
+
+def test_existing_snapshot_remains_intact_when_write_fails_before_commit(
+    tmp_path: Path,
+) -> None:
+    base_store = SnapshotStore(tmp_path)
+    original_payload = RawPayload(
+        source="sama",
+        dataset_id="money-supply",
+        content={"value": 1},
+    )
+    final_path = base_store.write_snapshot(original_payload)
+
+    class WriteFailingSnapshotStore(SnapshotStore):
+        @staticmethod
+        def _write_text(handle, text: str) -> None:
+            handle.write('{"partial": true')
+            raise OSError("write failed before commit")
+
+    failing_store = WriteFailingSnapshotStore(tmp_path)
+
+    with pytest.raises(OSError, match="write failed before commit"):
+        failing_store.write_snapshot(
+            RawPayload(
+                source="sama",
+                dataset_id="money-supply",
+                content={"value": 2},
+            )
+        )
+
+    assert final_path.read_text(encoding="utf-8") == json.dumps(
+        original_payload.model_dump(mode="json"),
+        indent=2,
+        sort_keys=True,
+    )
+    assert base_store.read_snapshot("sama", "money-supply") == original_payload
+    assert list(final_path.parent.glob("*.tmp")) == []

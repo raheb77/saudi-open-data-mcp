@@ -221,6 +221,31 @@ async def test_read_capability_is_required_for_resource_reads() -> None:
 
 
 @pytest.mark.asyncio
+async def test_read_capability_is_required_for_tools_list_method() -> None:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(
+            app=_app(frozenset({HTTPAuthCapability.REFRESH}))
+        ),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/mcp",
+            headers={"Authorization": "Bearer internal-test-token"},
+            json={
+                "jsonrpc": "2.0",
+                "id": "1",
+                "method": "tools/list",
+                "params": {},
+            },
+        )
+
+    assert response.status_code == 403
+    assert response.json() == {"error": "insufficient capability: read"}
+    assert get_metrics().get("http.authz.rejected") == 1
+    assert get_metrics().get("http.authz.rejected.insufficient_capability") == 1
+
+
+@pytest.mark.asyncio
 async def test_unmapped_tool_calls_fail_closed_with_internal_error() -> None:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=_app()),

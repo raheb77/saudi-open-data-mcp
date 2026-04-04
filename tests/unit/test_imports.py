@@ -80,12 +80,57 @@ def test_load_config_rejects_invalid_http_auth_capabilities(
         load_config()
 
 
+def test_load_config_rejects_empty_http_auth_capability_entry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HTTP_AUTH_CAPABILITIES", "read,,refresh")
+
+    with pytest.raises(RuntimeConfigurationError, match="HTTP_AUTH_CAPABILITIES"):
+        load_config()
+
+
 def test_load_config_rejects_invalid_boolean_override(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("TIER_A_REFRESH_ENABLED", "sometimes")
 
     with pytest.raises(RuntimeConfigurationError, match="TIER_A_REFRESH_ENABLED"):
+        load_config()
+
+
+@pytest.mark.parametrize(
+    ("env_name", "value"),
+    (
+        ("HTTP_PORT", "not-an-int"),
+        ("TIER_A_REFRESH_INTERVAL_SECONDS", "not-an-int"),
+    ),
+)
+def test_load_config_rejects_invalid_integer_overrides(
+    monkeypatch: pytest.MonkeyPatch,
+    env_name: str,
+    value: str,
+) -> None:
+    monkeypatch.setenv(env_name, value)
+
+    with pytest.raises(RuntimeConfigurationError, match=env_name):
+        load_config()
+
+
+def test_load_config_rejects_out_of_range_http_port(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HTTP_PORT", "70000")
+
+    with pytest.raises(RuntimeConfigurationError, match="http_port"):
+        load_config()
+
+
+def test_load_config_rejects_blank_http_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HTTP_HOST", "   ")
+
+    with pytest.raises(RuntimeConfigurationError, match="HTTP_HOST"):
         load_config()
 
 
