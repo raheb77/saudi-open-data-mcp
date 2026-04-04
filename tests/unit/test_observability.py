@@ -126,6 +126,8 @@ def test_build_observability_summary_groups_existing_counters() -> None:
     metrics.increment("connector.request_attempts.sama", 3)
     metrics.increment("materialize.requests")
     metrics.increment("materialize.successes", 5)
+    metrics.increment("tier_a_refresh.runs", 2)
+    metrics.increment("tier_a_refresh.run_failures")
 
     summary = build_observability_summary(metrics)
     groups = {group.name: group for group in summary.groups}
@@ -139,6 +141,8 @@ def test_build_observability_summary_groups_existing_counters() -> None:
         "preview.live_refresh": 1,
         "preview.requests": 2,
         "server.startup.attempts": 1,
+        "tier_a_refresh.run_failures": 1,
+        "tier_a_refresh.runs": 2,
     }
     assert groups["startup"].counters[0].model_dump() == {
         "name": "server.startup.attempts",
@@ -155,6 +159,14 @@ def test_build_observability_summary_groups_existing_counters() -> None:
     assert tuple(
         counter.model_dump() for counter in groups["connectors"].detail_counters
     ) == ({"name": "connector.request_attempts.sama", "value": 3},)
+    assert groups["tier_a_refresh"].counters[0].model_dump() == {
+        "name": "tier_a_refresh.runs",
+        "value": 2,
+    }
+    assert groups["tier_a_refresh"].counters[1].model_dump() == {
+        "name": "tier_a_refresh.run_failures",
+        "value": 1,
+    }
     assert "process-local" in summary.notes[0]
     assert "tier_a_refresh.*" in summary.notes[2]
 

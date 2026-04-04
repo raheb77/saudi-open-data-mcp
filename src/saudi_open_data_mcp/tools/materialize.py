@@ -394,6 +394,7 @@ class TierABackgroundRefreshService:
     async def run_once(self) -> HotSetMaterializationResult:
         """Run one Tier A-only refresh cycle."""
 
+        get_metrics().increment("tier_a_refresh.runs")
         log_event(
             LOGGER,
             logging.INFO,
@@ -421,6 +422,7 @@ class TierABackgroundRefreshService:
             try:
                 await self.run_once()
             except Exception as exc:
+                get_metrics().increment("tier_a_refresh.run_failures")
                 log_event(
                     LOGGER,
                     logging.ERROR,

@@ -107,6 +107,7 @@ async def test_server_registers_current_mcp_surface(
         "auth",
         "connectors",
         "materialization",
+        "tier_a_refresh",
     ]
     assert (
         observability_payload["groups"][0]["counters"][0]["name"]

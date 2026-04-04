@@ -115,6 +115,17 @@ _COUNTER_GROUP_SPECS = (
             "materialize.failures",
         ),
     ),
+    _CounterGroupSpec(
+        name="tier_a_refresh",
+        summary=(
+            "Tier A background refresh loop counters. These count loop cycles, not "
+            "per-dataset materialization outcomes."
+        ),
+        counter_names=(
+            "tier_a_refresh.runs",
+            "tier_a_refresh.run_failures",
+        ),
+    ),
 )
 
 
@@ -135,7 +146,8 @@ def build_observability_summary(
             ),
             (
                 "Tier A background refresh emits tier_a_refresh.* structured log "
-                "events and reuses materialize.* counters."
+                "events, tier_a_refresh.* loop counters, and reuses materialize.* "
+                "counters for per-dataset outcomes."
             ),
         ),
     )

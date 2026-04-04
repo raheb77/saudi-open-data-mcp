@@ -14,6 +14,7 @@ from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.connectors.resolver import SourceConnectorResolver
 from saudi_open_data_mcp.normalization.pipeline import NormalizationPipelineStatus
 from saudi_open_data_mcp.normalization.validators import TEXT_HTML_LIMITATION
+from saudi_open_data_mcp.observability import get_metrics
 from saudi_open_data_mcp.registry.bootstrap import (
     WAVE_1_HOT_SET_OPTIONAL_DATASET_IDS,
     WAVE_1_HOT_SET_TIER_A_DATASET_IDS,
@@ -286,6 +287,8 @@ async def test_tier_a_background_refresh_service_runs_tier_a_only(
     assert runner.calls == [False]
     assert result.include_optional is False
     assert result.failed_count == 1
+    assert get_metrics().get("tier_a_refresh.runs") == 1
+    assert get_metrics().get("tier_a_refresh.run_failures") == 0
     assert any(
         json.loads(record.getMessage()).get("event") == "tier_a_refresh.run.completed"
         and json.loads(record.getMessage()).get("failed_count") == 1
@@ -330,6 +333,8 @@ async def test_tier_a_background_refresh_service_run_forever_logs_failure_and_co
         with pytest.raises(asyncio.CancelledError):
             await task
 
+    assert get_metrics().get("tier_a_refresh.runs") == 2
+    assert get_metrics().get("tier_a_refresh.run_failures") == 1
     assert any(
         json.loads(record.getMessage()).get("event") == "tier_a_refresh.run.failed"
         and json.loads(record.getMessage()).get("error_type") == "RuntimeError"
