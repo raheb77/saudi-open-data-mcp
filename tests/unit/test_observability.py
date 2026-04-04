@@ -122,6 +122,10 @@ def test_build_observability_summary_groups_existing_counters() -> None:
     metrics.increment("server.startup.attempts")
     metrics.increment("preview.requests", 2)
     metrics.increment("preview.live_refresh")
+    metrics.increment("http.auth.requests", 3)
+    metrics.increment("http.auth.accepted", 2)
+    metrics.increment("http.authz.rejected")
+    metrics.increment("http.authz.rejected.insufficient_capability")
     metrics.increment("connector.retries")
     metrics.increment("connector.request_attempts.sama", 3)
     metrics.increment("materialize.requests")
@@ -136,6 +140,10 @@ def test_build_observability_summary_groups_existing_counters() -> None:
     assert summary.raw_counters == {
         "connector.request_attempts.sama": 3,
         "connector.retries": 1,
+        "http.auth.accepted": 2,
+        "http.auth.requests": 3,
+        "http.authz.rejected": 1,
+        "http.authz.rejected.insufficient_capability": 1,
         "materialize.requests": 1,
         "materialize.successes": 5,
         "preview.live_refresh": 1,
@@ -154,6 +162,18 @@ def test_build_observability_summary_groups_existing_counters() -> None:
     }
     assert groups["preview"].counters[2].model_dump() == {
         "name": "preview.live_refresh",
+        "value": 1,
+    }
+    assert groups["auth"].counters[0].model_dump() == {
+        "name": "http.auth.requests",
+        "value": 3,
+    }
+    assert groups["auth"].counters[5].model_dump() == {
+        "name": "http.authz.rejected",
+        "value": 1,
+    }
+    assert groups["auth"].counters[6].model_dump() == {
+        "name": "http.authz.rejected.insufficient_capability",
         "value": 1,
     }
     assert tuple(

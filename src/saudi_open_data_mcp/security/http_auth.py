@@ -126,6 +126,8 @@ class HTTPBearerAuthMiddleware:
             authz_decision.required_capability is not None
             and authz_decision.required_capability not in self._capabilities
         ):
+            metrics.increment("http.authz.rejected")
+            metrics.increment("http.authz.rejected.insufficient_capability")
             log_event(
                 LOGGER,
                 logging.WARNING,

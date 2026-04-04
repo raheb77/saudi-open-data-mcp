@@ -154,6 +154,10 @@ async def test_refresh_capability_is_required_for_preview_tool_call(
 
     assert response.status_code == 403
     assert response.json() == {"error": "insufficient capability: refresh"}
+    assert get_metrics().get("http.auth.requests") == 1
+    assert get_metrics().get("http.auth.accepted") == 1
+    assert get_metrics().get("http.authz.rejected") == 1
+    assert get_metrics().get("http.authz.rejected.insufficient_capability") == 1
     assert any(
         json.loads(record.getMessage())["required_capability"] == "refresh"
         and json.loads(record.getMessage())["target"] == "preview_dataset"
