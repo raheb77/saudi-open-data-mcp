@@ -85,7 +85,7 @@ async def test_server_registers_current_mcp_surface(
     resources = await app.get_resources()
     tools = await app.get_tools()
 
-    assert set(resources) == {"resource://catalog"}
+    assert set(resources) == {"resource://catalog", "resource://observability"}
     assert set(tools) == {
         "download_dataset",
         "dataset_health",
@@ -97,8 +97,24 @@ async def test_server_registers_current_mcp_surface(
     }
 
     catalog_payload = json.loads(await resources["resource://catalog"].read())
+    observability_payload = json.loads(await resources["resource://observability"].read())
     assert catalog_payload["dataset_count"] == len(expected_datasets)
     assert catalog_payload["datasets"][0]["dataset_id"] == expected_datasets[0].dataset_id
+    assert observability_payload["process_local"] is True
+    assert [group["name"] for group in observability_payload["groups"]] == [
+        "startup",
+        "preview",
+        "auth",
+        "connectors",
+        "materialization",
+    ]
+    assert (
+        observability_payload["groups"][0]["counters"][0]["name"]
+        == "server.startup.attempts"
+    )
+    assert observability_payload["raw_counters"]["server.startup.attempts"] == 1
+    assert observability_payload["raw_counters"]["server.startup.ready"] == 1
+    assert "process restart" in observability_payload["notes"][0]
 
     metadata_result = await tools["dataset_metadata"].run(
         {"dataset_id": "sama-money-supply"}

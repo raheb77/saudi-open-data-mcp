@@ -16,7 +16,11 @@ from saudi_open_data_mcp.config import RuntimeConfig
 from saudi_open_data_mcp.connectors.base import Connector, RawPayload, RequestPolicy
 from saudi_open_data_mcp.connectors.errors import SourceUnavailableError
 from saudi_open_data_mcp.connectors.resolver import SourceConnectorResolver
-from saudi_open_data_mcp.observability import get_metrics, reset_metrics
+from saudi_open_data_mcp.observability import (
+    build_observability_summary,
+    get_metrics,
+    reset_metrics,
+)
 from saudi_open_data_mcp.registry.bootstrap import (
     INITIAL_DATASET_DESCRIPTORS,
     WAVE_1_HOT_SET_TIER_A_DATASET_IDS,
@@ -111,6 +115,48 @@ def test_create_server_emits_startup_logs_and_metrics(
             "dataset_count": len(INITIAL_DATASET_DESCRIPTORS),
         },
     )
+
+
+def test_build_observability_summary_groups_existing_counters() -> None:
+    metrics = get_metrics()
+    metrics.increment("server.startup.attempts")
+    metrics.increment("preview.requests", 2)
+    metrics.increment("preview.live_refresh")
+    metrics.increment("connector.retries")
+    metrics.increment("connector.request_attempts.sama", 3)
+    metrics.increment("materialize.requests")
+    metrics.increment("materialize.successes", 5)
+
+    summary = build_observability_summary(metrics)
+    groups = {group.name: group for group in summary.groups}
+
+    assert summary.process_local is True
+    assert summary.raw_counters == {
+        "connector.request_attempts.sama": 3,
+        "connector.retries": 1,
+        "materialize.requests": 1,
+        "materialize.successes": 5,
+        "preview.live_refresh": 1,
+        "preview.requests": 2,
+        "server.startup.attempts": 1,
+    }
+    assert groups["startup"].counters[0].model_dump() == {
+        "name": "server.startup.attempts",
+        "value": 1,
+    }
+    assert groups["preview"].counters[0].model_dump() == {
+        "name": "preview.requests",
+        "value": 2,
+    }
+    assert groups["preview"].counters[2].model_dump() == {
+        "name": "preview.live_refresh",
+        "value": 1,
+    }
+    assert tuple(
+        counter.model_dump() for counter in groups["connectors"].detail_counters
+    ) == ({"name": "connector.request_attempts.sama", "value": 3},)
+    assert "process-local" in summary.notes[0]
+    assert "tier_a_refresh.*" in summary.notes[2]
 
 
 def test_create_server_emits_startup_failure_logs_and_metrics(

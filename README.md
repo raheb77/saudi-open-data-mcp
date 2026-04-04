@@ -42,6 +42,7 @@ The current codebase is organized around three layers.
 The current exposed MCP surface is intentionally small:
 
 - `resource://catalog`
+- `resource://observability`
 - `dataset_metadata`
 - `dataset_health`
 - `download_dataset`
@@ -52,6 +53,7 @@ The current exposed MCP surface is intentionally small:
 What each one does now:
 
 - `resource://catalog`: read-only summary of the bootstrapped registry catalog
+- `resource://observability`: read-only grouped summary of current process-local counters, plus the raw counter snapshot for internal operators
 - `dataset_metadata`: exact lookup of registry-backed dataset metadata by `dataset_id`
 - `dataset_health`: exact lookup of registry-backed health metadata by `dataset_id`, with local snapshot freshness evidence when available
 - `download_dataset`: local-only raw snapshot availability lookup by `dataset_id`
@@ -63,6 +65,7 @@ Concise example of the current surface:
 
 ```text
 resource://catalog
+resource://observability
 dataset_metadata({"dataset_id": "sama-money-supply"})
 dataset_health({"dataset_id": "sama-money-supply"})
 download_dataset({"dataset_id": "sama-money-supply"})
@@ -218,6 +221,12 @@ The provided compose file publishes the service on `127.0.0.1:8000` on the
 host and persists runtime state in a Docker-managed volume mounted at
 `/var/lib/saudi-open-data-mcp`. It also requires `HTTP_AUTH_TOKEN` to be set
 in the operator environment before startup.
+
+Internal observability remains intentionally simple:
+
+- read `resource://observability` to inspect the current grouped in-process counters in one place
+- inspect structured container logs for event-level detail such as `server.startup.*`, `preview.request.*`, `connector.request.*`, `materialize.*`, and `tier_a_refresh.*`
+- treat the observability resource as a process-local operator aid, not as a health endpoint or external metrics API
 
 Direct container run example:
 
