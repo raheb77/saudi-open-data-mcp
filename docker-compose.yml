@@ -2,10 +2,22 @@ services:
   app:
     build:
       context: .
+    init: true
     environment:
       HTTP_AUTH_TOKEN: ${HTTP_AUTH_TOKEN:?set HTTP_AUTH_TOKEN for internal bearer auth}
+      HTTP_AUTH_CAPABILITIES: ${HTTP_AUTH_CAPABILITIES:-read,refresh,materialize}
       TIER_A_REFRESH_ENABLED: ${TIER_A_REFRESH_ENABLED:-false}
       TIER_A_REFRESH_INTERVAL_SECONDS: ${TIER_A_REFRESH_INTERVAL_SECONDS:-3600}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json,sys,urllib.request; data=json.load(urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3)); sys.exit(0 if data.get('ready') is True and data.get('status') == 'ready' else 1)"
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
