@@ -23,6 +23,7 @@ from saudi_open_data_mcp.registry.models import DatasetDescriptor, UpdateFrequen
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.security.rate_limit import (
     InMemoryRateLimiter,
+    RateLimitExceededError,
     RateLimitPolicy,
 )
 from saudi_open_data_mcp.security.sanitization import sanitize_dataset_id
@@ -360,6 +361,7 @@ class DatasetPreviewTool:
         descriptor: DatasetDescriptor,
         reference_time: datetime | None,
     ) -> DatasetPreviewResult:
+        metrics = get_metrics()
         freshness = self._evaluate_freshness(
             descriptor=descriptor,
             reference_time=reference_time,
@@ -421,6 +423,9 @@ class DatasetPreviewTool:
             connector = self._connector_resolver.resolve(descriptor.source)
             raw_payload = await connector.fetch_dataset_payload(descriptor.source_locator)
             self._snapshot_store.write_snapshot(raw_payload)
+        except RateLimitExceededError as exc:
+            metrics.increment("preview.rate_limited")
+            refresh_error = exc
         except Exception as exc:
             refresh_error = exc
         else:
@@ -592,7 +597,6 @@ class DatasetPreviewTool:
         metrics = get_metrics()
 
         if result.status is PreviewStatus.MISSING:
-            metrics.increment("preview.results.missing")
             log_event(
                 LOGGER,
                 logging.INFO,
@@ -601,7 +605,13 @@ class DatasetPreviewTool:
             )
             return
 
-        metrics.increment(f"preview.results.{result.status.value}")
+        if result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT:
+            metrics.increment("preview.local_snapshot")
+        elif result.data_origin is PreviewDataOrigin.LIVE_REFRESH:
+            metrics.increment("preview.live_refresh")
+        elif result.data_origin is PreviewDataOrigin.STALE_SNAPSHOT:
+            metrics.increment("preview.stale_fallback")
+
         log_fields = {
             "dataset_id": result.dataset_id,
             "resolution_outcome": (
@@ -616,6 +626,7 @@ class DatasetPreviewTool:
         }
 
         if result.status is PreviewStatus.FAILED:
+            metrics.increment("preview.failures")
             assert result.failure is not None
             log_event(
                 LOGGER,

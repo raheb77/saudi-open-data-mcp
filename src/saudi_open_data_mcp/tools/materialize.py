@@ -15,6 +15,7 @@ from saudi_open_data_mcp.normalization.pipeline import (
     NormalizationPipelineStatus,
     NormalizationResult,
 )
+from saudi_open_data_mcp.observability import get_metrics
 from saudi_open_data_mcp.registry.bootstrap import (
     WAVE_1_HOT_SET_OPTIONAL_DATASET_IDS,
     WAVE_1_HOT_SET_TIER_A_DATASET_IDS,
@@ -251,6 +252,8 @@ class HotSetMaterializationTool:
     ) -> HotSetMaterializationResult:
         """Fetch and persist the fixed Wave 1 hot-set selection."""
 
+        metrics = get_metrics()
+        metrics.increment("materialize.requests")
         selected_dataset_ids = _selected_dataset_ids(include_optional)
         locator_results: dict[
             tuple[str, str],
@@ -317,6 +320,10 @@ class HotSetMaterializationTool:
             result.status is HotSetMaterializationStatus.MATERIALIZED for result in results
         )
         failed_count = len(results) - materialized_count
+        if materialized_count:
+            metrics.increment("materialize.successes", materialized_count)
+        if failed_count:
+            metrics.increment("materialize.failures", failed_count)
         return HotSetMaterializationResult(
             include_optional=include_optional,
             requested_dataset_count=len(selected_dataset_ids),

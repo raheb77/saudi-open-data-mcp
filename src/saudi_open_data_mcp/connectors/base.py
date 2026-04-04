@@ -246,6 +246,7 @@ class Connector(ABC):
                 )
 
             if not self.should_retry(error, retries_used):
+                metrics.increment("connector.failures")
                 metrics.increment(f"connector.request_failures.{self.source_name}")
                 log_event(
                     LOGGER,
@@ -260,6 +261,7 @@ class Connector(ABC):
                 raise error from cause
 
             backoff_seconds = self.retry_backoff_seconds(retries_used)
+            metrics.increment("connector.retries")
             metrics.increment(f"connector.request_retries.{self.source_name}")
             log_event(
                 LOGGER,

@@ -4,25 +4,34 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
 import pytest
 
+from saudi_open_data_mcp import server as server_module
 from saudi_open_data_mcp.config import RuntimeConfig
 from saudi_open_data_mcp.connectors.base import Connector, RawPayload, RequestPolicy
 from saudi_open_data_mcp.connectors.errors import SourceUnavailableError
 from saudi_open_data_mcp.connectors.resolver import SourceConnectorResolver
 from saudi_open_data_mcp.observability import get_metrics, reset_metrics
-from saudi_open_data_mcp.registry.bootstrap import INITIAL_DATASET_DESCRIPTORS
+from saudi_open_data_mcp.registry.bootstrap import (
+    INITIAL_DATASET_DESCRIPTORS,
+    WAVE_1_HOT_SET_TIER_A_DATASET_IDS,
+    bootstrap_registry,
+)
 from saudi_open_data_mcp.registry.models import (
     DatasetDescriptor,
     DatasetHealthStatus,
     UpdateFrequency,
 )
 from saudi_open_data_mcp.registry.repository import RegistryRepository
+from saudi_open_data_mcp.security.rate_limit import RateLimitPolicy
 from saudi_open_data_mcp.server import create_server
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
+from saudi_open_data_mcp.tools.materialize import HotSetMaterializationTool
 from saudi_open_data_mcp.tools.preview import DatasetPreviewTool, PreviewStatus
 
 
@@ -79,7 +88,8 @@ def test_create_server_emits_startup_logs_and_metrics(
 
     metrics = get_metrics()
     assert metrics.get("server.startup.attempts") == 1
-    assert metrics.get("server.startup.success") == 1
+    assert metrics.get("server.startup.ready") == 1
+    assert metrics.get("server.startup.failures") == 0
 
     events = _log_events(caplog)
     _assert_event(
@@ -99,6 +109,40 @@ def test_create_server_emits_startup_logs_and_metrics(
             "logger": "saudi_open_data_mcp.server",
             "app_name": "saudi-open-data-mcp",
             "dataset_count": len(INITIAL_DATASET_DESCRIPTORS),
+        },
+    )
+
+
+def test_create_server_emits_startup_failure_logs_and_metrics(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    caplog.set_level(logging.INFO)
+
+    def _boom(_repository: RegistryRepository) -> list[object]:
+        raise RuntimeError("bootstrap failed for testing")
+
+    monkeypatch.setattr(server_module, "bootstrap_registry", _boom)
+
+    with pytest.raises(RuntimeError, match="bootstrap failed for testing"):
+        create_server(_runtime_config(tmp_path))
+
+    metrics = get_metrics()
+    assert metrics.get("server.startup.attempts") == 1
+    assert metrics.get("server.startup.ready") == 0
+    assert metrics.get("server.startup.failures") == 1
+
+    events = _log_events(caplog)
+    _assert_event(
+        events,
+        {
+            "event": "server.startup.failed",
+            "level": "error",
+            "logger": "saudi_open_data_mcp.server",
+            "app_name": "saudi-open-data-mcp",
+            "error_type": "RuntimeError",
+            "message": "bootstrap failed for testing",
         },
     )
 
@@ -134,7 +178,10 @@ async def test_preview_tool_emits_completion_logs_and_metrics(
     assert result.status is PreviewStatus.RECORD_DERIVABLE
     metrics = get_metrics()
     assert metrics.get("preview.requests") == 1
-    assert metrics.get("preview.results.record_derivable") == 1
+    assert metrics.get("preview.live_refresh") == 1
+    assert metrics.get("preview.local_snapshot") == 0
+    assert metrics.get("preview.stale_fallback") == 0
+    assert metrics.get("preview.failures") == 0
 
     events = _log_events(caplog)
     _assert_event(
@@ -177,7 +224,10 @@ async def test_preview_tool_emits_failure_logs_and_metrics(
     assert result.status is PreviewStatus.FAILED
     metrics = get_metrics()
     assert metrics.get("preview.requests") == 1
-    assert metrics.get("preview.results.failed") == 1
+    assert metrics.get("preview.failures") == 1
+    assert metrics.get("preview.local_snapshot") == 0
+    assert metrics.get("preview.live_refresh") == 0
+    assert metrics.get("preview.stale_fallback") == 0
 
     events = _log_events(caplog)
     _assert_event(
@@ -192,6 +242,126 @@ async def test_preview_tool_emits_failure_logs_and_metrics(
             "message": "SAMA source request failed for preview testing",
         },
     )
+
+
+@pytest.mark.asyncio
+async def test_preview_tool_emits_local_snapshot_metrics(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    snapshot_store.write_snapshot(
+        RawPayload(
+            source="sama",
+            dataset_id="report.aspx?cid=55",
+            content={
+                "url": "https://www.sama.gov.sa/en-US/EconomicReports/Pages/report.aspx?cid=55",
+                "status_code": 200,
+                "content_type": "application/json",
+                "body": {"rows": [{"period": "2026-01", "value": 1}]},
+            },
+        )
+    )
+
+    class UnusedConnector:
+        async def fetch_dataset_payload(self, dataset_id: str) -> RawPayload:
+            raise AssertionError("connector should not be called for local snapshot preview")
+
+    tool = DatasetPreviewTool(
+        repository,
+        SourceConnectorResolver({"sama": UnusedConnector()}),
+        snapshot_store=snapshot_store,
+    )
+
+    result = await tool.preview_dataset("sama-money-supply")
+
+    assert result.status is PreviewStatus.RECORD_DERIVABLE
+    metrics = get_metrics()
+    assert metrics.get("preview.requests") == 1
+    assert metrics.get("preview.local_snapshot") == 1
+    assert metrics.get("preview.live_refresh") == 0
+    assert metrics.get("preview.stale_fallback") == 0
+    assert metrics.get("preview.failures") == 0
+
+
+@pytest.mark.asyncio
+async def test_preview_tool_emits_stale_fallback_metrics(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    snapshot_path = snapshot_store.write_snapshot(
+        RawPayload(
+            source="sama",
+            dataset_id="report.aspx?cid=55",
+            content={
+                "url": "https://www.sama.gov.sa/en-US/EconomicReports/Pages/report.aspx?cid=55",
+                "status_code": 200,
+                "content_type": "application/json",
+                "body": {"rows": [{"period": "2025-12", "value": 1}]},
+            },
+        )
+    )
+    stale_timestamp = datetime(2025, 12, 1, 0, 0, tzinfo=UTC).timestamp()
+    os.utime(snapshot_path, (stale_timestamp, stale_timestamp))
+
+    class FailingConnector:
+        async def fetch_dataset_payload(self, dataset_id: str) -> RawPayload:
+            raise SourceUnavailableError(
+                source_name="sama",
+                dataset_id=dataset_id,
+                message="refresh failed for stale fallback testing",
+            )
+
+    tool = DatasetPreviewTool(
+        repository,
+        SourceConnectorResolver({"sama": FailingConnector()}),
+        snapshot_store=snapshot_store,
+    )
+
+    result = await tool.preview_dataset(
+        "sama-money-supply",
+        reference_time=datetime(2026, 1, 15, 12, 0, tzinfo=UTC),
+    )
+
+    assert result.status is PreviewStatus.RECORD_DERIVABLE
+    metrics = get_metrics()
+    assert metrics.get("preview.requests") == 1
+    assert metrics.get("preview.stale_fallback") == 1
+    assert metrics.get("preview.live_refresh") == 0
+    assert metrics.get("preview.local_snapshot") == 0
+    assert metrics.get("preview.failures") == 0
+
+
+@pytest.mark.asyncio
+async def test_preview_tool_emits_rate_limited_metrics(tmp_path: Path) -> None:
+    class ConnectorSpy:
+        async def fetch_dataset_payload(self, dataset_id: str) -> RawPayload:
+            return RawPayload(
+                source="sama",
+                dataset_id=dataset_id,
+                content={
+                    "url": "https://www.sama.gov.sa/en-US/EconomicReports/Pages/report.aspx?cid=55",
+                    "status_code": 200,
+                    "content_type": "application/json",
+                    "body": {"rows": [{"period": "2026-01", "value": 1}]},
+                },
+            )
+
+    tool = DatasetPreviewTool(
+        _repository(tmp_path),
+        SourceConnectorResolver({"sama": ConnectorSpy()}),
+        snapshot_store=SnapshotStore(tmp_path / "snapshots"),
+        rate_limit_policy=RateLimitPolicy(requests=1, window_seconds=60),
+        time_source=lambda: 100.0,
+    )
+
+    await tool.preview_dataset("sama-money-supply")
+    SnapshotStore(tmp_path / "snapshots").snapshot_path("sama", "report.aspx?cid=55").unlink()
+    result = await tool.preview_dataset("sama-money-supply")
+
+    assert result.status is PreviewStatus.FAILED
+    metrics = get_metrics()
+    assert metrics.get("preview.requests") == 2
+    assert metrics.get("preview.live_refresh") == 1
+    assert metrics.get("preview.rate_limited") == 1
+    assert metrics.get("preview.failures") == 1
 
 
 @pytest.mark.asyncio
@@ -241,6 +411,8 @@ async def test_connector_retry_and_failure_emit_logs_and_metrics(
     assert metrics.get("connector.request_attempts.dummy") == 2
     assert metrics.get("connector.request_retries.dummy") == 1
     assert metrics.get("connector.request_failures.dummy") == 0
+    assert metrics.get("connector.retries") == 1
+    assert metrics.get("connector.failures") == 0
 
     retry_events = _log_events(caplog)
     _assert_event(
@@ -287,6 +459,8 @@ async def test_connector_retry_and_failure_emit_logs_and_metrics(
     assert metrics.get("connector.request_attempts.dummy") == 2
     assert metrics.get("connector.request_retries.dummy") == 1
     assert metrics.get("connector.request_failures.dummy") == 1
+    assert metrics.get("connector.retries") == 1
+    assert metrics.get("connector.failures") == 1
 
     failure_events = _log_events(caplog)
     _assert_event(
@@ -302,6 +476,65 @@ async def test_connector_retry_and_failure_emit_logs_and_metrics(
             "retries_used": 1,
         },
     )
+
+
+@pytest.mark.asyncio
+async def test_materialize_tool_emits_operational_metrics(tmp_path: Path) -> None:
+    repository = RegistryRepository(tmp_path / "registry.sqlite")
+    bootstrap_registry(repository)
+
+    class SuccessfulConnector:
+        async def fetch_dataset_payload(self, dataset_id: str) -> RawPayload:
+            return RawPayload(
+                source="sama",
+                dataset_id=dataset_id,
+                content={
+                    "url": "https://www.sama.gov.sa/example",
+                    "status_code": 200,
+                    "content_type": "application/json",
+                    "body": {"rows": []},
+                },
+            )
+
+    tool = HotSetMaterializationTool(
+        repository,
+        SourceConnectorResolver({"sama": SuccessfulConnector()}),
+        SnapshotStore(tmp_path / "snapshots"),
+    )
+
+    await tool.materialize_hot_set()
+
+    metrics = get_metrics()
+    assert metrics.get("materialize.requests") == 1
+    assert metrics.get("materialize.successes") == len(WAVE_1_HOT_SET_TIER_A_DATASET_IDS)
+    assert metrics.get("materialize.failures") == 0
+
+
+@pytest.mark.asyncio
+async def test_materialize_tool_emits_failure_metrics(tmp_path: Path) -> None:
+    repository = RegistryRepository(tmp_path / "registry.sqlite")
+    bootstrap_registry(repository)
+
+    class FailingConnector:
+        async def fetch_dataset_payload(self, dataset_id: str) -> RawPayload:
+            raise SourceUnavailableError(
+                source_name="sama",
+                dataset_id=dataset_id,
+                message="materialize fetch failed for testing",
+            )
+
+    tool = HotSetMaterializationTool(
+        repository,
+        SourceConnectorResolver({"sama": FailingConnector()}),
+        SnapshotStore(tmp_path / "snapshots"),
+    )
+
+    await tool.materialize_hot_set()
+
+    metrics = get_metrics()
+    assert metrics.get("materialize.requests") == 1
+    assert metrics.get("materialize.successes") == 0
+    assert metrics.get("materialize.failures") == len(WAVE_1_HOT_SET_TIER_A_DATASET_IDS)
 
 
 async def _next_response(responses: object) -> httpx.Response:
