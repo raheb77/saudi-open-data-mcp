@@ -213,7 +213,12 @@ class MaterializationConnectorResolver(Protocol):
 class MaterializationPipeline(Protocol):
     """Minimal protocol for injecting the existing normalization pipeline."""
 
-    def normalize(self, raw_payload: Any) -> NormalizationResult:
+    def normalize(
+        self,
+        raw_payload: Any,
+        *,
+        canonical_dataset_id: str | None = None,
+    ) -> NormalizationResult:
         """Return a typed normalization result for a fetched raw payload."""
 
 
@@ -231,7 +236,7 @@ class HotSetMaterializationRunner(Protocol):
 
 @dataclass(frozen=True)
 class _LocatorMaterializationSuccess:
-    normalization_result: NormalizationResult
+    raw_payload: Any
 
 
 @dataclass(frozen=True)
@@ -331,7 +336,10 @@ class HotSetMaterializationTool:
                         freshness=freshness,
                         normalization_result=_bind_canonical_dataset_id_to_normalization(
                             descriptor=descriptor,
-                            normalization_result=cached_result.normalization_result,
+                            normalization_result=self._normalization_pipeline.normalize(
+                                cached_result.raw_payload,
+                                canonical_dataset_id=descriptor.dataset_id,
+                            ),
                         ),
                     )
                 )
@@ -375,7 +383,7 @@ class HotSetMaterializationTool:
             )
 
         return _LocatorMaterializationSuccess(
-            normalization_result=self._normalization_pipeline.normalize(raw_payload)
+            raw_payload=raw_payload
         )
 
 

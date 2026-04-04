@@ -74,13 +74,21 @@ class NormalizationResult(BaseModel):
 class NormalizationPipeline:
     """Compose field mapping and validation without adding orchestration layers."""
 
-    def normalize(self, raw_payload: RawPayload) -> NormalizationResult:
+    def normalize(
+        self,
+        raw_payload: RawPayload,
+        *,
+        canonical_dataset_id: str | None = None,
+    ) -> NormalizationResult:
         """Run field mapping and validation for a raw payload."""
 
         dataset_id = validate_dataset_id(raw_payload.dataset_id)
 
         try:
-            mapping_result = get_field_mapping(raw_payload)
+            mapping_result = get_field_mapping(
+                raw_payload,
+                canonical_dataset_id=canonical_dataset_id,
+            )
         except ValueError as exc:
             return NormalizationResult(
                 dataset_id=dataset_id,

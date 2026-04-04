@@ -53,6 +53,24 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         ),
     ),
     DatasetDescriptor(
+        dataset_id="sama-exchange-rates-current",
+        source="sama",
+        source_locator="/en-US/FinExc/Pages/Currency.aspx",
+        title="Current Exchange Rates",
+        description=("Registry entry for the SAMA current exchange-rates page."),
+        schema_version="0.1.0",
+        update_frequency=UpdateFrequency.DAILY,
+        health_status=DatasetHealthStatus.UNKNOWN,
+        caveats=(
+            "This canonical dataset normalizes supported daily quote tables from the "
+            "official current exchange-rates page.",
+        ),
+        known_issues=(
+            "Only supported quote tables with an explicit as-of date and buy/sell "
+            "rate columns are normalized.",
+        ),
+    ),
+    DatasetDescriptor(
         dataset_id="sama-deposits-core",
         source="sama",
         source_locator="report.aspx?cid=55",
@@ -62,8 +80,9 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=(
-            "This first-wave hot-set entry materializes the bundled report payload, "
-            "not source-specific extracted deposit sub-series.",
+            "This bundled canonical dataset remains intentionally unsplit for now "
+            "because the current SAMA monthly report surface publishes the core "
+            "deposit components inside one shared report payload.",
         ),
         known_issues=(
             "This upstream mapping is hand-curated and may need revision if SAMA "
@@ -132,12 +151,12 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         update_frequency=UpdateFrequency.AD_HOC,
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=(
-            "This first-wave hot-set entry materializes the official page payload "
-            "without source-specific rate extraction.",
+            "This canonical dataset normalizes supported effective-date and rate "
+            "content from the official repo-rate page.",
         ),
         known_issues=(
-            "This upstream mapping is hand-curated and may need revision if SAMA "
-            "changes page routes or page content structure.",
+            "Only supported page text or simple table layouts with explicit "
+            "effective-date and rate content are normalized.",
         ),
     ),
     DatasetDescriptor(
@@ -186,12 +205,12 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         update_frequency=UpdateFrequency.AD_HOC,
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=(
-            "This first-wave hot-set entry materializes the official page payload "
-            "without source-specific rate extraction.",
+            "This canonical dataset normalizes supported effective-date and rate "
+            "content from the official reverse-repo-rate page.",
         ),
         known_issues=(
-            "This upstream mapping is hand-curated and may need revision if SAMA "
-            "changes page routes or page content structure.",
+            "Only supported page text or simple table layouts with explicit "
+            "effective-date and rate content are normalized.",
         ),
     ),
 )

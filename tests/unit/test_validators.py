@@ -82,6 +82,45 @@ def test_valid_html_mapping_passes_as_limited() -> None:
     assert result.limitations == (TEXT_HTML_LIMITATION,)
 
 
+def test_valid_extracted_html_mapping_can_be_record_derivable() -> None:
+    mapping_result = FieldMappingResult(
+        source="sama",
+        dataset_locator="/en-US/Indices/Pages/POS.aspx",
+        response_metadata=RawResponseMetadata(
+            url="https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+            status_code=200,
+            content_type="text/html",
+        ),
+        body_kind=MappingBodyKind.HTML,
+        raw_body="<html><body>weekly pos summary</body></html>",
+        canonical_fields={
+            "dataset_locator": "/en-US/Indices/Pages/POS.aspx",
+            "response_url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+            "response_status_code": 200,
+            "response_content_type": "text/html",
+            "structured_body": {
+                "rows": [
+                    {
+                        "week_start_date": "2026-03-01",
+                        "week_end_date": "2026-03-07",
+                        "transaction_count": 1234,
+                        "transaction_value_sar": 246800.0,
+                    }
+                ]
+            },
+        },
+        record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
+        can_derive_records=True,
+        limitations=(),
+    )
+
+    result = validate_field_mapping(mapping_result)
+
+    assert result.status is MappingValidationStatus.RECORD_DERIVABLE
+    assert result.record_extraction_shape is RecordExtractionShape.ROWS_OBJECT_LIST
+    assert result.can_derive_records is True
+
+
 def test_unsupported_json_mapping_passes_as_limited() -> None:
     mapping_result = FieldMappingResult(
         source="sama",

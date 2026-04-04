@@ -11,14 +11,13 @@ from pydantic import BaseModel, ConfigDict, Field
 from .errors import UnknownNormalizationSourceError
 from .field_mapping import (
     JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
+    TEXT_HTML_EXTRACTION_LIMITATION,
     FieldMappingResult,
     MappingBodyKind,
     RecordExtractionShape,
 )
 
-TEXT_HTML_LIMITATION = (
-    "text_or_html_body_requires_source_specific_extraction_before_record_normalization"
-)
+TEXT_HTML_LIMITATION = TEXT_HTML_EXTRACTION_LIMITATION
 
 
 class MappingValidationStatus(StrEnum):
@@ -76,8 +75,7 @@ def _validate_tabular_source_field_mapping(
     if mapping_result.body_kind is MappingBodyKind.JSON:
         status = _validate_json_mapping(mapping_result)
     else:
-        _validate_limited_mapping(mapping_result)
-        status = MappingValidationStatus.LIMITED
+        status = _validate_non_json_mapping(mapping_result)
 
     return FieldMappingValidationResult(
         source=mapping_result.source,
@@ -89,6 +87,23 @@ def _validate_tabular_source_field_mapping(
         canonical_fields=dict(mapping_result.canonical_fields),
         limitations=mapping_result.limitations,
     )
+
+
+def _validate_non_json_mapping(
+    mapping_result: FieldMappingResult,
+) -> MappingValidationStatus:
+    """Validate an HTML/text mapping that is either limited or source-specifically extracted."""
+
+    if (
+        mapping_result.can_derive_records
+        or mapping_result.record_extraction_shape is not RecordExtractionShape.NONE
+        or "structured_body" in mapping_result.canonical_fields
+    ):
+        _validate_extracted_non_json_mapping(mapping_result)
+        return MappingValidationStatus.RECORD_DERIVABLE
+
+    _validate_limited_mapping(mapping_result)
+    return MappingValidationStatus.LIMITED
 
 FieldMappingValidator = Callable[[FieldMappingResult], FieldMappingValidationResult]
 
@@ -149,8 +164,12 @@ def _validate_json_mapping(
     if "structured_body" not in mapping_result.canonical_fields:
         raise ValueError("json mapping must include 'structured_body' in canonical_fields")
     if mapping_result.canonical_fields["structured_body"] != mapping_result.raw_body:
-        raise ValueError("json mapping structured_body must match raw_body")
-    _validate_json_record_shape(mapping_result)
+        _validate_extracted_json_mapping(mapping_result)
+        return MappingValidationStatus.RECORD_DERIVABLE
+    _validate_record_shape_against_body(
+        record_extraction_shape=mapping_result.record_extraction_shape,
+        structured_body=mapping_result.raw_body,
+    )
 
     if mapping_result.record_extraction_shape is RecordExtractionShape.NONE:
         if mapping_result.can_derive_records:
@@ -166,6 +185,46 @@ def _validate_json_mapping(
     if mapping_result.limitations:
         raise ValueError("record-derivable json mapping must not declare limitations")
     return MappingValidationStatus.RECORD_DERIVABLE
+
+
+def _validate_extracted_json_mapping(mapping_result: FieldMappingResult) -> None:
+    """Validate a JSON mapping that extracted a narrower canonical structured body."""
+
+    if mapping_result.record_extraction_shape is RecordExtractionShape.NONE:
+        raise ValueError(
+            "extracted json mapping must declare a supported record extraction shape"
+        )
+    if not mapping_result.can_derive_records:
+        raise ValueError("extracted json mapping must be marked as record-derivable")
+    if mapping_result.limitations:
+        raise ValueError("record-derivable extracted json mapping must not declare limitations")
+
+    _validate_record_shape_against_body(
+        record_extraction_shape=mapping_result.record_extraction_shape,
+        structured_body=mapping_result.canonical_fields["structured_body"],
+    )
+
+
+def _validate_extracted_non_json_mapping(mapping_result: FieldMappingResult) -> None:
+    """Validate a non-JSON mapping that extracted structured rows from source text/html."""
+
+    if mapping_result.body_kind not in {MappingBodyKind.HTML, MappingBodyKind.TEXT}:
+        raise ValueError("extracted non-json mapping must use an HTML or text body kind")
+    if not isinstance(mapping_result.raw_body, str):
+        raise ValueError("extracted non-json mapping raw_body must remain a string")
+    if "structured_body" not in mapping_result.canonical_fields:
+        raise ValueError(
+            "extracted non-json mapping must include 'structured_body' in canonical_fields"
+        )
+    if mapping_result.limitations:
+        raise ValueError("record-derivable non-json mapping must not declare limitations")
+    if not mapping_result.can_derive_records:
+        raise ValueError("record-derivable non-json mapping must declare can_derive_records")
+
+    _validate_record_shape_against_body(
+        record_extraction_shape=mapping_result.record_extraction_shape,
+        structured_body=mapping_result.canonical_fields["structured_body"],
+    )
 
 
 def _validate_limited_mapping(mapping_result: FieldMappingResult) -> None:
@@ -189,27 +248,31 @@ def _validate_limited_mapping(mapping_result: FieldMappingResult) -> None:
         )
 
 
-def _validate_json_record_shape(mapping_result: FieldMappingResult) -> None:
-    """Validate consistency between the JSON body and the declared extraction shape."""
+def _validate_record_shape_against_body(
+    *,
+    record_extraction_shape: RecordExtractionShape,
+    structured_body: Any,
+) -> None:
+    """Validate consistency between a structured body and the declared extraction shape."""
 
-    if mapping_result.record_extraction_shape is RecordExtractionShape.NONE:
+    if record_extraction_shape is RecordExtractionShape.NONE:
         return
 
-    if mapping_result.record_extraction_shape is RecordExtractionShape.TOP_LEVEL_OBJECT_LIST:
-        if not isinstance(mapping_result.raw_body, list):
+    if record_extraction_shape is RecordExtractionShape.TOP_LEVEL_OBJECT_LIST:
+        if not isinstance(structured_body, list):
             raise ValueError("top-level object list mapping must use a list raw_body")
-        if not all(isinstance(item, dict) for item in mapping_result.raw_body):
+        if not all(isinstance(item, dict) for item in structured_body):
             raise ValueError("top-level object list mapping requires object entries only")
         return
 
-    if mapping_result.record_extraction_shape is RecordExtractionShape.ROWS_OBJECT_LIST:
-        if not isinstance(mapping_result.raw_body, dict):
+    if record_extraction_shape is RecordExtractionShape.ROWS_OBJECT_LIST:
+        if not isinstance(structured_body, dict):
             raise ValueError("rows object list mapping must use a dict raw_body")
-        rows = mapping_result.raw_body.get("rows")
+        rows = structured_body.get("rows")
         if not isinstance(rows, list) or not all(isinstance(item, dict) for item in rows):
             raise ValueError("rows object list mapping requires a rows list of objects")
         return
 
     raise ValueError(
-        f"unsupported record extraction shape: {mapping_result.record_extraction_shape.value}"
+        f"unsupported record extraction shape: {record_extraction_shape.value}"
     )

@@ -38,6 +38,101 @@ from saudi_open_data_mcp.tools.materialize import (
 )
 
 
+def _pos_weekly_html() -> str:
+    return """
+        <html><body>
+          <table>
+            <caption>Weekly POS Summary</caption>
+            <tr>
+              <th>Week</th>
+              <th>Transactions</th>
+              <th>Value (SAR)</th>
+            </tr>
+            <tr>
+              <td>2026-03-01 to 2026-03-07</td>
+              <td>1,234</td>
+              <td>246,800.00</td>
+            </tr>
+            <tr>
+              <td>2026-03-08 to 2026-03-14</td>
+              <td>1,000</td>
+              <td>150,000.00</td>
+            </tr>
+          </table>
+        </body></html>
+    """
+
+
+def _money_supply_weekly_html() -> str:
+    return """
+        <html><body>
+          <table>
+            <caption>Weekly Money Supply</caption>
+            <tr>
+              <th>Week End</th>
+              <th>M0</th>
+              <th>M1</th>
+              <th>M2</th>
+            </tr>
+            <tr>
+              <td>2026-03-07</td>
+              <td>120,000.50</td>
+              <td>245,300.75</td>
+              <td>380,450.00</td>
+            </tr>
+            <tr>
+              <td>2026-03-14</td>
+              <td>121,100.00</td>
+              <td>246,500.25</td>
+              <td>381,800.75</td>
+            </tr>
+          </table>
+        </body></html>
+    """
+
+
+def _deposits_core_json() -> dict[str, list[dict[str, object]]]:
+    return {
+        "rows": [
+            {
+                "month": "2026-03",
+                "series": "Demand Deposits",
+                "value": "123,400.50",
+            },
+            {
+                "month": "2026-03",
+                "series": "Time and Savings Deposits",
+                "value": "250,000.75",
+            },
+            {
+                "month": "2026-03",
+                "series": "Other Quasi-Money Deposits",
+                "value": "380,500.00",
+            },
+        ]
+    }
+
+
+def _repo_rate_html() -> str:
+    return """
+        <html><body>
+          <h1>Official Repo Rate</h1>
+          <p>Effective Date: 2026-03-21</p>
+          <p>Rate: 5.25%</p>
+        </body></html>
+    """
+
+
+def _reverse_repo_rate_html() -> str:
+    return """
+        <html><body>
+          <h1>Reverse Repo Rate</h1>
+          <p>Effective Date: 2026-03-21</p>
+          <p>Rate: 4.75%</p>
+        </body></html>
+    """
+
+
 class _SAMAConnectorSpy:
     def __init__(self) -> None:
         self.calls: list[str] = []
@@ -45,8 +140,20 @@ class _SAMAConnectorSpy:
     async def fetch_dataset_payload(self, dataset_id: str) -> RawPayload:
         self.calls.append(dataset_id)
         if dataset_id == "report.aspx?cid=55":
-            body: object = {"rows": [{"series": "deposits", "value": 1}]}
+            body: object = _deposits_core_json()
             content_type = "application/json"
+        elif dataset_id == "/en-US/Indices/Pages/POS.aspx":
+            body = _pos_weekly_html()
+            content_type = "text/html"
+        elif dataset_id == "/en-US/Indices/Pages/WeeklyMoneySupply.aspx":
+            body = _money_supply_weekly_html()
+            content_type = "text/html"
+        elif dataset_id == "/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx":
+            body = _repo_rate_html()
+            content_type = "text/html"
+        elif dataset_id == "/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx":
+            body = _reverse_repo_rate_html()
+            content_type = "text/html"
         else:
             body = "<html><body>official sama page</body></html>"
             content_type = "text/html"
@@ -113,14 +220,29 @@ async def test_materialize_hot_set_persists_wave_one_tier_a_snapshots(tmp_path: 
     results_by_id = {result.dataset_id: result for result in result.results}
     assert (
         results_by_id["sama-pos-weekly"].normalization_status
-        is NormalizationPipelineStatus.LIMITED
+        is NormalizationPipelineStatus.RECORD_DERIVABLE
     )
-    assert results_by_id["sama-pos-weekly"].limitations == (TEXT_HTML_LIMITATION,)
+    assert results_by_id["sama-pos-weekly"].limitations == ()
     assert (
         results_by_id["sama-deposits-core"].normalization_status
         is NormalizationPipelineStatus.RECORD_DERIVABLE
     )
     assert results_by_id["sama-deposits-core"].limitations == ()
+    assert (
+        results_by_id["sama-money-supply-weekly"].normalization_status
+        is NormalizationPipelineStatus.RECORD_DERIVABLE
+    )
+    assert results_by_id["sama-money-supply-weekly"].limitations == ()
+    assert (
+        results_by_id["sama-repo-rate"].normalization_status
+        is NormalizationPipelineStatus.RECORD_DERIVABLE
+    )
+    assert results_by_id["sama-repo-rate"].limitations == ()
+    assert (
+        results_by_id["sama-reverse-repo-rate"].normalization_status
+        is NormalizationPipelineStatus.RECORD_DERIVABLE
+    )
+    assert results_by_id["sama-reverse-repo-rate"].limitations == ()
     assert results_by_id["sama-deposits-core"].freshness is not None
     assert (
         results_by_id["sama-deposits-core"].freshness.status
@@ -164,6 +286,16 @@ async def test_materialize_hot_set_can_include_optional_pos_by_city_without_refe
     }
 
     results_by_id = {result.dataset_id: result for result in result.results}
+    assert (
+        results_by_id["sama-pos-weekly"].normalization_status
+        is NormalizationPipelineStatus.RECORD_DERIVABLE
+    )
+    assert results_by_id["sama-pos-weekly"].limitations == ()
+    assert (
+        results_by_id["sama-money-supply-weekly"].normalization_status
+        is NormalizationPipelineStatus.RECORD_DERIVABLE
+    )
+    assert results_by_id["sama-money-supply-weekly"].limitations == ()
     assert results_by_id["sama-pos-by-city"].tier is HotSetTier.TIER_B_OPTIONAL
     assert results_by_id["sama-pos-by-city"].local_snapshot_exists is True
     assert (

@@ -121,6 +121,116 @@ def _payload(
     )
 
 
+def _pos_weekly_html() -> str:
+    return """
+        <html><body>
+          <table>
+            <caption>Weekly POS Summary</caption>
+            <tr>
+              <th>Week</th>
+              <th>Transactions</th>
+              <th>Value (SAR)</th>
+            </tr>
+            <tr>
+              <td>2026-03-01 to 2026-03-07</td>
+              <td>1,234</td>
+              <td>246,800.00</td>
+            </tr>
+          </table>
+        </body></html>
+    """
+
+
+def _money_supply_weekly_html() -> str:
+    return """
+        <html><body>
+          <table>
+            <caption>Weekly Money Supply</caption>
+            <tr>
+              <th>Week End</th>
+              <th>M0</th>
+              <th>M1</th>
+              <th>M2</th>
+            </tr>
+            <tr>
+              <td>2026-03-07</td>
+              <td>120,000.50</td>
+              <td>245,300.75</td>
+              <td>380,450.00</td>
+            </tr>
+          </table>
+        </body></html>
+    """
+
+
+def _deposits_core_json() -> dict[str, list[dict[str, object]]]:
+    return {
+        "rows": [
+            {
+                "month": "2026-03",
+                "series": "Demand Deposits",
+                "value": "123,400.50",
+            },
+            {
+                "month": "2026-03",
+                "series": "Time and Savings Deposits",
+                "value": "250,000.75",
+            },
+            {
+                "month": "2026-03",
+                "series": "Other Quasi-Money Deposits",
+                "value": "380,500.00",
+            },
+        ]
+    }
+
+
+def _exchange_rates_current_html() -> str:
+    return """
+        <html><body>
+          <p>As of 2026-03-21</p>
+          <table>
+            <caption>Current Exchange Rates</caption>
+            <tr>
+              <th>Currency</th>
+              <th>Buy Rate (SAR)</th>
+              <th>Sell Rate (SAR)</th>
+            </tr>
+            <tr>
+              <td>USD - US Dollar</td>
+              <td>3.7500</td>
+              <td>3.7600</td>
+            </tr>
+            <tr>
+              <td>EUR - Euro</td>
+              <td>4.0500</td>
+              <td>4.0600</td>
+            </tr>
+          </table>
+        </body></html>
+    """
+
+
+def _repo_rate_html() -> str:
+    return """
+        <html><body>
+          <h1>Official Repo Rate</h1>
+          <p>Effective Date: 2026-03-21</p>
+          <p>Rate: 5.25%</p>
+        </body></html>
+    """
+
+
+def _reverse_repo_rate_html() -> str:
+    return """
+        <html><body>
+          <h1>Reverse Repo Rate</h1>
+          <p>Effective Date: 2026-03-21</p>
+          <p>Rate: 4.75%</p>
+        </body></html>
+    """
+
+
 def _write_snapshot_with_mtime(
     store: SnapshotStore,
     *,
@@ -159,6 +269,244 @@ async def test_fresh_snapshot_is_served_locally(tmp_path: Path) -> None:
     assert len(result.records) == 1
     assert result.records[0].dataset_id == DATASET_ID
     assert connector.calls == []
+
+
+@pytest.mark.asyncio
+async def test_sama_pos_weekly_fresh_snapshot_is_served_as_queryable_html_preview(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(
+        tmp_path,
+        dataset_id="sama-pos-weekly",
+        source_locator="/en-US/Indices/Pages/POS.aspx",
+        update_frequency=UpdateFrequency.WEEKLY,
+    )
+    store = _snapshot_store(tmp_path)
+    _write_snapshot_with_mtime(
+        store,
+        locator="/en-US/Indices/Pages/POS.aspx",
+        modified_at=datetime(2026, 3, 14, 12, 0, tzinfo=UTC),
+        body=_pos_weekly_html(),
+        content_type="text/html",
+    )
+    tool = DatasetPreviewTool(
+        repository,
+        SourceConnectorResolver({"sama": _ConnectorSpy([])}),
+        snapshot_store=store,
+    )
+
+    result = await tool.preview_dataset(
+        "sama-pos-weekly",
+        reference_time=datetime(2026, 3, 15, 12, 0, tzinfo=UTC),
+    )
+
+    assert result.status is PreviewStatus.RECORD_DERIVABLE
+    assert result.resolution_outcome is PreviewResolutionOutcome.SERVE_LOCAL
+    assert result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT
+    assert result.freshness_status is SnapshotFreshnessStatus.FRESH
+    assert result.limitations == ()
+    assert result.records[0].fields["week_start_date"] == "2026-03-01"
+    assert result.records[0].fields["week_end_date"] == "2026-03-07"
+    assert result.records[0].fields["transaction_count"] == 1234
+    assert result.records[0].fields["transaction_value_sar"] == 246800.0
+
+
+@pytest.mark.asyncio
+async def test_sama_money_supply_weekly_fresh_snapshot_is_served_as_queryable_html_preview(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(
+        tmp_path,
+        dataset_id="sama-money-supply-weekly",
+        source_locator="/en-US/Indices/Pages/WeeklyMoneySupply.aspx",
+        update_frequency=UpdateFrequency.WEEKLY,
+    )
+    store = _snapshot_store(tmp_path)
+    _write_snapshot_with_mtime(
+        store,
+        locator="/en-US/Indices/Pages/WeeklyMoneySupply.aspx",
+        modified_at=datetime(2026, 3, 14, 12, 0, tzinfo=UTC),
+        body=_money_supply_weekly_html(),
+        content_type="text/html",
+    )
+    tool = DatasetPreviewTool(
+        repository,
+        SourceConnectorResolver({"sama": _ConnectorSpy([])}),
+        snapshot_store=store,
+    )
+
+    result = await tool.preview_dataset(
+        "sama-money-supply-weekly",
+        reference_time=datetime(2026, 3, 15, 12, 0, tzinfo=UTC),
+    )
+
+    assert result.status is PreviewStatus.RECORD_DERIVABLE
+    assert result.resolution_outcome is PreviewResolutionOutcome.SERVE_LOCAL
+    assert result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT
+    assert result.freshness_status is SnapshotFreshnessStatus.FRESH
+    assert result.limitations == ()
+    assert len(result.records) == 3
+    assert result.records[0].fields["week_end_date"] == "2026-03-07"
+    assert result.records[0].fields["monetary_aggregate_code"] == "m0"
+    assert result.records[0].fields["amount_sar"] == 120000.5
+
+
+@pytest.mark.asyncio
+async def test_sama_deposits_core_fresh_snapshot_is_served_as_queryable_bundled_preview(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(
+        tmp_path,
+        dataset_id="sama-deposits-core",
+        source_locator="report.aspx?cid=55",
+        update_frequency=UpdateFrequency.MONTHLY,
+    )
+    store = _snapshot_store(tmp_path)
+    _write_snapshot_with_mtime(
+        store,
+        locator="report.aspx?cid=55",
+        modified_at=datetime(2026, 4, 1, 12, 0, tzinfo=UTC),
+        body=_deposits_core_json(),
+        content_type="application/json",
+    )
+    tool = DatasetPreviewTool(
+        repository,
+        SourceConnectorResolver({"sama": _ConnectorSpy([])}),
+        snapshot_store=store,
+    )
+
+    result = await tool.preview_dataset(
+        "sama-deposits-core",
+        reference_time=datetime(2026, 4, 2, 12, 0, tzinfo=UTC),
+    )
+
+    assert result.status is PreviewStatus.RECORD_DERIVABLE
+    assert result.resolution_outcome is PreviewResolutionOutcome.SERVE_LOCAL
+    assert result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT
+    assert result.freshness_status is SnapshotFreshnessStatus.FRESH
+    assert result.limitations == ()
+    assert len(result.records) == 3
+    assert result.records[1].fields["deposit_category_code"] == "time_and_savings_deposits"
+    assert result.records[1].fields["related_monetary_aggregate_code"] == "m2"
+    assert result.records[1].fields["amount_sar"] == 250000.75
+
+
+@pytest.mark.asyncio
+async def test_sama_exchange_rates_current_fresh_snapshot_is_served_as_queryable_quote_preview(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(
+        tmp_path,
+        dataset_id="sama-exchange-rates-current",
+        source_locator="/en-US/FinExc/Pages/Currency.aspx",
+        update_frequency=UpdateFrequency.DAILY,
+    )
+    store = _snapshot_store(tmp_path)
+    _write_snapshot_with_mtime(
+        store,
+        locator="/en-US/FinExc/Pages/Currency.aspx",
+        modified_at=datetime(2026, 3, 21, 12, 0, tzinfo=UTC),
+        body=_exchange_rates_current_html(),
+        content_type="text/html",
+    )
+    tool = DatasetPreviewTool(
+        repository,
+        SourceConnectorResolver({"sama": _ConnectorSpy([])}),
+        snapshot_store=store,
+    )
+
+    result = await tool.preview_dataset(
+        "sama-exchange-rates-current",
+        reference_time=datetime(2026, 3, 21, 18, 0, tzinfo=UTC),
+    )
+
+    assert result.status is PreviewStatus.RECORD_DERIVABLE
+    assert result.resolution_outcome is PreviewResolutionOutcome.SERVE_LOCAL
+    assert result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT
+    assert result.freshness_status is SnapshotFreshnessStatus.FRESH
+    assert result.limitations == ()
+    assert len(result.records) == 2
+    assert result.records[0].fields["currency_code"] == "USD"
+    assert result.records[0].fields["quote_currency_code"] == "SAR"
+    assert result.records[0].fields["buy_rate_sar"] == 3.75
+
+
+@pytest.mark.asyncio
+async def test_sama_repo_rate_fresh_snapshot_is_served_as_queryable_policy_rate_preview(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(
+        tmp_path,
+        dataset_id="sama-repo-rate",
+        source_locator="/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
+        update_frequency=UpdateFrequency.AD_HOC,
+    )
+    store = _snapshot_store(tmp_path)
+    _write_snapshot_with_mtime(
+        store,
+        locator="/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
+        modified_at=datetime(2026, 3, 21, 12, 0, tzinfo=UTC),
+        body=_repo_rate_html(),
+        content_type="text/html",
+    )
+    tool = DatasetPreviewTool(
+        repository,
+        SourceConnectorResolver({"sama": _ConnectorSpy([])}),
+        snapshot_store=store,
+    )
+
+    result = await tool.preview_dataset(
+        "sama-repo-rate",
+        reference_time=datetime(2026, 3, 22, 12, 0, tzinfo=UTC),
+    )
+
+    assert result.status is PreviewStatus.RECORD_DERIVABLE
+    assert result.resolution_outcome is PreviewResolutionOutcome.SERVE_LOCAL
+    assert result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT
+    assert result.freshness_status is SnapshotFreshnessStatus.UNKNOWN
+    assert result.limitations == ()
+    assert len(result.records) == 1
+    assert result.records[0].fields["policy_rate_code"] == "repo_rate"
+    assert result.records[0].fields["rate_percent"] == 5.25
+
+
+@pytest.mark.asyncio
+async def test_sama_reverse_repo_rate_fresh_snapshot_is_served_as_queryable_policy_rate_preview(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(
+        tmp_path,
+        dataset_id="sama-reverse-repo-rate",
+        source_locator="/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
+        update_frequency=UpdateFrequency.AD_HOC,
+    )
+    store = _snapshot_store(tmp_path)
+    _write_snapshot_with_mtime(
+        store,
+        locator="/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
+        modified_at=datetime(2026, 3, 21, 12, 0, tzinfo=UTC),
+        body=_reverse_repo_rate_html(),
+        content_type="text/html",
+    )
+    tool = DatasetPreviewTool(
+        repository,
+        SourceConnectorResolver({"sama": _ConnectorSpy([])}),
+        snapshot_store=store,
+    )
+
+    result = await tool.preview_dataset(
+        "sama-reverse-repo-rate",
+        reference_time=datetime(2026, 3, 22, 12, 0, tzinfo=UTC),
+    )
+
+    assert result.status is PreviewStatus.RECORD_DERIVABLE
+    assert result.resolution_outcome is PreviewResolutionOutcome.SERVE_LOCAL
+    assert result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT
+    assert result.freshness_status is SnapshotFreshnessStatus.UNKNOWN
+    assert result.limitations == ()
+    assert len(result.records) == 1
+    assert result.records[0].fields["policy_rate_code"] == "reverse_repo_rate"
+    assert result.records[0].fields["rate_percent"] == 4.75
 
 
 @pytest.mark.asyncio

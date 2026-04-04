@@ -245,7 +245,12 @@ class DatasetQueryResult(BaseModel):
 class QueryPipeline(Protocol):
     """Minimal protocol for injecting the existing normalization pipeline."""
 
-    def normalize(self, raw_payload: Any) -> NormalizationResult:
+    def normalize(
+        self,
+        raw_payload: Any,
+        *,
+        canonical_dataset_id: str | None = None,
+    ) -> NormalizationResult:
         """Return a typed normalization result for a raw payload."""
 
 
@@ -309,7 +314,10 @@ class DatasetQueryTool:
                 limit=normalized_limit,
             )
 
-        normalization_result = self._normalization_pipeline.normalize(raw_payload)
+        normalization_result = self._normalization_pipeline.normalize(
+            raw_payload,
+            canonical_dataset_id=descriptor.dataset_id,
+        )
         if normalization_result.status is NormalizationPipelineStatus.FAILED:
             return DatasetQueryResult.failed(
                 descriptor=descriptor,

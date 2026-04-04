@@ -19,3 +19,29 @@
 - normalization dispatches by raw payload source
 - registry metadata remains the source of truth for descriptors, caveats, schema versions, and health metadata
 - MCP tools continue to accept canonical `dataset_id` across both supported sources
+
+## Wave 3 Canonical Contract Targets
+
+These contracts define the intended enriched record shapes for the first SAMA
+high-frequency economic core. They are contract targets for upcoming
+source-specific enrichment work. They do not change the current local-only
+`query_dataset` semantics or imply that every target contract is already
+materialized and query-ready today.
+
+All Wave 3 canonical contracts currently start at schema version `1.0.0` and
+use an additive-within-major evolution policy.
+
+| dataset_id | record shape | temporal granularity | primary key | measures | intended analytical utility |
+| --- | --- | --- | --- | --- | --- |
+| `sama-pos-weekly` | time-series observation | weekly | `week_start_date`, `week_end_date` | `transaction_count`, `transaction_value_sar` | weekly POS spending momentum, average ticket size, week-over-week trend |
+| `sama-money-supply-weekly` | time-series observation | weekly | `week_end_date`, `monetary_aggregate_code` | `amount_sar` | weekly liquidity tracking across monetary aggregates |
+| `sama-deposits-core` | time-series observation | monthly | `observation_month`, `deposit_category_code` | `amount_sar` | bundled monthly deposit-component analysis with explicit M1/M2/M3 entry-level context |
+| `sama-exchange-rates-current` | snapshot observation | daily | `as_of_date`, `currency_code` | `buy_rate_sar`, `sell_rate_sar` | daily SAR-quoted FX lookup and cross-currency spread comparison |
+| `sama-repo-rate` | time-series observation | event | `effective_date` | `rate_percent` | policy-rate timeline and linkage to liquidity indicators |
+| `sama-reverse-repo-rate` | time-series observation | event | `effective_date` | `rate_percent` | reverse-repo policy timeline and comparison to repo moves |
+
+`sama-deposits-core` remains intentionally bundled for now. The current SAMA
+monthly report surface publishes the core deposit components inside one shared
+report payload, so the canonical Wave 3 direction is a bundled monthly dataset
+with stable deposit-category fields rather than prematurely splitting it into
+separate standalone deposit datasets.

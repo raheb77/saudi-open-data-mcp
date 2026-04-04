@@ -10,6 +10,26 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..connectors.base import RawPayload
 from .errors import UnknownNormalizationSourceError
+from .sama_deposits_core import (
+    SAMA_DEPOSITS_CORE_JSON_ROWS_LIMITATION,
+    extract_sama_deposits_core_rows_from_json,
+)
+from .sama_exchange_rates_current import (
+    SAMA_EXCHANGE_RATES_CURRENT_HTML_TABLE_LIMITATION,
+    extract_sama_exchange_rates_current_rows_from_html,
+)
+from .sama_money_supply_weekly import (
+    SAMA_MONEY_SUPPLY_WEEKLY_HTML_TABLE_LIMITATION,
+    extract_sama_money_supply_weekly_rows_from_html,
+)
+from .sama_policy_rates import (
+    SAMA_POLICY_RATE_HTML_LIMITATION,
+    extract_sama_policy_rate_rows_from_html,
+)
+from .sama_pos_weekly import (
+    SAMA_POS_WEEKLY_HTML_TABLE_LIMITATION,
+    extract_sama_pos_weekly_rows_from_html,
+)
 
 
 class MappingBodyKind(StrEnum):
@@ -27,6 +47,10 @@ class RecordExtractionShape(StrEnum):
     TOP_LEVEL_OBJECT_LIST = "top_level_object_list"
     ROWS_OBJECT_LIST = "rows_object_list"
 
+
+TEXT_HTML_EXTRACTION_LIMITATION = (
+    "text_or_html_body_requires_source_specific_extraction_before_record_normalization"
+)
 
 JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION = (
     "json_body_requires_supported_object_list_shape_for_record_normalization"
@@ -63,7 +87,11 @@ class FieldMappingResult(BaseModel):
     limitations: tuple[str, ...] = Field(default_factory=tuple)
 
 
-def get_field_mapping(raw_payload: RawPayload) -> FieldMappingResult:
+def get_field_mapping(
+    raw_payload: RawPayload,
+    *,
+    canonical_dataset_id: str | None = None,
+) -> FieldMappingResult:
     """Map a raw payload into a typed normalization-ready field structure.
 
     Dispatch stays inside the normalization layer and selects the registered
@@ -71,10 +99,13 @@ def get_field_mapping(raw_payload: RawPayload) -> FieldMappingResult:
     """
 
     mapper = _resolve_field_mapper(raw_payload.source)
-    return mapper(raw_payload)
+    return mapper(raw_payload, canonical_dataset_id)
 
 
-def _map_tabular_source_payload(raw_payload: RawPayload) -> FieldMappingResult:
+def _map_tabular_source_payload(
+    raw_payload: RawPayload,
+    canonical_dataset_id: str | None = None,
+) -> FieldMappingResult:
     """Map a supported raw payload into a typed normalization-ready field structure.
 
     This layer does not invent canonical business records. It separates:
@@ -86,14 +117,239 @@ def _map_tabular_source_payload(raw_payload: RawPayload) -> FieldMappingResult:
     response_metadata = _build_response_metadata(raw_payload)
     raw_body = _extract_raw_body(raw_payload)
     body_kind = _classify_body_kind(response_metadata.content_type, raw_body)
+    base_canonical_fields = {
+        "dataset_locator": raw_payload.dataset_id,
+        "response_url": response_metadata.url,
+        "response_status_code": response_metadata.status_code,
+        "response_content_type": response_metadata.content_type,
+    }
+
+    if (
+        raw_payload.source == "sama"
+        and canonical_dataset_id == "sama-pos-weekly"
+        and body_kind is MappingBodyKind.HTML
+        and isinstance(raw_body, str)
+    ):
+        extracted_rows = extract_sama_pos_weekly_rows_from_html(
+            html=raw_body,
+            source_locator=raw_payload.dataset_id,
+            source_url=response_metadata.url,
+        )
+        if extracted_rows:
+            return FieldMappingResult(
+                source=raw_payload.source,
+                dataset_locator=raw_payload.dataset_id,
+                response_metadata=response_metadata,
+                body_kind=body_kind,
+                raw_body=raw_body,
+                canonical_fields={
+                    **base_canonical_fields,
+                    "structured_body": {"rows": extracted_rows},
+                },
+                record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
+                can_derive_records=True,
+                limitations=(),
+            )
+
+        return FieldMappingResult(
+            source=raw_payload.source,
+            dataset_locator=raw_payload.dataset_id,
+            response_metadata=response_metadata,
+            body_kind=body_kind,
+            raw_body=raw_body,
+            canonical_fields=base_canonical_fields,
+            record_extraction_shape=RecordExtractionShape.NONE,
+            can_derive_records=False,
+            limitations=(
+                TEXT_HTML_EXTRACTION_LIMITATION,
+                SAMA_POS_WEEKLY_HTML_TABLE_LIMITATION,
+            ),
+        )
+
+    if (
+        raw_payload.source == "sama"
+        and canonical_dataset_id in {"sama-repo-rate", "sama-reverse-repo-rate"}
+        and body_kind is MappingBodyKind.HTML
+        and isinstance(raw_body, str)
+    ):
+        policy_rate_code = (
+            "repo_rate"
+            if canonical_dataset_id == "sama-repo-rate"
+            else "reverse_repo_rate"
+        )
+        policy_rate_name = (
+            "Official Repo Rate"
+            if canonical_dataset_id == "sama-repo-rate"
+            else "Reverse Repo Rate"
+        )
+        extracted_rows = extract_sama_policy_rate_rows_from_html(
+            html=raw_body,
+            source_locator=raw_payload.dataset_id,
+            source_url=response_metadata.url,
+            policy_rate_code=policy_rate_code,
+            policy_rate_name=policy_rate_name,
+        )
+        if extracted_rows:
+            return FieldMappingResult(
+                source=raw_payload.source,
+                dataset_locator=raw_payload.dataset_id,
+                response_metadata=response_metadata,
+                body_kind=body_kind,
+                raw_body=raw_body,
+                canonical_fields={
+                    **base_canonical_fields,
+                    "structured_body": {"rows": extracted_rows},
+                },
+                record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
+                can_derive_records=True,
+                limitations=(),
+            )
+
+        return FieldMappingResult(
+            source=raw_payload.source,
+            dataset_locator=raw_payload.dataset_id,
+            response_metadata=response_metadata,
+            body_kind=body_kind,
+            raw_body=raw_body,
+            canonical_fields=base_canonical_fields,
+            record_extraction_shape=RecordExtractionShape.NONE,
+            can_derive_records=False,
+            limitations=(
+                TEXT_HTML_EXTRACTION_LIMITATION,
+                SAMA_POLICY_RATE_HTML_LIMITATION,
+            ),
+        )
+
+    if (
+        raw_payload.source == "sama"
+        and canonical_dataset_id == "sama-exchange-rates-current"
+        and body_kind is MappingBodyKind.HTML
+        and isinstance(raw_body, str)
+    ):
+        extracted_rows = extract_sama_exchange_rates_current_rows_from_html(
+            html=raw_body,
+            source_locator=raw_payload.dataset_id,
+            source_url=response_metadata.url,
+        )
+        if extracted_rows:
+            return FieldMappingResult(
+                source=raw_payload.source,
+                dataset_locator=raw_payload.dataset_id,
+                response_metadata=response_metadata,
+                body_kind=body_kind,
+                raw_body=raw_body,
+                canonical_fields={
+                    **base_canonical_fields,
+                    "structured_body": {"rows": extracted_rows},
+                },
+                record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
+                can_derive_records=True,
+                limitations=(),
+            )
+
+        return FieldMappingResult(
+            source=raw_payload.source,
+            dataset_locator=raw_payload.dataset_id,
+            response_metadata=response_metadata,
+            body_kind=body_kind,
+            raw_body=raw_body,
+            canonical_fields=base_canonical_fields,
+            record_extraction_shape=RecordExtractionShape.NONE,
+            can_derive_records=False,
+            limitations=(
+                TEXT_HTML_EXTRACTION_LIMITATION,
+                SAMA_EXCHANGE_RATES_CURRENT_HTML_TABLE_LIMITATION,
+            ),
+        )
+
+    if (
+        raw_payload.source == "sama"
+        and canonical_dataset_id == "sama-deposits-core"
+        and body_kind is MappingBodyKind.JSON
+        and isinstance(raw_body, dict | list)
+    ):
+        extracted_rows = extract_sama_deposits_core_rows_from_json(
+            raw_json=raw_body,
+            source_locator=raw_payload.dataset_id,
+            source_url=response_metadata.url,
+        )
+        if extracted_rows:
+            return FieldMappingResult(
+                source=raw_payload.source,
+                dataset_locator=raw_payload.dataset_id,
+                response_metadata=response_metadata,
+                body_kind=body_kind,
+                raw_body=raw_body,
+                canonical_fields={
+                    **base_canonical_fields,
+                    "structured_body": {"rows": extracted_rows},
+                },
+                record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
+                can_derive_records=True,
+                limitations=(),
+            )
+
+        return FieldMappingResult(
+            source=raw_payload.source,
+            dataset_locator=raw_payload.dataset_id,
+            response_metadata=response_metadata,
+            body_kind=body_kind,
+            raw_body=raw_body,
+            canonical_fields=base_canonical_fields,
+            record_extraction_shape=RecordExtractionShape.NONE,
+            can_derive_records=False,
+            limitations=(
+                JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
+                SAMA_DEPOSITS_CORE_JSON_ROWS_LIMITATION,
+            ),
+        )
+
+    if (
+        raw_payload.source == "sama"
+        and canonical_dataset_id == "sama-money-supply-weekly"
+        and body_kind is MappingBodyKind.HTML
+        and isinstance(raw_body, str)
+    ):
+        extracted_rows = extract_sama_money_supply_weekly_rows_from_html(
+            html=raw_body,
+            source_locator=raw_payload.dataset_id,
+            source_url=response_metadata.url,
+        )
+        if extracted_rows:
+            return FieldMappingResult(
+                source=raw_payload.source,
+                dataset_locator=raw_payload.dataset_id,
+                response_metadata=response_metadata,
+                body_kind=body_kind,
+                raw_body=raw_body,
+                canonical_fields={
+                    **base_canonical_fields,
+                    "structured_body": {"rows": extracted_rows},
+                },
+                record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
+                can_derive_records=True,
+                limitations=(),
+            )
+
+        return FieldMappingResult(
+            source=raw_payload.source,
+            dataset_locator=raw_payload.dataset_id,
+            response_metadata=response_metadata,
+            body_kind=body_kind,
+            raw_body=raw_body,
+            canonical_fields=base_canonical_fields,
+            record_extraction_shape=RecordExtractionShape.NONE,
+            can_derive_records=False,
+            limitations=(
+                TEXT_HTML_EXTRACTION_LIMITATION,
+                SAMA_MONEY_SUPPLY_WEEKLY_HTML_TABLE_LIMITATION,
+            ),
+        )
 
     if body_kind is MappingBodyKind.JSON:
         record_extraction_shape = _detect_record_extraction_shape(raw_body)
         canonical_fields = {
-            "dataset_locator": raw_payload.dataset_id,
-            "response_url": response_metadata.url,
-            "response_status_code": response_metadata.status_code,
-            "response_content_type": response_metadata.content_type,
+            **base_canonical_fields,
             "structured_body": raw_body,
         }
         can_derive_records = record_extraction_shape is not RecordExtractionShape.NONE
@@ -104,15 +360,8 @@ def _map_tabular_source_payload(raw_payload: RawPayload) -> FieldMappingResult:
         )
     else:
         record_extraction_shape = RecordExtractionShape.NONE
-        canonical_fields = {
-            "dataset_locator": raw_payload.dataset_id,
-            "response_url": response_metadata.url,
-            "response_status_code": response_metadata.status_code,
-            "response_content_type": response_metadata.content_type,
-        }
-        limitations = (
-            "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
-        )
+        canonical_fields = base_canonical_fields
+        limitations = (TEXT_HTML_EXTRACTION_LIMITATION,)
         can_derive_records = False
 
     return FieldMappingResult(
@@ -128,7 +377,7 @@ def _map_tabular_source_payload(raw_payload: RawPayload) -> FieldMappingResult:
     )
 
 
-FieldMapper = Callable[[RawPayload], FieldMappingResult]
+FieldMapper = Callable[[RawPayload, str | None], FieldMappingResult]
 
 _FIELD_MAPPERS: dict[str, FieldMapper] = {
     "sama": _map_tabular_source_payload,

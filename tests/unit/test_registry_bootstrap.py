@@ -46,6 +46,10 @@ def test_bootstrap_inserts_expected_initial_descriptors(tmp_path: Path) -> None:
         == "/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx"
     )
     assert descriptors_by_id["sama-deposits-core"].source_locator == "report.aspx?cid=55"
+    assert (
+        descriptors_by_id["sama-exchange-rates-current"].source_locator
+        == "/en-US/FinExc/Pages/Currency.aspx"
+    )
     assert any(descriptor.source == "data-gov-sa" for descriptor in bootstrapped_descriptors)
 
 

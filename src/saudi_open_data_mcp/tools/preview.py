@@ -273,7 +273,12 @@ class DatasetPreviewResult(BaseModel):
 class PreviewPipeline(Protocol):
     """Minimal protocol for pipeline injection without widening tool boundaries."""
 
-    def normalize(self, raw_payload: Any) -> NormalizationResult:
+    def normalize(
+        self,
+        raw_payload: Any,
+        *,
+        canonical_dataset_id: str | None = None,
+    ) -> NormalizationResult:
         """Return a typed normalization result for a fetched raw payload."""
 
 
@@ -510,7 +515,10 @@ class DatasetPreviewTool:
     ) -> DatasetPreviewResult:
         normalization_result = _bind_canonical_dataset_id(
             descriptor=descriptor,
-            normalization_result=self._normalization_pipeline.normalize(raw_payload),
+            normalization_result=self._normalization_pipeline.normalize(
+                raw_payload,
+                canonical_dataset_id=descriptor.dataset_id,
+            ),
         )
 
         if normalization_result.status is NormalizationPipelineStatus.FAILED:

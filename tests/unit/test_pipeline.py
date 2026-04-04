@@ -58,6 +58,251 @@ def test_html_raw_payload_produces_limited_pipeline_result() -> None:
     assert result.records == ()
 
 
+def test_sama_pos_weekly_html_with_canonical_dataset_id_produces_queryable_records() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/Indices/Pages/POS.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": """
+                <html><body>
+                  <table>
+                    <caption>Weekly POS Summary</caption>
+                    <tr>
+                      <th>Week</th>
+                      <th>Transactions</th>
+                      <th>Value (SAR)</th>
+                    </tr>
+                    <tr>
+                      <td>2026-03-01 to 2026-03-07</td>
+                      <td>1,234</td>
+                      <td>246,800.00</td>
+                    </tr>
+                  </table>
+                </body></html>
+            """,
+        },
+    )
+
+    result = NormalizationPipeline().normalize(
+        raw_payload,
+        canonical_dataset_id="sama-pos-weekly",
+    )
+
+    assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
+    assert result.failure is None
+    assert len(result.records) == 1
+    assert result.records[0].dataset_id == "/en-US/Indices/Pages/POS.aspx"
+    assert result.records[0].fields["week_start_date"] == "2026-03-01"
+    assert result.records[0].fields["week_end_date"] == "2026-03-07"
+    assert result.records[0].fields["transaction_count"] == 1234
+    assert result.records[0].fields["transaction_value_sar"] == 246800.0
+
+
+def test_sama_money_supply_weekly_html_produces_time_series_records() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/Indices/Pages/WeeklyMoneySupply.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/Indices/Pages/WeeklyMoneySupply.aspx",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": """
+                <html><body>
+                  <table>
+                    <caption>Weekly Money Supply</caption>
+                    <tr>
+                      <th>Week End</th>
+                      <th>M0</th>
+                      <th>M1</th>
+                      <th>M2</th>
+                    </tr>
+                    <tr>
+                      <td>2026-03-07</td>
+                      <td>120,000.50</td>
+                      <td>245,300.75</td>
+                      <td>380,450.00</td>
+                    </tr>
+                  </table>
+                </body></html>
+            """,
+        },
+    )
+
+    result = NormalizationPipeline().normalize(
+        raw_payload,
+        canonical_dataset_id="sama-money-supply-weekly",
+    )
+
+    assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
+    assert result.failure is None
+    assert len(result.records) == 3
+    assert result.records[0].dataset_id == "/en-US/Indices/Pages/WeeklyMoneySupply.aspx"
+    assert result.records[0].fields["week_end_date"] == "2026-03-07"
+    assert result.records[0].fields["monetary_aggregate_code"] == "m0"
+    assert result.records[0].fields["amount_sar"] == 120000.5
+
+
+def test_sama_exchange_rates_current_html_produces_queryable_quote_records() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/FinExc/Pages/Currency.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": """
+                <html><body>
+                  <p>As of 2026-03-21</p>
+                  <table>
+                    <caption>Current Exchange Rates</caption>
+                    <tr>
+                      <th>Currency</th>
+                      <th>Buy Rate (SAR)</th>
+                      <th>Sell Rate (SAR)</th>
+                    </tr>
+                    <tr>
+                      <td>USD - US Dollar</td>
+                      <td>3.7500</td>
+                      <td>3.7600</td>
+                    </tr>
+                    <tr>
+                      <td>EUR - Euro</td>
+                      <td>4.0500</td>
+                      <td>4.0600</td>
+                    </tr>
+                  </table>
+                </body></html>
+            """,
+        },
+    )
+
+    result = NormalizationPipeline().normalize(
+        raw_payload,
+        canonical_dataset_id="sama-exchange-rates-current",
+    )
+
+    assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
+    assert result.failure is None
+    assert len(result.records) == 2
+    assert result.records[0].dataset_id == "/en-US/FinExc/Pages/Currency.aspx"
+    assert result.records[0].fields["as_of_date"] == "2026-03-21"
+    assert result.records[0].fields["currency_code"] == "USD"
+    assert result.records[0].fields["quote_currency_code"] == "SAR"
+    assert result.records[0].fields["buy_rate_sar"] == 3.75
+
+
+def test_sama_repo_rate_html_produces_queryable_policy_rate_record() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": """
+                <html><body>
+                  <h1>Official Repo Rate</h1>
+                  <p>Effective Date: 2026-03-21</p>
+                  <p>Rate: 5.25%</p>
+                </body></html>
+            """,
+        },
+    )
+
+    result = NormalizationPipeline().normalize(
+        raw_payload,
+        canonical_dataset_id="sama-repo-rate",
+    )
+
+    assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
+    assert result.failure is None
+    assert len(result.records) == 1
+    assert result.records[0].dataset_id == "/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx"
+    assert result.records[0].fields["effective_date"] == "2026-03-21"
+    assert result.records[0].fields["policy_rate_code"] == "repo_rate"
+    assert result.records[0].fields["rate_percent"] == 5.25
+
+
+def test_sama_reverse_repo_rate_html_produces_queryable_policy_rate_record() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": """
+                <html><body>
+                  <h1>Reverse Repo Rate</h1>
+                  <p>Effective Date: 2026-03-21</p>
+                  <p>Rate: 4.75%</p>
+                </body></html>
+            """,
+        },
+    )
+
+    result = NormalizationPipeline().normalize(
+        raw_payload,
+        canonical_dataset_id="sama-reverse-repo-rate",
+    )
+
+    assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
+    assert result.failure is None
+    assert len(result.records) == 1
+    assert result.records[0].dataset_id == "/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx"
+    assert result.records[0].fields["effective_date"] == "2026-03-21"
+    assert result.records[0].fields["policy_rate_code"] == "reverse_repo_rate"
+    assert result.records[0].fields["rate_percent"] == 4.75
+
+
+def test_sama_deposits_core_json_produces_queryable_monthly_bundle_records() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="report.aspx?cid=55",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/EconomicReports/Pages/report.aspx?cid=55",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {
+                "rows": [
+                    {
+                        "month": "2026-03",
+                        "series": "Demand Deposits",
+                        "value": "123,400.50",
+                    },
+                    {
+                        "month": "2026-03",
+                        "series": "Time and Savings Deposits",
+                        "value": "250,000.75",
+                    },
+                    {
+                        "month": "2026-03",
+                        "series": "Other Quasi-Money Deposits",
+                        "value": "380,500.00",
+                    },
+                ]
+            },
+        },
+    )
+
+    result = NormalizationPipeline().normalize(
+        raw_payload,
+        canonical_dataset_id="sama-deposits-core",
+    )
+
+    assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
+    assert result.failure is None
+    assert len(result.records) == 3
+    assert result.records[0].dataset_id == "report.aspx?cid=55"
+    assert result.records[0].fields["observation_month"] == "2026-03"
+    assert result.records[0].fields["deposit_category_code"] == "demand_deposits"
+    assert result.records[0].fields["related_monetary_aggregate_code"] == "m1"
+    assert result.records[0].fields["amount_sar"] == 123400.5
+
+
 def test_data_gov_sa_json_raw_payload_produces_record_derivable_pipeline_result() -> None:
     raw_payload = RawPayload(
         source="data-gov-sa",

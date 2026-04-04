@@ -21,6 +21,7 @@ class SAMAConnector(Connector):
     approved_base_url = "https://www.sama.gov.sa"
     approved_page_paths = frozenset(
         {
+            "/en-US/FinExc/Pages/Currency.aspx",
             "/en-US/Indices/Pages/POS.aspx",
             "/en-US/Indices/Pages/WeeklyMoneySupply.aspx",
             "/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
@@ -108,7 +109,7 @@ class SAMAConnector(Connector):
                 source_name=self.source_name,
                 message=(
                     "SAMA connector only fetches report.aspx payload routes and the "
-                    "approved Wave 1 page locators"
+                    "approved page locators"
                 ),
                 dataset_id=dataset_locator,
             )
