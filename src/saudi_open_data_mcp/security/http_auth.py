@@ -18,11 +18,14 @@ LOGGER = get_logger(__name__)
 class HTTPBearerAuthMiddleware:
     """Reject HTTP requests that do not present the configured bearer token."""
 
-    def __init__(self, app, *, bearer_token: str) -> None:
-        if not bearer_token:
-            raise ValueError("bearer_token must not be empty")
+    def __init__(self, app, *, bearer_token: SecretStr | str) -> None:
         self.app = app
-        self._bearer_token = bearer_token
+        self._bearer_token = require_http_bearer_token(bearer_token)
+
+    def __repr__(self) -> str:
+        """Return a masked middleware repr without exposing the bearer token."""
+
+        return f"{type(self).__name__}(bearer_token={self._bearer_token!r})"
 
     async def __call__(self, scope, receive, send) -> None:
         if scope["type"] != "http":
@@ -49,7 +52,10 @@ class HTTPBearerAuthMiddleware:
             await _unauthorized_response("missing bearer token")(scope, receive, send)
             return
 
-        if not compare_digest(presented_token, self._bearer_token):
+        if not compare_digest(
+            presented_token,
+            self._bearer_token.get_secret_value(),
+        ):
             metrics.increment("http.auth.rejected")
             metrics.increment("http.auth.rejected.invalid")
             log_event(
@@ -79,18 +85,22 @@ def build_http_auth_middleware(
     ]
 
 
-def require_http_bearer_token(bearer_token: SecretStr | str | None) -> str:
+def require_http_bearer_token(
+    bearer_token: SecretStr | str | None,
+) -> SecretStr:
     """Return the configured HTTP bearer token or fail clearly."""
 
-    if isinstance(bearer_token, SecretStr):
-        bearer_token = bearer_token.get_secret_value()
-
-    if not bearer_token:
+    secret = (
+        bearer_token
+        if isinstance(bearer_token, SecretStr)
+        else SecretStr(bearer_token or "")
+    )
+    if not secret.get_secret_value():
         raise ValueError(
             "run-http requires HTTP_AUTH_TOKEN to be set for internal bearer auth"
         )
 
-    return bearer_token
+    return secret
 
 
 def _extract_bearer_token(authorization_header: str | None) -> str | None:

@@ -65,7 +65,8 @@ def test_cli_run_http_dispatches_to_server(monkeypatch) -> None:
     assert isinstance(middleware, list)
     assert len(middleware) == 1
     assert middleware[0].cls is HTTPBearerAuthMiddleware
-    assert middleware[0].kwargs == {"bearer_token": "internal-test-token"}
+    assert "internal-test-token" not in repr(middleware[0])
+    assert middleware[0].kwargs["bearer_token"].get_secret_value() == "internal-test-token"
 
 
 def test_cli_run_http_uses_loopback_default_host(monkeypatch) -> None:
@@ -96,7 +97,8 @@ def test_cli_run_http_uses_loopback_default_host(monkeypatch) -> None:
     assert isinstance(middleware, list)
     assert len(middleware) == 1
     assert middleware[0].cls is HTTPBearerAuthMiddleware
-    assert middleware[0].kwargs == {"bearer_token": "internal-test-token"}
+    assert "internal-test-token" not in repr(middleware[0])
+    assert middleware[0].kwargs["bearer_token"].get_secret_value() == "internal-test-token"
 
 
 def test_cli_run_http_requires_http_auth_token(monkeypatch) -> None:
