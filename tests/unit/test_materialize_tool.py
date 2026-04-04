@@ -25,10 +25,12 @@ from saudi_open_data_mcp.storage.freshness import (
     SnapshotFreshnessStatus,
 )
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
+from saudi_open_data_mcp.tools.download import DatasetDownloadStatus, DatasetDownloadTool
 from saudi_open_data_mcp.tools.materialize import (
     HotSetDatasetMaterializationResult,
     HotSetMaterializationFailureStage,
     HotSetMaterializationResult,
+    HotSetMaterializationStatus,
     HotSetMaterializationTool,
     HotSetTier,
     TierABackgroundRefreshService,
@@ -168,6 +170,81 @@ async def test_materialize_hot_set_can_include_optional_pos_by_city_without_refe
         is NormalizationPipelineStatus.LIMITED
     )
     assert results_by_id["sama-pos-by-city"].limitations == (TEXT_HTML_LIMITATION,)
+
+
+@pytest.mark.asyncio
+async def test_tier_a_materialization_makes_intentional_shared_locator_artifacts_visible(
+    tmp_path: Path,
+) -> None:
+    repository = _bootstrapped_repository(tmp_path)
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    connector = _SAMAConnectorSpy()
+    tool = HotSetMaterializationTool(
+        repository,
+        SourceConnectorResolver({"sama": connector}),
+        snapshot_store,
+    )
+
+    result = await tool.materialize_hot_set(include_optional=False)
+    download_tool = DatasetDownloadTool(repository, snapshot_store)
+    pos_by_city_download = download_tool.get_dataset_download("sama-pos-by-city")
+    money_supply_download = download_tool.get_dataset_download("sama-money-supply")
+
+    assert result.include_optional is False
+    assert [item.dataset_id for item in result.results] == list(
+        WAVE_1_HOT_SET_TIER_A_DATASET_IDS
+    )
+    assert pos_by_city_download.status is DatasetDownloadStatus.AVAILABLE
+    assert pos_by_city_download.local_snapshot_exists is True
+    assert pos_by_city_download.source == "sama"
+    assert money_supply_download.status is DatasetDownloadStatus.AVAILABLE
+    assert money_supply_download.local_snapshot_exists is True
+    assert money_supply_download.source == "sama"
+
+
+@pytest.mark.asyncio
+async def test_materialize_hot_set_keeps_partial_success_when_one_locator_fails(
+    tmp_path: Path,
+) -> None:
+    class PartiallyFailingConnector(_SAMAConnectorSpy):
+        async def fetch_dataset_payload(self, dataset_id: str) -> RawPayload:
+            if dataset_id == "report.aspx?cid=55":
+                self.calls.append(dataset_id)
+                raise RuntimeError("deposits report fetch failed for testing")
+            return await super().fetch_dataset_payload(dataset_id)
+
+    repository = _bootstrapped_repository(tmp_path)
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    connector = PartiallyFailingConnector()
+    tool = HotSetMaterializationTool(
+        repository,
+        SourceConnectorResolver({"sama": connector}),
+        snapshot_store,
+    )
+
+    result = await tool.materialize_hot_set()
+
+    results_by_id = {item.dataset_id: item for item in result.results}
+    assert result.requested_dataset_count == len(WAVE_1_HOT_SET_TIER_A_DATASET_IDS)
+    assert result.materialized_count == len(WAVE_1_HOT_SET_TIER_A_DATASET_IDS) - 1
+    assert result.failed_count == 1
+    assert results_by_id["sama-deposits-core"].status is HotSetMaterializationStatus.FAILED
+    assert (
+        results_by_id["sama-deposits-core"].failure.stage
+        is HotSetMaterializationFailureStage.FETCH
+    )
+    assert results_by_id["sama-pos-weekly"].status is HotSetMaterializationStatus.MATERIALIZED
+    assert snapshot_store.snapshot_exists("sama", "/en-US/Indices/Pages/POS.aspx")
+    assert snapshot_store.snapshot_exists("sama", "/en-US/Indices/Pages/WeeklyMoneySupply.aspx")
+    assert snapshot_store.snapshot_exists(
+        "sama",
+        "/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
+    )
+    assert snapshot_store.snapshot_exists(
+        "sama",
+        "/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
+    )
+    assert snapshot_store.snapshot_exists("sama", "report.aspx?cid=55") is False
 
 
 @pytest.mark.asyncio

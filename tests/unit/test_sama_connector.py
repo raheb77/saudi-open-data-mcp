@@ -141,6 +141,27 @@ async def test_transient_unavailable_failure_retries_then_succeeds() -> None:
 
 
 @pytest.mark.asyncio
+@respx.mock
+async def test_retryable_http_429_retries_then_succeeds() -> None:
+    route = respx.get(_report_url()).mock(
+        side_effect=[
+            httpx.Response(429, text="too many requests"),
+            httpx.Response(
+                200,
+                json={"rows": [{"period": "2026-01", "value": 1}]},
+                headers={"content-type": "application/json"},
+            ),
+        ]
+    )
+    connector = SAMAConnector(request_policy=RequestPolicy(timeout_seconds=0.1, max_retries=1))
+
+    payload = await connector.fetch_dataset_payload(REPORT_LOCATOR)
+
+    assert payload.content["body"] == {"rows": [{"period": "2026-01", "value": 1}]}
+    assert route.call_count == 2
+
+
+@pytest.mark.asyncio
 async def test_retries_reuse_one_transient_client_per_fetch_call() -> None:
     class FakeAsyncClient:
         def __init__(self, responses: list[httpx.Response]) -> None:
