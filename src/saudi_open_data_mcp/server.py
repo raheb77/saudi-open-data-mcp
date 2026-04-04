@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager, suppress
 
 from fastmcp import FastMCP
 
-from .config import RuntimeConfig, load_config
+from .config import RuntimeConfig, load_config, prepare_runtime_storage
 from .connectors.resolver import build_default_connector_resolver
 from .observability import configure_logging, get_logger, get_metrics, log_event
 from .registry.bootstrap import bootstrap_registry
@@ -69,6 +69,7 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
             "server.startup.begin",
             app_name=runtime_config.app_name,
         )
+        prepare_runtime_storage(runtime_config)
 
         repository = RegistryRepository(runtime_config.registry_path)
         bootstrapped_descriptors = bootstrap_registry(repository)

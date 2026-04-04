@@ -11,7 +11,11 @@ from pathlib import Path
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from saudi_open_data_mcp.config import load_config
+from saudi_open_data_mcp.config import (
+    RuntimeConfig,
+    RuntimeConfigurationError,
+    load_config,
+)
 from saudi_open_data_mcp.security.http_auth import build_http_auth_middleware
 from saudi_open_data_mcp.server import create_server
 
@@ -83,17 +87,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.check_startup or args.command in {None, "check-startup"}:
-        create_server()
+        config = _load_config_or_exit(parser)
+        _create_server_or_exit(parser, config)
         print("saudi-open-data-mcp startup wiring and registry bootstrap are valid.")
         return 0
 
     if args.command == "run-http":
-        config = load_config()
+        config = _load_config_or_exit(parser)
         try:
             middleware = build_http_auth_middleware(config.transport.http_auth_token)
         except ValueError as exc:
             parser.error(str(exc))
-        app = create_server(config)
+        app = _create_server_or_exit(parser, config)
         host = args.host or config.transport.http_host
         port = args.port or config.transport.http_port
         log_level = args.log_level or config.log_level
@@ -109,8 +114,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "run-stdio":
-        config = load_config()
-        app = create_server(config)
+        config = _load_config_or_exit(parser)
+        app = _create_server_or_exit(parser, config)
         log_level = args.log_level or config.log_level
         asyncio.run(
             app.run_stdio_async(
@@ -121,6 +126,27 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     parser.error("unsupported command")
     return 2
+
+
+def _load_config_or_exit(parser: argparse.ArgumentParser):
+    """Load config or exit with a concise operator-facing parser error."""
+
+    try:
+        return load_config()
+    except RuntimeConfigurationError as exc:
+        parser.error(str(exc))
+
+
+def _create_server_or_exit(
+    parser: argparse.ArgumentParser,
+    config: RuntimeConfig | None = None,
+):
+    """Create the server or exit with a concise operator-facing parser error."""
+
+    try:
+        return create_server(config)
+    except RuntimeConfigurationError as exc:
+        parser.error(str(exc))
 
 
 if __name__ == "__main__":

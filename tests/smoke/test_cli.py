@@ -13,7 +13,11 @@ from fastmcp.client.transports import StdioTransport
 from pydantic import SecretStr
 
 from saudi_open_data_mcp import cli as cli_module
-from saudi_open_data_mcp.config import RuntimeConfig, TransportConfig
+from saudi_open_data_mcp.config import (
+    RuntimeConfig,
+    RuntimeConfigurationError,
+    TransportConfig,
+)
 from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.registry.bootstrap import bootstrap_registry
 from saudi_open_data_mcp.registry.repository import RegistryRepository
@@ -132,6 +136,22 @@ def test_cli_run_stdio_dispatches_to_server(monkeypatch) -> None:
             "log_level": "DEBUG",
         }
     ]
+
+
+def test_cli_check_startup_reports_runtime_configuration_errors(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(cli_module, "load_config", lambda: RuntimeConfig())
+
+    def _boom(_runtime_config=None):
+        raise RuntimeConfigurationError("SNAPSHOT_DIR must point to a directory path")
+
+    monkeypatch.setattr(cli_module, "create_server", _boom)
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli_module.main(["check-startup"])
+
+    assert excinfo.value.code == 2
+    captured = capsys.readouterr()
+    assert "SNAPSHOT_DIR must point to a directory path" in captured.err
 
 
 def test_source_tree_cli_check_startup_runs_subprocess() -> None:

@@ -6,7 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from saudi_open_data_mcp.config import load_config
+from saudi_open_data_mcp.config import (
+    RuntimeConfig,
+    RuntimeConfigurationError,
+    load_config,
+    prepare_runtime_storage,
+)
 from saudi_open_data_mcp.resources.catalog import (
     CatalogDatasetSummary,
     CatalogResource,
@@ -55,6 +60,55 @@ def test_load_config_respects_http_transport_overrides(
     assert config.transport.http_auth_token.get_secret_value() == "internal-test-token"
     assert config.tier_a_refresh.enabled is True
     assert config.tier_a_refresh.interval_seconds == 900
+
+
+def test_load_config_rejects_invalid_boolean_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TIER_A_REFRESH_ENABLED", "sometimes")
+
+    with pytest.raises(RuntimeConfigurationError, match="TIER_A_REFRESH_ENABLED"):
+        load_config()
+
+
+def test_load_config_rejects_conflicting_storage_paths(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    shared_path = tmp_path / "runtime-state"
+    monkeypatch.setenv("REGISTRY_PATH", str(shared_path))
+    monkeypatch.setenv("SNAPSHOT_DIR", str(shared_path))
+
+    with pytest.raises(RuntimeConfigurationError, match="REGISTRY_PATH and SNAPSHOT_DIR"):
+        load_config()
+
+
+def test_prepare_runtime_storage_creates_expected_paths(tmp_path: Path) -> None:
+    config = RuntimeConfig(
+        registry_path=tmp_path / "runtime" / "registry.sqlite",
+        snapshot_dir=tmp_path / "runtime" / "snapshots",
+        cache_dir=tmp_path / "runtime" / "cache",
+    )
+
+    prepare_runtime_storage(config)
+
+    assert config.registry_path.parent.is_dir()
+    assert config.snapshot_dir.is_dir()
+    assert config.cache_dir.is_dir()
+
+
+def test_prepare_runtime_storage_rejects_file_snapshot_dir(tmp_path: Path) -> None:
+    snapshot_path = tmp_path / "runtime" / "snapshots"
+    snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+    snapshot_path.write_text("not a directory", encoding="utf-8")
+    config = RuntimeConfig(
+        registry_path=tmp_path / "runtime" / "registry.sqlite",
+        snapshot_dir=snapshot_path,
+        cache_dir=tmp_path / "runtime" / "cache",
+    )
+
+    with pytest.raises(RuntimeConfigurationError, match="SNAPSHOT_DIR"):
+        prepare_runtime_storage(config)
 
 
 def test_catalog_resource_types_import_cleanly() -> None:

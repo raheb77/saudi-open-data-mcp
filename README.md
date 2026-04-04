@@ -11,7 +11,7 @@ The project is not just an MCP wrapper around upstream websites. Its value is in
 
 Current implementation starts with SAMA plus one narrow data.gov.sa pilot dataset and already exposes a small working MCP surface.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture and [docs/ADR/ADR-001-start-with-sama.md](docs/ADR/ADR-001-start-with-sama.md) for the initial source decision.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, [docs/ADR/ADR-001-start-with-sama.md](docs/ADR/ADR-001-start-with-sama.md) for the initial source decision, and [docs/OPERATIONS.md](docs/OPERATIONS.md) for current internal runtime and durability guidance.
 
 ## Current Architecture
 
@@ -211,6 +211,12 @@ The image sets container-specific runtime defaults:
 - `SNAPSHOT_DIR=/var/lib/saudi-open-data-mcp/snapshots`
 - `CACHE_DIR=/var/lib/saudi-open-data-mcp/cache`
 
+Persistence expectations for that runtime:
+
+- `REGISTRY_PATH` and `SNAPSHOT_DIR` should live on durable storage if you need state to survive replacement
+- `CACHE_DIR` is recreatable scratch space
+- logs, `resource://observability` counters, in-memory rate limits, and refresh loop state are process-local
+
 Build and serve with Docker Compose:
 
 ```bash
@@ -227,6 +233,8 @@ Internal observability remains intentionally simple:
 - read `resource://observability` to inspect the current grouped in-process counters in one place
 - inspect structured container logs for event-level detail such as `server.startup.*`, `preview.request.*`, `connector.request.*`, `materialize.*`, and `tier_a_refresh.*`
 - treat the observability resource as a process-local operator aid, not as a health endpoint or external metrics API
+
+For operator startup, shutdown, refresh, backup, and restore guidance, see [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 Direct container run example:
 
