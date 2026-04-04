@@ -25,6 +25,10 @@ from saudi_open_data_mcp.security.http_auth import (
     HTTPAuthCapability,
     HTTPBearerAuthMiddleware,
 )
+from saudi_open_data_mcp.security.http_readiness import (
+    HTTP_READINESS_PATH,
+    HTTPReadinessMiddleware,
+)
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 
 DATA_GOV_SA_DATASET_ID = "data-gov-sa-census-marital-status"
@@ -70,11 +74,13 @@ def test_cli_run_http_dispatches_to_server(monkeypatch) -> None:
     assert calls[0]["log_level"] == "DEBUG"
     middleware = calls[0]["middleware"]
     assert isinstance(middleware, list)
-    assert len(middleware) == 1
-    assert middleware[0].cls is HTTPBearerAuthMiddleware
-    assert "internal-test-token" not in repr(middleware[0])
-    assert middleware[0].kwargs["bearer_token"].get_secret_value() == "internal-test-token"
-    assert middleware[0].kwargs["capabilities"] == frozenset(HTTPAuthCapability)
+    assert len(middleware) == 2
+    assert middleware[0].cls is HTTPReadinessMiddleware
+    assert middleware[0].kwargs["app_name"] == "saudi-open-data-mcp"
+    assert middleware[1].cls is HTTPBearerAuthMiddleware
+    assert "internal-test-token" not in repr(middleware[1])
+    assert middleware[1].kwargs["bearer_token"].get_secret_value() == "internal-test-token"
+    assert middleware[1].kwargs["capabilities"] == frozenset(HTTPAuthCapability)
 
 
 def test_cli_run_http_uses_loopback_default_host(monkeypatch) -> None:
@@ -103,11 +109,14 @@ def test_cli_run_http_uses_loopback_default_host(monkeypatch) -> None:
     assert calls[0]["log_level"] == "INFO"
     middleware = calls[0]["middleware"]
     assert isinstance(middleware, list)
-    assert len(middleware) == 1
-    assert middleware[0].cls is HTTPBearerAuthMiddleware
-    assert "internal-test-token" not in repr(middleware[0])
-    assert middleware[0].kwargs["bearer_token"].get_secret_value() == "internal-test-token"
-    assert middleware[0].kwargs["capabilities"] == frozenset(HTTPAuthCapability)
+    assert len(middleware) == 2
+    assert middleware[0].cls is HTTPReadinessMiddleware
+    assert middleware[0].kwargs["app_name"] == "saudi-open-data-mcp"
+    assert middleware[1].cls is HTTPBearerAuthMiddleware
+    assert "internal-test-token" not in repr(middleware[1])
+    assert middleware[1].kwargs["bearer_token"].get_secret_value() == "internal-test-token"
+    assert middleware[1].kwargs["capabilities"] == frozenset(HTTPAuthCapability)
+    assert HTTP_READINESS_PATH == "/readyz"
 
 
 def test_cli_run_http_requires_http_auth_token(monkeypatch) -> None:

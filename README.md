@@ -272,11 +272,20 @@ Container/runtime expectations:
 Startup/readiness contract:
 
 - the container's job is to start the MCP HTTP service and stay running
+- `GET /readyz` is the one machine-friendly readiness signal for this phase
+- `/readyz` means only:
+  - the process is running
+  - config validation passed
+  - runtime storage preparation passed
+  - core FastMCP app wiring completed
 - HTTP requests without a valid `Authorization: Bearer <token>` header are
   rejected with `401 Unauthorized`
 - HTTP requests with a valid token but insufficient capability are rejected
   with `403 Forbidden`
-- there is no plain HTTP health endpoint in this phase
+- `/readyz` does not claim:
+  - upstream source reachability
+  - dataset freshness
+  - full system health
 - `/mcp` must be checked with an MCP-aware client if you want real session
   readiness validation
 - naive `GET /` or `GET /mcp` probing can still return `404` or `406` and that
@@ -335,6 +344,8 @@ desktop stdio-host replacement.
 HTTP is the official internal container serving mode, but it is not a plain
 REST surface. Use an MCP-aware client against `/mcp`.
 
+For machine-friendly internal readiness checks, use `GET /readyz`.
+
 Start the server in one shell:
 
 ```bash
@@ -345,6 +356,7 @@ Naive probing can look broken even when the server is healthy:
 
 - `GET /` can return `404`
 - `GET /mcp` without the expected MCP headers can return `406`
+- `GET /readyz` should return `200` with a narrow readiness payload
 
 That behavior is expected for the current streamable HTTP setup. Browser or `curl` checks are useful only as a negative smoke test here, not as a real MCP session test.
 

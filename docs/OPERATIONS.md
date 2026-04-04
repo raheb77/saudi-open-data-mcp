@@ -35,6 +35,12 @@ Config failures are expected to fail fast with concise CLI errors. Common exampl
 - missing `HTTP_AUTH_TOKEN` for `run-http`
 - invalid `HTTP_AUTH_CAPABILITIES` values
 
+Readiness for the internal container path is intentionally narrow:
+
+- `GET /readyz` means the process is running, config validation passed, runtime storage preparation passed, and the core FastMCP app was wired successfully.
+- `GET /readyz` does not claim upstream reachability, dataset freshness, or full-system health.
+- `/mcp` still requires an MCP-aware client for real protocol/session validation.
+
 ## Shutdown
 
 - Prefer graceful stop: `docker compose stop`

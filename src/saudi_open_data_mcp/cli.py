@@ -17,6 +17,7 @@ from saudi_open_data_mcp.config import (
     load_config,
 )
 from saudi_open_data_mcp.security.http_auth import build_http_auth_middleware
+from saudi_open_data_mcp.security.http_readiness import build_http_readiness_middleware
 from saudi_open_data_mcp.server import create_server
 
 
@@ -95,7 +96,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "run-http":
         config = _load_config_or_exit(parser)
         try:
-            middleware = build_http_auth_middleware(
+            middleware = build_http_readiness_middleware(
+                config.app_name
+            ) + build_http_auth_middleware(
                 config.transport.http_auth_token,
                 config.transport.http_auth_capabilities,
             )
