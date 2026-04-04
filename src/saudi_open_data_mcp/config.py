@@ -5,7 +5,7 @@ from __future__ import annotations
 from os import getenv
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_LOCAL_DIR = PROJECT_ROOT / ".local"
@@ -30,6 +30,7 @@ class TransportConfig(BaseModel):
 
     http_host: str = "127.0.0.1"
     http_port: int = 8000
+    http_auth_token: SecretStr | None = None
 
 
 class RuntimeConfig(BaseModel):
@@ -69,5 +70,8 @@ def load_config() -> RuntimeConfig:
         transport=TransportConfig(
             http_host=getenv("HTTP_HOST", "127.0.0.1"),
             http_port=int(getenv("HTTP_PORT", "8000")),
+            http_auth_token=(
+                SecretStr(token) if (token := getenv("HTTP_AUTH_TOKEN")) else None
+            ),
         ),
     )

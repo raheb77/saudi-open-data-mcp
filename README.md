@@ -142,7 +142,7 @@ The supported local development activation path is the source-tree CLI:
 ```bash
 python src/saudi_open_data_mcp/cli.py check-startup
 python src/saudi_open_data_mcp/cli.py run-stdio
-python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
+HTTP_AUTH_TOKEN=dev-internal-token python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
 ```
 
 Use the source-tree CLI or the local helper scripts for development and local
@@ -154,7 +154,8 @@ other command-based MCP hosts.
 
 `run-http` starts the same app over streamable HTTP. Treat that path as
 MCP-aware and session-aware only. It is suitable for MCP inspectors and MCP
-clients, not generic browser probing.
+clients, not generic browser probing. It now requires
+`Authorization: Bearer <token>` using `HTTP_AUTH_TOKEN`.
 
 By default, local registry and snapshot state resolve under the repo's
 `.local/` directory; set `REGISTRY_PATH` or `SNAPSHOT_DIR` to override them
@@ -200,6 +201,7 @@ The image sets container-specific runtime defaults:
 
 - `HTTP_HOST=0.0.0.0`
 - `HTTP_PORT=8000`
+- `HTTP_AUTH_TOKEN` must be provided by the operator
 - `REGISTRY_PATH=/var/lib/saudi-open-data-mcp/registry.sqlite`
 - `SNAPSHOT_DIR=/var/lib/saudi-open-data-mcp/snapshots`
 - `CACHE_DIR=/var/lib/saudi-open-data-mcp/cache`
@@ -212,7 +214,8 @@ docker compose up --build
 
 The provided compose file publishes the service on `127.0.0.1:8000` on the
 host and persists runtime state in a Docker-managed volume mounted at
-`/var/lib/saudi-open-data-mcp`.
+`/var/lib/saudi-open-data-mcp`. It also requires `HTTP_AUTH_TOKEN` to be set
+in the operator environment before startup.
 
 Direct container run example:
 
@@ -220,6 +223,7 @@ Direct container run example:
 docker build -t saudi-open-data-mcp .
 docker run --rm \
   -p 127.0.0.1:8000:8000 \
+  -e HTTP_AUTH_TOKEN=change-me-internal-token \
   -v saudi-open-data-mcp-data:/var/lib/saudi-open-data-mcp \
   saudi-open-data-mcp
 ```
@@ -228,15 +232,18 @@ Container/runtime expectations:
 
 - registry bootstrap still happens on startup
 - no scheduler or background refresh is added in this phase
-- no auth or public-internet deployment hardening is added in this phase
+- minimal bearer-token auth is enforced on the HTTP path only
+- no public-internet deployment hardening is claimed in this phase
 - persistent storage is expected if you want registry and snapshot state to
   survive container replacement
-- `SAMA_BASE_URL`, `DATA_GOV_SA_BASE_URL`, and `LOG_LEVEL` remain the main
-  operator-facing overrides
+- `HTTP_AUTH_TOKEN`, `SAMA_BASE_URL`, `DATA_GOV_SA_BASE_URL`, and `LOG_LEVEL`
+  are the main operator-facing overrides
 
 Startup/readiness contract:
 
 - the container's job is to start the MCP HTTP service and stay running
+- HTTP requests without a valid `Authorization: Bearer <token>` header are
+  rejected with `401 Unauthorized`
 - there is no plain HTTP health endpoint in this phase
 - `/mcp` must be checked with an MCP-aware client if you want real session
   readiness validation
@@ -299,7 +306,7 @@ REST surface. Use an MCP-aware client against `/mcp`.
 Start the server in one shell:
 
 ```bash
-python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
+HTTP_AUTH_TOKEN=dev-internal-token python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
 ```
 
 Naive probing can look broken even when the server is healthy:
@@ -320,7 +327,10 @@ from fastmcp.client.transports import StreamableHttpTransport
 
 async def main() -> None:
     async with Client(
-        transport=StreamableHttpTransport("http://127.0.0.1:8000/mcp")
+        transport=StreamableHttpTransport(
+            "http://127.0.0.1:8000/mcp",
+            headers={"Authorization": "Bearer dev-internal-token"},
+        )
     ) as client:
         result = await client.call_tool(
             "dataset_metadata",

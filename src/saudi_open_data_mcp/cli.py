@@ -12,6 +12,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from saudi_open_data_mcp.config import load_config
+from saudi_open_data_mcp.security.http_auth import build_http_auth_middleware
 from saudi_open_data_mcp.server import create_server
 
 
@@ -49,7 +50,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     run_http_parser = subparsers.add_parser(
         "run-http",
-        help="Run the current FastMCP app over streamable HTTP using configured defaults.",
+        help=(
+            "Run the current FastMCP app over streamable HTTP using configured "
+            "defaults and HTTP bearer auth."
+        ),
     )
     run_http_parser.add_argument(
         "--host",
@@ -85,6 +89,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "run-http":
         config = load_config()
+        try:
+            middleware = build_http_auth_middleware(config.transport.http_auth_token)
+        except ValueError as exc:
+            parser.error(str(exc))
         app = create_server(config)
         host = args.host or config.transport.http_host
         port = args.port or config.transport.http_port
@@ -95,6 +103,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 host=host,
                 port=port,
                 log_level=log_level,
+                middleware=middleware,
             )
         )
         return 0

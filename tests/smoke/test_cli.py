@@ -10,12 +10,14 @@ from pathlib import Path
 import pytest
 from fastmcp import Client
 from fastmcp.client.transports import StdioTransport
+from pydantic import SecretStr
 
 from saudi_open_data_mcp import cli as cli_module
-from saudi_open_data_mcp.config import RuntimeConfig
+from saudi_open_data_mcp.config import RuntimeConfig, TransportConfig
 from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.registry.bootstrap import bootstrap_registry
 from saudi_open_data_mcp.registry.repository import RegistryRepository
+from saudi_open_data_mcp.security.http_auth import HTTPBearerAuthMiddleware
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 
 DATA_GOV_SA_DATASET_ID = "data-gov-sa-census-marital-status"
@@ -40,7 +42,11 @@ def test_cli_run_http_dispatches_to_server(monkeypatch) -> None:
         async def run_http_async(self, **kwargs) -> None:
             calls.append(kwargs)
 
-    config = RuntimeConfig()
+    config = RuntimeConfig(
+        transport=TransportConfig(
+            http_auth_token=SecretStr("internal-test-token"),
+        )
+    )
 
     monkeypatch.setattr(cli_module, "load_config", lambda: config)
     monkeypatch.setattr(cli_module, "create_server", lambda runtime_config=None: DummyApp())
@@ -50,14 +56,16 @@ def test_cli_run_http_dispatches_to_server(monkeypatch) -> None:
     )
 
     assert exit_code == 0
-    assert calls == [
-        {
-            "transport": "streamable-http",
-            "host": "127.0.0.1",
-            "port": 8081,
-            "log_level": "DEBUG",
-        }
-    ]
+    assert len(calls) == 1
+    assert calls[0]["transport"] == "streamable-http"
+    assert calls[0]["host"] == "127.0.0.1"
+    assert calls[0]["port"] == 8081
+    assert calls[0]["log_level"] == "DEBUG"
+    middleware = calls[0]["middleware"]
+    assert isinstance(middleware, list)
+    assert len(middleware) == 1
+    assert middleware[0].cls is HTTPBearerAuthMiddleware
+    assert middleware[0].kwargs == {"bearer_token": "internal-test-token"}
 
 
 def test_cli_run_http_uses_loopback_default_host(monkeypatch) -> None:
@@ -67,7 +75,11 @@ def test_cli_run_http_uses_loopback_default_host(monkeypatch) -> None:
         async def run_http_async(self, **kwargs) -> None:
             calls.append(kwargs)
 
-    config = RuntimeConfig()
+    config = RuntimeConfig(
+        transport=TransportConfig(
+            http_auth_token=SecretStr("internal-test-token"),
+        )
+    )
 
     monkeypatch.setattr(cli_module, "load_config", lambda: config)
     monkeypatch.setattr(cli_module, "create_server", lambda runtime_config=None: DummyApp())
@@ -75,14 +87,27 @@ def test_cli_run_http_uses_loopback_default_host(monkeypatch) -> None:
     exit_code = cli_module.main(["run-http"])
 
     assert exit_code == 0
-    assert calls == [
-        {
-            "transport": "streamable-http",
-            "host": "127.0.0.1",
-            "port": 8000,
-            "log_level": "INFO",
-        }
-    ]
+    assert len(calls) == 1
+    assert calls[0]["transport"] == "streamable-http"
+    assert calls[0]["host"] == "127.0.0.1"
+    assert calls[0]["port"] == 8000
+    assert calls[0]["log_level"] == "INFO"
+    middleware = calls[0]["middleware"]
+    assert isinstance(middleware, list)
+    assert len(middleware) == 1
+    assert middleware[0].cls is HTTPBearerAuthMiddleware
+    assert middleware[0].kwargs == {"bearer_token": "internal-test-token"}
+
+
+def test_cli_run_http_requires_http_auth_token(monkeypatch) -> None:
+    config = RuntimeConfig()
+
+    monkeypatch.setattr(cli_module, "load_config", lambda: config)
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli_module.main(["run-http"])
+
+    assert excinfo.value.code == 2
 
 
 def test_cli_run_stdio_dispatches_to_server(monkeypatch) -> None:

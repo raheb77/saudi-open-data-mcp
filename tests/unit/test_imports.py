@@ -23,6 +23,7 @@ def test_load_config_defaults() -> None:
     assert config.source.data_gov_sa_base_url == "https://open.data.gov.sa"
     assert config.transport.http_host == "127.0.0.1"
     assert config.transport.http_port == 8000
+    assert config.transport.http_auth_token is None
 
 
 def test_load_config_respects_data_gov_sa_base_url_override(
@@ -40,11 +41,14 @@ def test_load_config_respects_http_transport_overrides(
 ) -> None:
     monkeypatch.setenv("HTTP_HOST", "0.0.0.0")
     monkeypatch.setenv("HTTP_PORT", "8080")
+    monkeypatch.setenv("HTTP_AUTH_TOKEN", "internal-test-token")
 
     config = load_config()
 
     assert config.transport.http_host == "0.0.0.0"
     assert config.transport.http_port == 8080
+    assert config.transport.http_auth_token is not None
+    assert config.transport.http_auth_token.get_secret_value() == "internal-test-token"
 
 
 def test_catalog_resource_types_import_cleanly() -> None:

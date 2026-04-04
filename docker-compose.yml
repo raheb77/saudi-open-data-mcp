@@ -2,6 +2,8 @@ services:
   app:
     build:
       context: .
+    environment:
+      HTTP_AUTH_TOKEN: ${HTTP_AUTH_TOKEN:?set HTTP_AUTH_TOKEN for internal bearer auth}
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
