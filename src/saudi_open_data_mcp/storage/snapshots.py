@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from pathlib import Path
+from typing import TextIO
 from urllib.parse import quote
 
 from ..connectors.base import RawPayload
@@ -42,10 +45,9 @@ class SnapshotStore:
         """Write a raw payload snapshot to local storage."""
 
         path = self.snapshot_path(payload.source, payload.dataset_id)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
+        self._write_atomic_text(
+            path,
             json.dumps(payload.model_dump(mode="json"), indent=2, sort_keys=True),
-            encoding="utf-8",
         )
         return path
 
@@ -56,3 +58,37 @@ class SnapshotStore:
         if not path.is_file():
             raise FileNotFoundError(f"Snapshot not found: {path}")
         return RawPayload.model_validate_json(path.read_text(encoding="utf-8"))
+
+    def _write_atomic_text(self, path: Path, text: str) -> None:
+        """Write text atomically by replacing the final path only after a full temp write."""
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        file_descriptor, temp_name = tempfile.mkstemp(
+            dir=path.parent,
+            prefix=f".{path.stem}-",
+            suffix=".tmp",
+            text=True,
+        )
+        temp_path = Path(temp_name)
+
+        try:
+            with os.fdopen(file_descriptor, "w", encoding="utf-8") as handle:
+                self._write_text(handle, text)
+                handle.flush()
+                os.fsync(handle.fileno())
+            self._replace_atomic(temp_path, path)
+        except Exception:
+            temp_path.unlink(missing_ok=True)
+            raise
+
+    @staticmethod
+    def _write_text(handle: TextIO, text: str) -> None:
+        """Write text to a temporary snapshot file handle."""
+
+        handle.write(text)
+
+    @staticmethod
+    def _replace_atomic(temp_path: Path, final_path: Path) -> None:
+        """Atomically replace the final snapshot path with a prepared temp file."""
+
+        os.replace(temp_path, final_path)
