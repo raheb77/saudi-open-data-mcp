@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+from contextlib import asynccontextmanager, suppress
 
 from fastmcp import FastMCP
 
@@ -13,13 +15,41 @@ from .resources.catalog import CatalogResource
 from .storage.snapshots import SnapshotStore
 from .tools.download import DatasetDownloadTool
 from .tools.health import DatasetHealthTool
-from .tools.materialize import HotSetMaterializationTool
+from .tools.materialize import HotSetMaterializationTool, TierABackgroundRefreshService
 from .tools.metadata import DatasetMetadataTool
 from .tools.preview import DatasetPreviewTool
 from .tools.query import DatasetQueryTool
 from .tools.search import DatasetSearchTool
 
 LOGGER = get_logger(__name__)
+
+
+def _build_server_lifespan(
+    *,
+    refresh_service: TierABackgroundRefreshService | None,
+    runtime_config: RuntimeConfig,
+):
+    @asynccontextmanager
+    async def lifespan(_server):
+        refresh_task: asyncio.Task[None] | None = None
+        if refresh_service is not None:
+            log_event(
+                LOGGER,
+                logging.INFO,
+                "tier_a_refresh.loop.enabled",
+                interval_seconds=runtime_config.tier_a_refresh.interval_seconds,
+            )
+            refresh_task = asyncio.create_task(refresh_service.run_forever())
+
+        try:
+            yield {}
+        finally:
+            if refresh_task is not None:
+                refresh_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await refresh_task
+
+    return lifespan
 
 
 def create_server(config: RuntimeConfig | None = None) -> FastMCP:
@@ -59,6 +89,14 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
             connector_resolver,
             snapshot_store,
         )
+        refresh_service = (
+            TierABackgroundRefreshService(
+                materialize_tool,
+                interval_seconds=runtime_config.tier_a_refresh.interval_seconds,
+            )
+            if runtime_config.tier_a_refresh.enabled
+            else None
+        )
         preview_tool = DatasetPreviewTool(
             repository,
             connector_resolver,
@@ -67,7 +105,13 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
         query_tool = DatasetQueryTool(repository, snapshot_store)
         search_tool = DatasetSearchTool(repository)
 
-        app = FastMCP(runtime_config.app_name)
+        app = FastMCP(
+            runtime_config.app_name,
+            lifespan=_build_server_lifespan(
+                refresh_service=refresh_service,
+                runtime_config=runtime_config,
+            ),
+        )
 
         @app.resource(
             "resource://catalog",

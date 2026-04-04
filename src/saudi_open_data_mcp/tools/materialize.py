@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
@@ -15,7 +17,7 @@ from saudi_open_data_mcp.normalization.pipeline import (
     NormalizationPipelineStatus,
     NormalizationResult,
 )
-from saudi_open_data_mcp.observability import get_metrics
+from saudi_open_data_mcp.observability import get_logger, get_metrics, log_event
 from saudi_open_data_mcp.registry.bootstrap import (
     WAVE_1_HOT_SET_OPTIONAL_DATASET_IDS,
     WAVE_1_HOT_SET_TIER_A_DATASET_IDS,
@@ -27,6 +29,8 @@ from saudi_open_data_mcp.storage.freshness import (
     evaluate_snapshot_freshness,
 )
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
+
+LOGGER = get_logger(__name__)
 
 
 class HotSetTier(StrEnum):
@@ -213,6 +217,18 @@ class MaterializationPipeline(Protocol):
         """Return a typed normalization result for a fetched raw payload."""
 
 
+class HotSetMaterializationRunner(Protocol):
+    """Minimal protocol for reusing hot-set materialization outside the MCP tool."""
+
+    async def materialize_hot_set(
+        self,
+        *,
+        include_optional: bool = False,
+        reference_time: datetime | None = None,
+    ) -> HotSetMaterializationResult:
+        """Run one hot-set materialization cycle."""
+
+
 @dataclass(frozen=True)
 class _LocatorMaterializationSuccess:
     normalization_result: NormalizationResult
@@ -243,6 +259,7 @@ class HotSetMaterializationTool:
             else SnapshotStore(snapshot_store)
         )
         self._normalization_pipeline = normalization_pipeline or NormalizationPipeline()
+        self._run_lock = asyncio.Lock()
 
     async def materialize_hot_set(
         self,
@@ -252,85 +269,89 @@ class HotSetMaterializationTool:
     ) -> HotSetMaterializationResult:
         """Fetch and persist the fixed Wave 1 hot-set selection."""
 
-        metrics = get_metrics()
-        metrics.increment("materialize.requests")
-        selected_dataset_ids = _selected_dataset_ids(include_optional)
-        locator_results: dict[
-            tuple[str, str],
-            _LocatorMaterializationSuccess | _LocatorMaterializationFailure,
-        ] = {}
-        results: list[HotSetDatasetMaterializationResult] = []
+        async with self._run_lock:
+            metrics = get_metrics()
+            metrics.increment("materialize.requests")
+            selected_dataset_ids = _selected_dataset_ids(include_optional)
+            locator_results: dict[
+                tuple[str, str],
+                _LocatorMaterializationSuccess | _LocatorMaterializationFailure,
+            ] = {}
+            results: list[HotSetDatasetMaterializationResult] = []
 
-        for dataset_id in selected_dataset_ids:
-            tier = _tier_for_dataset_id(dataset_id)
-            descriptor = self._repository.get_dataset(dataset_id)
-            if descriptor is None:
-                results.append(
-                    HotSetDatasetMaterializationResult.failed(
-                        dataset_id=dataset_id,
-                        tier=tier,
-                        stage=HotSetMaterializationFailureStage.LOOKUP,
-                        error=LookupError(f"Dataset '{dataset_id}' is not in the registry"),
+            for dataset_id in selected_dataset_ids:
+                tier = _tier_for_dataset_id(dataset_id)
+                descriptor = self._repository.get_dataset(dataset_id)
+                if descriptor is None:
+                    results.append(
+                        HotSetDatasetMaterializationResult.failed(
+                            dataset_id=dataset_id,
+                            tier=tier,
+                            stage=HotSetMaterializationFailureStage.LOOKUP,
+                            error=LookupError(
+                                f"Dataset '{dataset_id}' is not in the registry"
+                            ),
+                        )
                     )
-                )
-                continue
+                    continue
 
-            locator_key = (descriptor.source, descriptor.source_locator)
-            cached_result = locator_results.get(locator_key)
-            if cached_result is None:
-                cached_result = await self._materialize_source_locator(descriptor)
-                locator_results[locator_key] = cached_result
+                locator_key = (descriptor.source, descriptor.source_locator)
+                cached_result = locator_results.get(locator_key)
+                if cached_result is None:
+                    cached_result = await self._materialize_source_locator(descriptor)
+                    locator_results[locator_key] = cached_result
 
-            freshness = _bind_canonical_dataset_id(
-                descriptor=descriptor,
-                freshness=evaluate_snapshot_freshness(
-                    source=descriptor.source,
-                    dataset_id=descriptor.source_locator,
-                    snapshot_store=self._snapshot_store,
-                    reference_time=reference_time,
-                    update_frequency=descriptor.update_frequency,
-                ),
-            )
-            if isinstance(cached_result, _LocatorMaterializationFailure):
-                results.append(
-                    HotSetDatasetMaterializationResult.failed(
-                        dataset_id=descriptor.dataset_id,
-                        tier=tier,
-                        stage=cached_result.stage,
-                        error=cached_result.error,
-                        descriptor=descriptor,
-                        freshness=freshness,
-                    )
-                )
-                continue
-
-            results.append(
-                HotSetDatasetMaterializationResult.materialized(
+                freshness = _bind_canonical_dataset_id(
                     descriptor=descriptor,
-                    tier=tier,
-                    freshness=freshness,
-                    normalization_result=_bind_canonical_dataset_id_to_normalization(
-                        descriptor=descriptor,
-                        normalization_result=cached_result.normalization_result,
+                    freshness=evaluate_snapshot_freshness(
+                        source=descriptor.source,
+                        dataset_id=descriptor.source_locator,
+                        snapshot_store=self._snapshot_store,
+                        reference_time=reference_time,
+                        update_frequency=descriptor.update_frequency,
                     ),
                 )
-            )
+                if isinstance(cached_result, _LocatorMaterializationFailure):
+                    results.append(
+                        HotSetDatasetMaterializationResult.failed(
+                            dataset_id=descriptor.dataset_id,
+                            tier=tier,
+                            stage=cached_result.stage,
+                            error=cached_result.error,
+                            descriptor=descriptor,
+                            freshness=freshness,
+                        )
+                    )
+                    continue
 
-        materialized_count = sum(
-            result.status is HotSetMaterializationStatus.MATERIALIZED for result in results
-        )
-        failed_count = len(results) - materialized_count
-        if materialized_count:
-            metrics.increment("materialize.successes", materialized_count)
-        if failed_count:
-            metrics.increment("materialize.failures", failed_count)
-        return HotSetMaterializationResult(
-            include_optional=include_optional,
-            requested_dataset_count=len(selected_dataset_ids),
-            materialized_count=materialized_count,
-            failed_count=failed_count,
-            results=tuple(results),
-        )
+                results.append(
+                    HotSetDatasetMaterializationResult.materialized(
+                        descriptor=descriptor,
+                        tier=tier,
+                        freshness=freshness,
+                        normalization_result=_bind_canonical_dataset_id_to_normalization(
+                            descriptor=descriptor,
+                            normalization_result=cached_result.normalization_result,
+                        ),
+                    )
+                )
+
+            materialized_count = sum(
+                result.status is HotSetMaterializationStatus.MATERIALIZED
+                for result in results
+            )
+            failed_count = len(results) - materialized_count
+            if materialized_count:
+                metrics.increment("materialize.successes", materialized_count)
+            if failed_count:
+                metrics.increment("materialize.failures", failed_count)
+            return HotSetMaterializationResult(
+                include_optional=include_optional,
+                requested_dataset_count=len(selected_dataset_ids),
+                materialized_count=materialized_count,
+                failed_count=failed_count,
+                results=tuple(results),
+            )
 
     async def _materialize_source_locator(
         self,
@@ -356,6 +377,59 @@ class HotSetMaterializationTool:
         return _LocatorMaterializationSuccess(
             normalization_result=self._normalization_pipeline.normalize(raw_payload)
         )
+
+
+class TierABackgroundRefreshService:
+    """Periodic internal Tier A refresh loop over the existing materialization path."""
+
+    def __init__(
+        self,
+        materialization_runner: HotSetMaterializationRunner,
+        *,
+        interval_seconds: int,
+    ) -> None:
+        self._materialization_runner = materialization_runner
+        self._interval_seconds = interval_seconds
+
+    async def run_once(self) -> HotSetMaterializationResult:
+        """Run one Tier A-only refresh cycle."""
+
+        log_event(
+            LOGGER,
+            logging.INFO,
+            "tier_a_refresh.run.started",
+            interval_seconds=self._interval_seconds,
+        )
+        result = await self._materialization_runner.materialize_hot_set(
+            include_optional=False,
+        )
+        log_event(
+            LOGGER,
+            logging.WARNING if result.failed_count else logging.INFO,
+            "tier_a_refresh.run.completed",
+            interval_seconds=self._interval_seconds,
+            requested_dataset_count=result.requested_dataset_count,
+            materialized_count=result.materialized_count,
+            failed_count=result.failed_count,
+        )
+        return result
+
+    async def run_forever(self) -> None:
+        """Run Tier A refresh cycles until cancelled by the hosting runtime."""
+
+        while True:
+            try:
+                await self.run_once()
+            except Exception as exc:
+                log_event(
+                    LOGGER,
+                    logging.ERROR,
+                    "tier_a_refresh.run.failed",
+                    interval_seconds=self._interval_seconds,
+                    error_type=type(exc).__name__,
+                    message=_public_failure_message(exc),
+                )
+            await asyncio.sleep(self._interval_seconds)
 
 
 def _selected_dataset_ids(include_optional: bool) -> tuple[str, ...]:

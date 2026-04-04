@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -22,7 +24,14 @@ from saudi_open_data_mcp.storage.freshness import (
     SnapshotFreshnessStatus,
 )
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
-from saudi_open_data_mcp.tools.materialize import HotSetMaterializationTool, HotSetTier
+from saudi_open_data_mcp.tools.materialize import (
+    HotSetDatasetMaterializationResult,
+    HotSetMaterializationFailureStage,
+    HotSetMaterializationResult,
+    HotSetMaterializationTool,
+    HotSetTier,
+    TierABackgroundRefreshService,
+)
 
 
 class _SAMAConnectorSpy:
@@ -158,3 +167,49 @@ async def test_materialize_hot_set_can_include_optional_pos_by_city_without_refe
         is NormalizationPipelineStatus.LIMITED
     )
     assert results_by_id["sama-pos-by-city"].limitations == (TEXT_HTML_LIMITATION,)
+
+
+@pytest.mark.asyncio
+async def test_tier_a_background_refresh_service_runs_tier_a_only(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class RunnerSpy:
+        def __init__(self) -> None:
+            self.calls: list[bool] = []
+
+        async def materialize_hot_set(
+            self,
+            *,
+            include_optional: bool = False,
+            reference_time: datetime | None = None,
+        ) -> HotSetMaterializationResult:
+            self.calls.append(include_optional)
+            return HotSetMaterializationResult(
+                include_optional=include_optional,
+                requested_dataset_count=1,
+                materialized_count=0,
+                failed_count=1,
+                results=(
+                    HotSetDatasetMaterializationResult.failed(
+                        dataset_id="sama-pos-weekly",
+                        tier=HotSetTier.TIER_A,
+                        stage=HotSetMaterializationFailureStage.FETCH,
+                        error=RuntimeError("tier a refresh failed for testing"),
+                    ),
+                ),
+            )
+
+    caplog.set_level(logging.INFO)
+    runner = RunnerSpy()
+    service = TierABackgroundRefreshService(runner, interval_seconds=3600)
+
+    result = await service.run_once()
+
+    assert runner.calls == [False]
+    assert result.include_optional is False
+    assert result.failed_count == 1
+    assert any(
+        json.loads(record.getMessage()).get("event") == "tier_a_refresh.run.completed"
+        and json.loads(record.getMessage()).get("failed_count") == 1
+        for record in caplog.records
+    )

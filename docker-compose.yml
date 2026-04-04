@@ -4,6 +4,8 @@ services:
       context: .
     environment:
       HTTP_AUTH_TOKEN: ${HTTP_AUTH_TOKEN:?set HTTP_AUTH_TOKEN for internal bearer auth}
+      TIER_A_REFRESH_ENABLED: ${TIER_A_REFRESH_ENABLED:-false}
+      TIER_A_REFRESH_INTERVAL_SECONDS: ${TIER_A_REFRESH_INTERVAL_SECONDS:-3600}
     ports:
       - "127.0.0.1:8000:8000"
     volumes:

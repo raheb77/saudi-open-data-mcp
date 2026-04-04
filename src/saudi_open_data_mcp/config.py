@@ -33,6 +33,13 @@ class TransportConfig(BaseModel):
     http_auth_token: SecretStr | None = None
 
 
+class TierARefreshConfig(BaseModel):
+    """Optional Tier A background refresh configuration."""
+
+    enabled: bool = False
+    interval_seconds: int = Field(default=3600, gt=0)
+
+
 class RuntimeConfig(BaseModel):
     """Application configuration."""
 
@@ -43,6 +50,7 @@ class RuntimeConfig(BaseModel):
     cache_dir: Path = DEFAULT_CACHE_DIR
     log_level: str = "INFO"
     transport: TransportConfig = Field(default_factory=TransportConfig)
+    tier_a_refresh: TierARefreshConfig = Field(default_factory=TierARefreshConfig)
 
 
 def _path_from_env(name: str, default: Path) -> Path:
@@ -50,6 +58,15 @@ def _path_from_env(name: str, default: Path) -> Path:
 
     configured = getenv(name)
     return Path(configured) if configured else default
+
+
+def _bool_from_env(name: str, default: bool = False) -> bool:
+    """Return a deterministic boolean environment override."""
+
+    configured = getenv(name)
+    if configured is None:
+        return default
+    return configured.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def load_config() -> RuntimeConfig:
@@ -73,5 +90,9 @@ def load_config() -> RuntimeConfig:
             http_auth_token=(
                 SecretStr(token) if (token := getenv("HTTP_AUTH_TOKEN")) else None
             ),
+        ),
+        tier_a_refresh=TierARefreshConfig(
+            enabled=_bool_from_env("TIER_A_REFRESH_ENABLED", False),
+            interval_seconds=int(getenv("TIER_A_REFRESH_INTERVAL_SECONDS", "3600")),
         ),
     )

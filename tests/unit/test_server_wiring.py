@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from datetime import UTC, datetime
@@ -11,8 +12,10 @@ import httpx
 import respx
 
 from saudi_open_data_mcp import server as server_module
-from saudi_open_data_mcp.config import RuntimeConfig
+from saudi_open_data_mcp.config import RuntimeConfig, TierARefreshConfig
 from saudi_open_data_mcp.connectors.base import RawPayload
+from saudi_open_data_mcp.connectors.resolver import SourceConnectorResolver
+from saudi_open_data_mcp.observability import get_metrics
 from saudi_open_data_mcp.registry.bootstrap import (
     INITIAL_DATASET_DESCRIPTORS,
     WAVE_1_HOT_SET_TIER_A_DATASET_IDS,
@@ -414,6 +417,94 @@ async def test_server_startup_preserves_existing_health_state(tmp_path: Path) ->
     assert repository.get_dataset("sama-money-supply") is not None
     assert repository.get_dataset("sama-money-supply").health_status is (
         DatasetHealthStatus.DEGRADED
+    )
+
+
+async def test_server_lifespan_can_trigger_tier_a_background_refresh(
+    tmp_path: Path,
+    caplog,
+    monkeypatch,
+) -> None:
+    class RefreshConnectorSpy:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+            self.completed = asyncio.Event()
+
+        async def fetch_dataset_payload(self, dataset_id: str) -> RawPayload:
+            self.calls.append(dataset_id)
+            if len(self.calls) == len(WAVE_1_HOT_SET_TIER_A_DATASET_IDS):
+                self.completed.set()
+
+            if dataset_id == REPORT_LOCATOR:
+                body: object = {"rows": [{"series": "deposits", "value": 1}]}
+                content_type = "application/json"
+            else:
+                body = "<html><body>official sama page</body></html>"
+                content_type = "text/html"
+
+            if dataset_id.startswith("/"):
+                url = _page_url(dataset_id)
+            else:
+                url = _report_url()
+
+            return RawPayload(
+                source="sama",
+                dataset_id=dataset_id,
+                content={
+                    "url": url,
+                    "status_code": 200,
+                    "content_type": content_type,
+                    "body": body,
+                },
+            )
+
+    caplog.set_level("INFO")
+    connector = RefreshConnectorSpy()
+    runtime_config = _runtime_config(tmp_path).model_copy(
+        update={
+            "tier_a_refresh": TierARefreshConfig(
+                enabled=True,
+                interval_seconds=3600,
+            )
+        }
+    )
+
+    monkeypatch.setattr(
+        server_module,
+        "build_default_connector_resolver",
+        lambda **_: SourceConnectorResolver({"sama": connector}),
+    )
+
+    app = create_server(runtime_config)
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+
+    async with app._lifespan_manager():
+        await asyncio.wait_for(connector.completed.wait(), timeout=1.0)
+
+    assert connector.calls == [
+        POS_PAGE_LOCATOR,
+        WEEKLY_MONEY_SUPPLY_PAGE_LOCATOR,
+        REPO_RATE_PAGE_LOCATOR,
+        REVERSE_REPO_RATE_PAGE_LOCATOR,
+        REPORT_LOCATOR,
+    ]
+    assert snapshot_store.snapshot_exists("sama", POS_PAGE_LOCATOR)
+    assert snapshot_store.snapshot_exists("sama", WEEKLY_MONEY_SUPPLY_PAGE_LOCATOR)
+    assert snapshot_store.snapshot_exists("sama", REPO_RATE_PAGE_LOCATOR)
+    assert snapshot_store.snapshot_exists("sama", REVERSE_REPO_RATE_PAGE_LOCATOR)
+    assert snapshot_store.snapshot_exists("sama", REPORT_LOCATOR)
+    assert get_metrics().get("materialize.requests") == 1
+    assert get_metrics().get("materialize.successes") == len(
+        WAVE_1_HOT_SET_TIER_A_DATASET_IDS
+    )
+    assert get_metrics().get("materialize.failures") == 0
+    assert any(
+        json.loads(record.getMessage()).get("event") == "tier_a_refresh.loop.enabled"
+        for record in caplog.records
+    )
+    assert any(
+        json.loads(record.getMessage()).get("event") == "tier_a_refresh.run.completed"
+        for record in caplog.records
     )
 
 

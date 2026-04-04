@@ -24,6 +24,8 @@ def test_load_config_defaults() -> None:
     assert config.transport.http_host == "127.0.0.1"
     assert config.transport.http_port == 8000
     assert config.transport.http_auth_token is None
+    assert config.tier_a_refresh.enabled is False
+    assert config.tier_a_refresh.interval_seconds == 3600
 
 
 def test_load_config_respects_data_gov_sa_base_url_override(
@@ -42,6 +44,8 @@ def test_load_config_respects_http_transport_overrides(
     monkeypatch.setenv("HTTP_HOST", "0.0.0.0")
     monkeypatch.setenv("HTTP_PORT", "8080")
     monkeypatch.setenv("HTTP_AUTH_TOKEN", "internal-test-token")
+    monkeypatch.setenv("TIER_A_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("TIER_A_REFRESH_INTERVAL_SECONDS", "900")
 
     config = load_config()
 
@@ -49,6 +53,8 @@ def test_load_config_respects_http_transport_overrides(
     assert config.transport.http_port == 8080
     assert config.transport.http_auth_token is not None
     assert config.transport.http_auth_token.get_secret_value() == "internal-test-token"
+    assert config.tier_a_refresh.enabled is True
+    assert config.tier_a_refresh.interval_seconds == 900
 
 
 def test_catalog_resource_types_import_cleanly() -> None:

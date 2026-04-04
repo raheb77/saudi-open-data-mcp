@@ -202,6 +202,8 @@ The image sets container-specific runtime defaults:
 - `HTTP_HOST=0.0.0.0`
 - `HTTP_PORT=8000`
 - `HTTP_AUTH_TOKEN` must be provided by the operator
+- `TIER_A_REFRESH_ENABLED=false`
+- `TIER_A_REFRESH_INTERVAL_SECONDS=3600`
 - `REGISTRY_PATH=/var/lib/saudi-open-data-mcp/registry.sqlite`
 - `SNAPSHOT_DIR=/var/lib/saudi-open-data-mcp/snapshots`
 - `CACHE_DIR=/var/lib/saudi-open-data-mcp/cache`
@@ -231,13 +233,18 @@ docker run --rm \
 Container/runtime expectations:
 
 - registry bootstrap still happens on startup
-- no scheduler or background refresh is added in this phase
+- Tier A background refresh is available but disabled by default
+- when enabled, Tier A refresh runs immediately after service lifespan starts and then repeats on the configured interval
+- refresh reuses the existing Tier A hot-set materialization path only; Tier B remains out of scope in this phase
+- per-dataset refresh failures remain explicit in the materialization result and do not abort the whole refresh loop
+- no external scheduler or distributed refresh system is added in this phase
 - minimal bearer-token auth is enforced on the HTTP path only
 - no public-internet deployment hardening is claimed in this phase
 - persistent storage is expected if you want registry and snapshot state to
   survive container replacement
-- `HTTP_AUTH_TOKEN`, `SAMA_BASE_URL`, `DATA_GOV_SA_BASE_URL`, and `LOG_LEVEL`
-  are the main operator-facing overrides
+- `HTTP_AUTH_TOKEN`, `TIER_A_REFRESH_ENABLED`, `TIER_A_REFRESH_INTERVAL_SECONDS`,
+  `SAMA_BASE_URL`, `DATA_GOV_SA_BASE_URL`, and `LOG_LEVEL` are the main
+  operator-facing overrides
 
 Startup/readiness contract:
 
