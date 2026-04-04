@@ -241,6 +241,7 @@ async def test_unmapped_tool_calls_fail_closed_with_internal_error() -> None:
     assert response.json() == {
         "error": "authorization coverage missing for tool: future_tool"
     }
+    assert get_metrics().get("http.authz.coverage_missing") == 1
 
 
 @pytest.mark.asyncio
@@ -264,6 +265,7 @@ async def test_unmapped_resource_reads_fail_closed_with_internal_error() -> None
     assert response.json() == {
         "error": "authorization coverage missing for resource: resource://future"
     }
+    assert get_metrics().get("http.authz.coverage_missing") == 1
 
 
 def test_middleware_builder_keeps_token_masked_in_repr() -> None:

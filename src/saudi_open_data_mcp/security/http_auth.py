@@ -154,6 +154,7 @@ class HTTPBearerAuthMiddleware:
             )(scope, replay_receive, send)
             return
         if authz_decision.coverage_error is not None:
+            metrics.increment("http.authz.coverage_missing")
             log_event(
                 LOGGER,
                 logging.ERROR,

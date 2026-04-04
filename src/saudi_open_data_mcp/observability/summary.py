@@ -81,7 +81,8 @@ _COUNTER_GROUP_SPECS = (
         summary=(
             "HTTP auth counters for the run-http serving path only. Accepted and "
             "rejected counts are outcomes within http.auth.requests. http.authz.* "
-            "counters track 403 capability denials after token validation."
+            "counters track 403 capability denials plus fail-closed coverage errors "
+            "after token validation."
         ),
         counter_names=(
             "http.auth.requests",
@@ -91,6 +92,7 @@ _COUNTER_GROUP_SPECS = (
             "http.auth.rejected.invalid",
             "http.authz.rejected",
             "http.authz.rejected.insufficient_capability",
+            "http.authz.coverage_missing",
         ),
     ),
     _CounterGroupSpec(
