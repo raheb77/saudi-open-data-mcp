@@ -9,17 +9,19 @@ The project does not treat MCP as the core product. MCP is the interface layer t
 - source isolation
 - normalized dataset contracts
 - a dataset registry
-- health checks
+- explicit freshness and degradation policy
 - reliable AI-facing tool interfaces
 
-## Assumptions for the Current MVP
+## Assumptions for the Current Internal Baseline
 
 - Current source scope is SAMA plus one narrow `data.gov.sa` pilot dataset.
 - Python 3.12 is the runtime.
 - FastMCP 2.x is the MCP framework.
 - `httpx` is the only HTTP client. `requests` is out of scope.
+- Container-first Streamable HTTP is the official internal serving path.
+- STDIO remains supported for local development and command-based MCP host integration.
 - Single-process deployment is assumed.
-- Horizontal scaling is not a goal in v0.1.
+- Horizontal scaling is not a goal in the current baseline.
 - Only approved official sources may be accessed by connectors.
 - No LLM dependency is allowed in the core path.
 
@@ -137,9 +139,9 @@ Enforcement:
 
 Responsibilities:
 
-- manage file-based raw snapshots and cache
-- provide local analytical helpers through DuckDB
+- manage file-based raw snapshots and cache directories
 - keep raw payload persistence concerns outside tool modules
+- provide deterministic filesystem evidence for freshness evaluation
 
 Must not:
 
@@ -150,7 +152,7 @@ Enforcement:
 
 - raw payload persistence lives under `storage/`
 - SQLite remains the only registry metadata store
-- DuckDB is limited to local analytical helpers, not registry ownership
+- snapshot writes replace final files only after a complete temp-file write in the same directory
 
 ### `normalization/`
 
@@ -195,23 +197,27 @@ Enforcement:
 
 ### `health/`
 
+Current status:
+
+- `health/` remains intentionally minimal in the current baseline.
+- dataset health responses are currently driven by registry-backed health metadata plus local snapshot freshness evidence
+
 Responsibilities:
 
-- execute deterministic dataset and source health checks
-- assess connector reachability, snapshot freshness, and contract readiness where applicable
-- write health-related metadata through registry-owned paths
+- define deterministic health-oriented models and helper logic where used
+- keep health-related types out of MCP transport code
 
 Must not:
 
+- claim live source reachability checks or connector probing that the current runtime does not implement
 - become a generic metadata store
-- bypass connector abstractions when source access is needed
 - return MCP responses directly
 
 Enforcement:
 
-- health state is stored in `registry/`, not inside `health/`
-- source checks still use connector abstractions
-- health outputs are deterministic and typed before they reach MCP-facing modules
+- persisted health state stays in `registry/`
+- snapshot freshness evaluation stays outside transport code
+- current dataset health outputs remain deterministic and registry-backed
 
 ### `tools/` and `resources/`
 
@@ -238,7 +244,7 @@ Enforcement:
 
 Responsibilities:
 
-- emit structured logs, metrics, and traces for connector calls, normalization failures, registry usage, and MCP execution
+- emit structured logs and process-local counters for startup, preview, auth, connector, materialization, and refresh paths
 - keep operational visibility separate from dataset and business logic
 
 Must not:
@@ -250,6 +256,7 @@ Enforcement:
 
 - instrumentation is emitted from call boundaries rather than embedded as business decisions
 - raw payload bodies are not logged by default
+- counters remain process-local and do not claim full system health
 
 ### `security/`
 
@@ -321,7 +328,7 @@ These are architectural rules, not preferences.
   - Enforcement mechanism: normalization code lives in `normalization/` and emits Pydantic models.
 - registry access must not be bypassed when dataset metadata or health metadata is needed.
   - Enforcement mechanism: dataset descriptors, caveats, schema versions, and health metadata are stored in SQLite under `registry/`.
-- no LLM, semantic search, or query rewriting in the core path for v0.1.
+- no LLM, semantic search, or query rewriting in the core path for the current baseline.
   - Enforcement mechanism: no LLM dependency in the runtime stack and no core module contract that accepts model-generated transformations.
 
 ### Allowed
@@ -330,8 +337,8 @@ These are architectural rules, not preferences.
 - `connectors/` may access external official sources.
 - `normalization/` may consume raw connector outputs and produce typed canonical models.
 - `registry/` may store dataset descriptors, schema versions, caveats, and health-related metadata.
-- `storage/` may manage file cache, snapshots, and local analytical helpers.
-- `health/` may compute deterministic health results and persist them through `registry/`.
+- `storage/` may manage file cache, snapshots, and freshness evaluation helpers.
+- `health/` may define deterministic health-related types and helpers; persisted health state remains in `registry/`.
 - `server.py` may wire transports and register tools/resources, but must not contain business logic.
 - `observability/`, `security/`, and `config.py` may provide cross-cutting support without owning core business flows.
 
@@ -416,6 +423,7 @@ Transport rules:
 - transport selection must not change business logic
 - `server.py` wires transports and registration only, using `config.py` for transport configuration
 - transport-specific request handling must not leak into connectors or normalization
+- Streamable HTTP is the official internal serving mode; STDIO remains the supported local development and command-based host path
 
 This avoids a separate rewrite when moving from local client use to deployed service use.
 
@@ -432,20 +440,8 @@ Use SQLite for registry metadata:
 
 Reason:
 
-- registry writes and reads are modest in v0.1
-- metadata needs transactions and durable local persistence more than distributed throughput
-
-### DuckDB
-
-Use DuckDB for local analytical helpers:
-
-- local inspection of cached or snapshotted data
-- deterministic tabular analysis without introducing pandas in v0.1
-
-Reason:
-
-- DuckDB handles local analytical queries directly
-- it avoids adding a dataframe layer to the core path
+- registry metadata is local, structured, and transactional
+- metadata needs durable persistence more than distributed throughput
 
 ### File-Based Snapshots and Cache
 
@@ -453,11 +449,13 @@ Use file-based storage for raw payload snapshots and cache:
 
 - preserve upstream payloads for debugging and replay
 - decouple connector availability from repeated local inspection
+- provide filesystem evidence for local freshness evaluation
 
 Reason:
 
 - raw payload persistence belongs close to the connector boundary
 - file snapshots keep the original source response separate from normalized contracts
+- snapshot writes are atomic within the target directory, reducing partial-file states
 
 ## Testing Strategy
 
@@ -516,109 +514,64 @@ Mechanism:
 
 ## Observability Boundaries
 
-The `observability/` module in v0.1 is bounded to operational signals that support debugging and health assessment.
+The `observability/` module in the current baseline is bounded to structured logs and process-local counters that support internal runtime inspection.
 
 Track:
 
-- connector request timing
-- retry counts
-- timeout failures
-- snapshot/cache hits and misses
-- normalization validation failures
-- registry health metadata updates
-- MCP tool invocation success and failure
+- startup attempts, readiness, and failures
+- preview local/live/stale/failure outcomes
+- HTTP auth and authz denials
+- authz coverage-missing failures
+- connector retries and failures
+- materialization and Tier A refresh loop outcomes
 
-Do not treat observability as a second data pipeline.
+Do not treat observability as a second data pipeline, a health endpoint, or an external telemetry platform.
 
 Rules:
 
 - raw payload bodies should not be logged by default
 - snapshots are the debugging artifact for payload inspection
-- health metadata belongs in the registry when it describes dataset or source state
+- counters are process-local and reset on restart
 - transport logs must not embed normalization or connector logic
 
 ## Security Boundaries
 
-The `security/` module in v0.1 is defined by scope restriction, deterministic interfaces, and limited source access.
+The `security/` module in the current baseline is defined by scope restriction, deterministic interfaces, explicit input validation, and limited source access.
 
 Rules:
 
-- connectors may call approved official SAMA sources only
+- connectors may call approved official sources only
   - Enforcement mechanism: source access is restricted to connector modules and configured allowlists.
 - `httpx` is the only HTTP client
   - Enforcement mechanism: no alternate HTTP client is used in the runtime stack.
 - MCP interfaces expose predefined tools and resources only
   - Enforcement mechanism: FastMCP registration is explicit in `server.py`.
+- the official HTTP serving path uses bearer-token auth plus explicit read/refresh/materialize capability checks
+  - Enforcement mechanism: HTTP middleware validates `Authorization: Bearer <token>` and fail-closes capability coverage for the registered tool/resource surface.
 - raw payload fetching is not exposed as an arbitrary URL capability
   - Enforcement mechanism: all fetching goes through source-specific connectors.
 - no LLM is in the core path
   - Enforcement mechanism: the stack excludes model orchestration and the core flow accepts only deterministic typed transformations.
 
-## Explicit Non-Goals for v0.1
+## Current Explicit Non-Goals
 
-- multi-source support beyond SAMA
+- broad multi-source support beyond SAMA plus the current narrow `data.gov.sa` pilot
 - horizontal scaling
 - distributed caching
+- external scheduler or distributed refresh orchestration
 - semantic metadata search
 - Arabic query rewriting
 - natural-language enrichment in the core pipeline
 - arbitrary web fetching beyond approved official sources
-- pandas-based transformation pipelines
+- public-internet deployment posture
 - free-form MCP responses in place of typed contracts
 
-## Milestone-Based Implementation Plan
+## Current Baseline Summary
 
-### Milestone 1: Skeleton and Boundaries
-
-- create package layout for `connectors/`, `normalization/`, `registry/`, `storage/`, `health/`, `tools/`, `resources/`, `observability/`, `security/`, `server.py`, and `config.py`
-- enforce dependency rules in tests
-- configure Ruff, pytest, and GitHub Actions
-
-Exit criteria:
-
-- both transports start
-- architecture tests fail on forbidden imports
-
-### Milestone 2: SAMA Data Access and Snapshots
-
-- implement SAMA connector with `httpx`, retries, and timeouts
-- add raw snapshot and cache support in `storage/`
-- define approved source configuration
-
-Exit criteria:
-
-- connector returns reproducible raw payloads
-- raw snapshots can be stored and replayed locally
-
-### Milestone 3: Canonical Contracts and Registry
-
-- define Pydantic canonical models
-- implement normalization mappings and validators
-- implement SQLite-backed registry for descriptors, schema versions, caveats, and health metadata
-
-Exit criteria:
-
-- normalized outputs are typed and validated
-- registry serves dataset metadata as the source of truth
-
-### Milestone 4: MCP Tools and Resources
-
-- implement internal orchestration helpers that keep MCP-facing modules thin
-- expose deterministic MCP tools and resources
-- wire STDIO and Streamable HTTP in FastMCP
-
-Exit criteria:
-
-- MCP-facing modules depend on internal orchestration or registry-facing interfaces, not connectors
-- MCP outputs are structured and deterministic across both transports
-
-### Milestone 5: Hardening
-
-- add unit, integration, contract, and smoke coverage
-- package with Docker
-- run CI through GitHub Actions
-
-Exit criteria:
-
-- CI validates boundary rules and transport startup
-- the v0.1 core path remains connector-driven, registry-backed, and LLM-free
+- The official internal serving path is container-first Streamable HTTP with a narrow `/readyz` readiness signal.
+- STDIO remains supported for local development and command-based MCP hosts.
+- The exposed MCP surface is explicit and small: catalog, observability, metadata, health, download, materialize, query, search, and preview.
+- `query_dataset` is local-only; `preview_dataset` is a local/live hybrid with explicit resolution, origin, and freshness metadata.
+- Wave 1 hot-set materialization is implemented for the safe SAMA subset, with optional Tier A background refresh.
+- Auth, authz, observability, and readiness stay intentionally narrow and internal-only.
+- The default test suite covers architecture boundaries, runtime contracts, smoke paths, and resilience behavior without requiring live internet access.

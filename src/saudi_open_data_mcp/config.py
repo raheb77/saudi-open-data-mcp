@@ -1,4 +1,4 @@
-"""Runtime configuration for the scaffold."""
+"""Runtime configuration for the current internal serving baseline."""
 
 from __future__ import annotations
 
@@ -35,8 +35,8 @@ class SourceConfig(BaseModel):
 
     name: str = "sama"
     base_url: str = "https://www.sama.gov.sa"
-    # TODO(v0.3): replace per-source base URL fields with a structured source
-    # config map before adding source 3.
+    # TODO(next source expansion): replace per-source base URL fields with a
+    # structured source config map before adding source 3.
     data_gov_sa_base_url: str = "https://open.data.gov.sa"
     approved_only: bool = True
 

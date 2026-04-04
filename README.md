@@ -9,7 +9,7 @@ The project is not just an MCP wrapper around upstream websites. Its value is in
 - registry-backed dataset metadata and health metadata
 - deterministic AI-facing resource and tool interfaces
 
-Current implementation starts with SAMA plus one narrow data.gov.sa pilot dataset and already exposes a small working MCP surface.
+Current implementation starts with SAMA plus one narrow data.gov.sa pilot dataset. The current baseline is an internal, container-first MCP service with stdio still available for local development and command-based host integration.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, [docs/ADR/ADR-001-start-with-sama.md](docs/ADR/ADR-001-start-with-sama.md) for the initial source decision, and [docs/OPERATIONS.md](docs/OPERATIONS.md) for current internal runtime and durability guidance.
 
@@ -46,6 +46,7 @@ The current exposed MCP surface is intentionally small:
 - `dataset_metadata`
 - `dataset_health`
 - `download_dataset`
+- `materialize_hot_set`
 - `query_dataset`
 - `search_datasets`
 - `preview_dataset`
@@ -57,9 +58,10 @@ What each one does now:
 - `dataset_metadata`: exact lookup of registry-backed dataset metadata by `dataset_id`
 - `dataset_health`: exact lookup of registry-backed health metadata by `dataset_id`, with local snapshot freshness evidence when available
 - `download_dataset`: local-only raw snapshot availability lookup by `dataset_id`
+- `materialize_hot_set`: explicit Wave 1 hot-set fetch and local snapshot persistence for the safe SAMA subset
 - `query_dataset`: local-only exact-match query over canonical records derived from local snapshots
 - `search_datasets`: deterministic registry-backed substring search over dataset metadata
-- `preview_dataset`: exact preview by canonical `dataset_id`, using the registry-owned `source_locator` internally for source access
+- `preview_dataset`: exact preview by canonical `dataset_id`, using explicit local/live hybrid resolution metadata and the registry-owned `source_locator` internally for source access
 
 Concise example of the current surface:
 
@@ -69,6 +71,7 @@ resource://observability
 dataset_metadata({"dataset_id": "sama-money-supply"})
 dataset_health({"dataset_id": "sama-money-supply"})
 download_dataset({"dataset_id": "sama-money-supply"})
+materialize_hot_set({"include_optional": false})
 query_dataset({"dataset_id": "sama-money-supply", "filters": {"period": "2026-01"}, "limit": 5})
 search_datasets({"query": "money"})
 preview_dataset({"dataset_id": "sama-money-supply"})
@@ -83,12 +86,16 @@ preview_dataset({"dataset_id": "sama-money-supply"})
 - Registry models, SQLite repository behavior, and deterministic bootstrap data are implemented.
 - Registry descriptors now distinguish canonical `dataset_id` from source-specific `source_locator`.
 - Normalization field mapping, validation, pipeline composition, and minimal canonical record extraction are implemented and dispatched by source.
-- The MCP server is wired with a real working surface for catalog, metadata, health, download, query, search, and preview.
+- The MCP server is wired with a real working surface for catalog, metadata, health, download, materialize, query, search, and preview.
+- Wave 1 hot-set materialization is implemented for the current safe SAMA subset.
+- Tier A background refresh is available for the internal container runtime and remains opt-in.
 - Preview resolves the connector by descriptor source and uses the current normalization dispatch path; it can return either:
   - `record_derivable`
   - `limited`
   - `failed`
+- Preview now exposes explicit hybrid metadata including data origin, freshness status, and resolution outcome.
 - Query and download are local-only and do not fetch remotely when a snapshot is missing.
+- Internal HTTP serving has explicit bearer-token auth, capability checks, and a narrow `/readyz` readiness signal.
 - Unit, integration, contract, and smoke tests are in the repo and passing.
 
 ## What Is Intentionally Not Implemented Yet
@@ -226,9 +233,10 @@ docker compose up --build
 ```
 
 The provided compose file publishes the service on `127.0.0.1:8000` on the
-host and persists runtime state in a Docker-managed volume mounted at
-`/var/lib/saudi-open-data-mcp`. It also requires `HTTP_AUTH_TOKEN` to be set
-in the operator environment before startup.
+host, persists runtime state in a Docker-managed volume mounted at
+`/var/lib/saudi-open-data-mcp`, enables `init: true`, and applies the same
+`/readyz` health check contract as the image. It also requires
+`HTTP_AUTH_TOKEN` to be set in the operator environment before startup.
 
 Internal observability remains intentionally simple:
 

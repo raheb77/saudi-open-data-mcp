@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "saudi-open-data-mcp"
-version = "0.2.0a0"
-description = "Repository foundation for a production-minded MCP server for Saudi open data sources."
+version = "0.3.0"
+description = "Production-minded internal MCP server for Saudi open data sources."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [

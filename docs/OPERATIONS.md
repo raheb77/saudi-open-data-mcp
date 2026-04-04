@@ -21,7 +21,7 @@ Internal-only runtime and durability guidance for the current container-first ph
 python src/saudi_open_data_mcp/cli.py check-startup
 ```
 
-5. Start the internal HTTP service with:
+6. Start the internal HTTP service with:
 
 ```bash
 docker compose up --build
@@ -39,6 +39,7 @@ Readiness for the internal container path is intentionally narrow:
 
 - `GET /readyz` means the process is running, config validation passed, runtime storage preparation passed, and the core FastMCP app was wired successfully.
 - `GET /readyz` does not claim upstream reachability, dataset freshness, or full-system health.
+- The container image and the provided Compose service both use that same `/readyz` contract for health checks.
 - `/mcp` still requires an MCP-aware client for real protocol/session validation.
 
 ## Shutdown
@@ -72,6 +73,7 @@ Readiness for the internal container path is intentionally narrow:
   - `materialize.*`
   - `tier_a_refresh.*`
   - `http.authz.rejected`
+  - `http.authz.coverage_missing`
 - Do not treat `resource://observability` as a health endpoint or a public metrics API.
 
 ## HTTP Capabilities
