@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import UTC, datetime
@@ -211,5 +212,51 @@ async def test_tier_a_background_refresh_service_runs_tier_a_only(
     assert any(
         json.loads(record.getMessage()).get("event") == "tier_a_refresh.run.completed"
         and json.loads(record.getMessage()).get("failed_count") == 1
+        for record in caplog.records
+    )
+
+
+@pytest.mark.asyncio
+async def test_tier_a_background_refresh_service_run_forever_logs_failure_and_continues(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class RunnerSpy:
+        def __init__(self) -> None:
+            self.calls = 0
+            self.second_cycle_started = asyncio.Event()
+
+        async def materialize_hot_set(
+            self,
+            *,
+            include_optional: bool = False,
+            reference_time: datetime | None = None,
+        ) -> HotSetMaterializationResult:
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("tier a refresh cycle failed")
+
+            self.second_cycle_started.set()
+            await asyncio.Event().wait()
+            raise AssertionError("unreachable after cancellation")
+
+    caplog.set_level(logging.INFO)
+    runner = RunnerSpy()
+    service = TierABackgroundRefreshService(runner, interval_seconds=0)
+
+    task = asyncio.create_task(service.run_forever())
+    try:
+        await asyncio.wait_for(runner.second_cycle_started.wait(), timeout=1.0)
+        assert runner.calls == 2
+        assert task.done() is False
+    finally:
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    assert any(
+        json.loads(record.getMessage()).get("event") == "tier_a_refresh.run.failed"
+        and json.loads(record.getMessage()).get("error_type") == "RuntimeError"
+        and json.loads(record.getMessage()).get("message")
+        == "tier a refresh cycle failed"
         for record in caplog.records
     )
