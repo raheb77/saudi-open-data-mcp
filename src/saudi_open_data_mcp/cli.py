@@ -95,7 +95,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "run-http":
         config = _load_config_or_exit(parser)
         try:
-            middleware = build_http_auth_middleware(config.transport.http_auth_token)
+            middleware = build_http_auth_middleware(
+                config.transport.http_auth_token,
+                config.transport.http_auth_capabilities,
+            )
         except ValueError as exc:
             parser.error(str(exc))
         app = _create_server_or_exit(parser, config)

@@ -12,9 +12,10 @@ Internal-only runtime and durability guidance for the current container-first ph
 ## Startup
 
 1. Set `HTTP_AUTH_TOKEN` for `run-http`.
-2. Set persistent `REGISTRY_PATH` and `SNAPSHOT_DIR` if you are not using the default container volume.
-3. Optionally set `TIER_A_REFRESH_ENABLED=true` and `TIER_A_REFRESH_INTERVAL_SECONDS`.
-4. Validate startup locally with:
+2. Set `HTTP_AUTH_CAPABILITIES` for the allowed HTTP surface.
+3. Set persistent `REGISTRY_PATH` and `SNAPSHOT_DIR` if you are not using the default container volume.
+4. Optionally set `TIER_A_REFRESH_ENABLED=true` and `TIER_A_REFRESH_INTERVAL_SECONDS`.
+5. Validate startup locally with:
 
 ```bash
 python src/saudi_open_data_mcp/cli.py check-startup
@@ -32,6 +33,7 @@ Config failures are expected to fail fast with concise CLI errors. Common exampl
 - conflicting storage paths such as `REGISTRY_PATH` matching `SNAPSHOT_DIR`
 - path-type mistakes such as pointing `SNAPSHOT_DIR` at a file
 - missing `HTTP_AUTH_TOKEN` for `run-http`
+- invalid `HTTP_AUTH_CAPABILITIES` values
 
 ## Shutdown
 
@@ -63,7 +65,26 @@ Config failures are expected to fail fast with concise CLI errors. Common exampl
   - `connector.request.*`
   - `materialize.*`
   - `tier_a_refresh.*`
+  - `http.authz.rejected`
 - Do not treat `resource://observability` as a health endpoint or a public metrics API.
+
+## HTTP Capabilities
+
+- `read`:
+  - `resource://catalog`
+  - `resource://observability`
+  - `dataset_metadata`
+  - `dataset_health`
+  - `download_dataset`
+  - `query_dataset`
+  - `search_datasets`
+- `refresh`:
+  - `preview_dataset`
+- `materialize`:
+  - `materialize_hot_set`
+
+`preview_dataset` requires `refresh` because its hybrid policy can trigger live
+connector refreshes.
 
 ## Backup / Restore
 

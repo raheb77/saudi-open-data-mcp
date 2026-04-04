@@ -21,7 +21,10 @@ from saudi_open_data_mcp.config import (
 from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.registry.bootstrap import bootstrap_registry
 from saudi_open_data_mcp.registry.repository import RegistryRepository
-from saudi_open_data_mcp.security.http_auth import HTTPBearerAuthMiddleware
+from saudi_open_data_mcp.security.http_auth import (
+    HTTPAuthCapability,
+    HTTPBearerAuthMiddleware,
+)
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 
 DATA_GOV_SA_DATASET_ID = "data-gov-sa-census-marital-status"
@@ -71,6 +74,7 @@ def test_cli_run_http_dispatches_to_server(monkeypatch) -> None:
     assert middleware[0].cls is HTTPBearerAuthMiddleware
     assert "internal-test-token" not in repr(middleware[0])
     assert middleware[0].kwargs["bearer_token"].get_secret_value() == "internal-test-token"
+    assert middleware[0].kwargs["capabilities"] == frozenset(HTTPAuthCapability)
 
 
 def test_cli_run_http_uses_loopback_default_host(monkeypatch) -> None:
@@ -103,6 +107,7 @@ def test_cli_run_http_uses_loopback_default_host(monkeypatch) -> None:
     assert middleware[0].cls is HTTPBearerAuthMiddleware
     assert "internal-test-token" not in repr(middleware[0])
     assert middleware[0].kwargs["bearer_token"].get_secret_value() == "internal-test-token"
+    assert middleware[0].kwargs["capabilities"] == frozenset(HTTPAuthCapability)
 
 
 def test_cli_run_http_requires_http_auth_token(monkeypatch) -> None:

@@ -9,6 +9,11 @@ from typing import Self
 
 from pydantic import BaseModel, Field, SecretStr, ValidationError, field_validator, model_validator
 
+from saudi_open_data_mcp.security.http_auth import (
+    ALL_HTTP_AUTH_CAPABILITIES,
+    HTTPAuthCapability,
+)
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_LOCAL_DIR = PROJECT_ROOT / ".local"
 DEFAULT_REGISTRY_PATH = DEFAULT_LOCAL_DIR / "registry.sqlite"
@@ -42,6 +47,9 @@ class TransportConfig(BaseModel):
     http_host: str = Field(default="127.0.0.1", min_length=1)
     http_port: int = Field(default=8000, ge=1, le=65535)
     http_auth_token: SecretStr | None = None
+    http_auth_capabilities: frozenset[HTTPAuthCapability] = Field(
+        default_factory=lambda: ALL_HTTP_AUTH_CAPABILITIES
+    )
 
     @field_validator("http_host")
     @classmethod
@@ -50,6 +58,16 @@ class TransportConfig(BaseModel):
         if not normalized:
             raise ValueError("HTTP_HOST must not be empty")
         return normalized
+
+    @field_validator("http_auth_capabilities")
+    @classmethod
+    def _validate_http_auth_capabilities(
+        cls,
+        value: frozenset[HTTPAuthCapability],
+    ) -> frozenset[HTTPAuthCapability]:
+        if not value:
+            raise ValueError("HTTP_AUTH_CAPABILITIES must include at least one capability")
+        return value
 
 
 class TierARefreshConfig(BaseModel):
@@ -134,6 +152,32 @@ def _int_from_env(name: str, default: int) -> int:
         raise RuntimeConfigurationError(f"{name} must be an integer") from exc
 
 
+def _capabilities_from_env(
+    name: str,
+    default: frozenset[HTTPAuthCapability],
+) -> frozenset[HTTPAuthCapability]:
+    """Return a deterministic capability set override."""
+
+    configured = getenv(name)
+    if configured is None:
+        return default
+
+    raw_values = [part.strip().lower() for part in configured.split(",")]
+    if not raw_values or any(not value for value in raw_values):
+        raise RuntimeConfigurationError(
+            f"{name} must be a comma-separated list of: "
+            + ", ".join(capability.value for capability in HTTPAuthCapability)
+        )
+
+    try:
+        return frozenset(HTTPAuthCapability(value) for value in raw_values)
+    except ValueError as exc:
+        raise RuntimeConfigurationError(
+            f"{name} must be a comma-separated list of: "
+            + ", ".join(capability.value for capability in HTTPAuthCapability)
+        ) from exc
+
+
 def prepare_runtime_storage(config: RuntimeConfig) -> None:
     """Prepare and validate the configured runtime storage paths."""
 
@@ -163,6 +207,10 @@ def load_config() -> RuntimeConfig:
                 http_port=_int_from_env("HTTP_PORT", 8000),
                 http_auth_token=(
                     SecretStr(token) if (token := getenv("HTTP_AUTH_TOKEN")) else None
+                ),
+                http_auth_capabilities=_capabilities_from_env(
+                    "HTTP_AUTH_CAPABILITIES",
+                    ALL_HTTP_AUTH_CAPABILITIES,
                 ),
             ),
             tier_a_refresh=TierARefreshConfig(
