@@ -20,7 +20,7 @@ class StatsGovSaConnector(Connector):
     source_name = "stats-gov-sa"
     approved_base_url = "https://www.stats.gov.sa"
     approved_news_path = "/en/news"
-    approved_news_queries = frozenset({"inflation", "unemployment"})
+    approved_news_queries = frozenset({"gdp", "inflation", "unemployment"})
 
     def __init__(
         self,
@@ -111,8 +111,8 @@ class StatsGovSaConnector(Connector):
             raise SourceAccessPolicyViolationError(
                 source_name=self.source_name,
                 message=(
-                    "stats.gov.sa connector only fetches the official inflation- or "
-                    "unemployment-filtered news routes"
+                    "stats.gov.sa connector only fetches the official inflation-, "
+                    "unemployment-, or gdp-filtered news routes"
                 ),
                 dataset_id=dataset_locator,
             )

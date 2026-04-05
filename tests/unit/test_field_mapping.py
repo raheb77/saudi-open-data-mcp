@@ -32,6 +32,9 @@ from saudi_open_data_mcp.normalization.sama_pos_weekly import (
 from saudi_open_data_mcp.normalization.stats_gov_sa_cpi_headline_monthly import (
     STATS_GOV_SA_CPI_HEADLINE_MONTHLY_HTML_LIMITATION,
 )
+from saudi_open_data_mcp.normalization.stats_gov_sa_real_gdp_growth_quarterly import (
+    STATS_GOV_SA_REAL_GDP_GROWTH_QUARTERLY_HTML_LIMITATION,
+)
 from saudi_open_data_mcp.normalization.stats_gov_sa_unemployment_rate_total_quarterly import (
     STATS_GOV_SA_UNEMPLOYMENT_RATE_TOTAL_QUARTERLY_HTML_LIMITATION,
 )
@@ -1084,6 +1087,178 @@ def test_stats_gov_sa_unemployment_release_cards_without_supported_rows_remain_l
     assert result.limitations == (
         "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
         STATS_GOV_SA_UNEMPLOYMENT_RATE_TOTAL_QUARTERLY_HTML_LIMITATION,
+    )
+
+
+def test_stats_gov_sa_real_gdp_growth_quarterly_html_can_map_to_structured_rows() -> None:
+    raw_payload = RawPayload(
+        source="stats-gov-sa",
+        dataset_id="/en/news?q=gdp&delta=20&start=0",
+        content={
+            "url": "https://www.stats.gov.sa/en/news?q=gdp&delta=20&start=0",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": """
+                <html><body>
+                  <div class="card card-box media-card mb-0">
+                    <div class="card-body">
+                      <h3 class="card-title fw-700 max-lines-2">
+                        GASTAT launches a workshop on national accounts development
+                      </h3>
+                      <p class="card-date my-3">01-08-2025</p>
+                      <div class="card-text max-lines-3 mt-2">
+                        <p>The workshop reviewed GDP methodology improvements.</p>
+                      </div>
+                    </div>
+                    <div class="card-footer-link m-4">
+                      <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/499">
+                        Read More
+                      </a>
+                    </div>
+                  </div>
+                  <div class="card card-box media-card mb-0">
+                    <div class="card-body">
+                      <h3 class="card-title fw-700 max-lines-2">
+                        GASTAT Real GDP grows by 3.9% in Q2 of 2025
+                      </h3>
+                      <p class="card-date my-3">31-07-2025</p>
+                      <div class="card-text max-lines-3 mt-2">
+                        <p>
+                          The General Authority for Statistics (GASTAT) released flash
+                          estimates for the Gross Domestic Product (GDP) for Q2 of 2025.
+                          The real GDP grew by 3.9% compared to the same period in 2024.
+                          Non-oil activities recorded a growth of 4.7%, oil activities
+                          grew by 3.8%, while government activities increased by 0.6%.
+                        </p>
+                      </div>
+                    </div>
+                    <div class="card-footer-link m-4">
+                      <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/401">
+                        Read More
+                      </a>
+                    </div>
+                  </div>
+                  <div class="card card-box media-card mb-0">
+                    <div class="card-body">
+                      <h3 class="card-title fw-700 max-lines-2">
+                        GASTAT Real GDP contracts by 0.8% in Q4 of 2024
+                      </h3>
+                      <p class="card-date my-3">30-01-2025</p>
+                      <div class="card-text max-lines-3 mt-2">
+                        <p>
+                          The General Authority for Statistics (GASTAT) released flash
+                          estimates for the Gross Domestic Product (GDP) for Q4 of 2024.
+                          The real GDP contracted by 0.8% compared to the same period in
+                          2023, while non-oil activities grew by 4.1%.
+                        </p>
+                      </div>
+                    </div>
+                    <div class="card-footer-link m-4">
+                      <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/402">
+                        Read More
+                      </a>
+                    </div>
+                  </div>
+                </body></html>
+            """,
+        },
+    )
+
+    result = get_field_mapping(
+        raw_payload,
+        canonical_dataset_id="stats-gov-sa-real-gdp-growth-quarterly",
+    )
+
+    assert result.body_kind is MappingBodyKind.HTML
+    assert result.record_extraction_shape is RecordExtractionShape.ROWS_OBJECT_LIST
+    assert result.can_derive_records is True
+    assert result.limitations == ()
+    assert result.canonical_fields["structured_body"] == {
+        "rows": [
+            {
+                "observation_quarter": "2025-Q2",
+                "gdp_series_code": "real_gdp_growth_rate_yoy",
+                "gdp_series_name": "Real GDP Growth Rate (Year-on-Year)",
+                "release_date": "2025-07-31",
+                "value_percent": 3.9,
+                "source_locator": "/en/news?q=gdp&delta=20&start=0",
+                "source_url": "https://www.stats.gov.sa/en/news?q=gdp&delta=20&start=0",
+                "source_release_url": "https://www.stats.gov.sa/en/w/news/401",
+                "source_release_title": "GASTAT Real GDP grows by 3.9% in Q2 of 2025",
+                "source_release_date_text": "31-07-2025",
+                "source_summary_text": (
+                    "The General Authority for Statistics (GASTAT) released flash "
+                    "estimates for the Gross Domestic Product (GDP) for Q2 of 2025. "
+                    "The real GDP grew by 3.9% compared to the same period in 2024. "
+                    "Non-oil activities recorded a growth of 4.7%, oil activities "
+                    "grew by 3.8%, while government activities increased by 0.6%."
+                ),
+            },
+            {
+                "observation_quarter": "2024-Q4",
+                "gdp_series_code": "real_gdp_growth_rate_yoy",
+                "gdp_series_name": "Real GDP Growth Rate (Year-on-Year)",
+                "release_date": "2025-01-30",
+                "value_percent": -0.8,
+                "source_locator": "/en/news?q=gdp&delta=20&start=0",
+                "source_url": "https://www.stats.gov.sa/en/news?q=gdp&delta=20&start=0",
+                "source_release_url": "https://www.stats.gov.sa/en/w/news/402",
+                "source_release_title": "GASTAT Real GDP contracts by 0.8% in Q4 of 2024",
+                "source_release_date_text": "30-01-2025",
+                "source_summary_text": (
+                    "The General Authority for Statistics (GASTAT) released flash "
+                    "estimates for the Gross Domestic Product (GDP) for Q4 of 2024. "
+                    "The real GDP contracted by 0.8% compared to the same period in "
+                    "2023, while non-oil activities grew by 4.1%."
+                ),
+            },
+        ]
+    }
+
+
+def test_stats_gov_sa_real_gdp_release_cards_without_supported_rows_remain_limited(
+) -> None:
+    raw_payload = RawPayload(
+        source="stats-gov-sa",
+        dataset_id="/en/news?q=gdp&delta=20&start=0",
+        content={
+            "url": "https://www.stats.gov.sa/en/news?q=gdp&delta=20&start=0",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": """
+                <html><body>
+                  <div class="card card-box media-card mb-0">
+                    <div class="card-body">
+                      <h3 class="card-title fw-700 max-lines-2">
+                        GASTAT publishes a national-accounts methodology note
+                      </h3>
+                      <p class="card-date my-3">01-08-2025</p>
+                      <div class="card-text max-lines-3 mt-2">
+                        <p>The note reviewed GDP compilation methodology updates.</p>
+                      </div>
+                    </div>
+                    <div class="card-footer-link m-4">
+                      <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/403">
+                        Read More
+                      </a>
+                    </div>
+                  </div>
+                </body></html>
+            """,
+        },
+    )
+
+    result = get_field_mapping(
+        raw_payload,
+        canonical_dataset_id="stats-gov-sa-real-gdp-growth-quarterly",
+    )
+
+    assert result.body_kind is MappingBodyKind.HTML
+    assert result.can_derive_records is False
+    assert result.record_extraction_shape is RecordExtractionShape.NONE
+    assert result.limitations == (
+        "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+        STATS_GOV_SA_REAL_GDP_GROWTH_QUARTERLY_HTML_LIMITATION,
     )
 
 

@@ -409,6 +409,58 @@ def test_stats_gov_sa_unemployment_rate_total_quarterly_html_produces_queryable_
     assert result.records[0].fields["value_percent"] == 3.2
 
 
+def test_stats_gov_sa_real_gdp_growth_quarterly_html_produces_queryable_records() -> None:
+    raw_payload = RawPayload(
+        source="stats-gov-sa",
+        dataset_id="/en/news?q=gdp&delta=20&start=0",
+        content={
+            "url": "https://www.stats.gov.sa/en/news?q=gdp&delta=20&start=0",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": """
+                <html><body>
+                  <div class="card card-box media-card mb-0">
+                    <div class="card-body">
+                      <h3 class="card-title fw-700 max-lines-2">
+                        GASTAT Real GDP grows by 3.9% in Q2 of 2025
+                      </h3>
+                      <p class="card-date my-3">31-07-2025</p>
+                      <div class="card-text max-lines-3 mt-2">
+                        <p>
+                          The General Authority for Statistics (GASTAT) released flash
+                          estimates for the Gross Domestic Product (GDP) for Q2 of 2025.
+                          The real GDP grew by 3.9% compared to the same period in 2024.
+                          Non-oil activities recorded a growth of 4.7%, oil activities
+                          grew by 3.8%, while government activities increased by 0.6%.
+                        </p>
+                      </div>
+                    </div>
+                    <div class="card-footer-link m-4">
+                      <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/401">
+                        Read More
+                      </a>
+                    </div>
+                  </div>
+                </body></html>
+            """,
+        },
+    )
+
+    result = NormalizationPipeline().normalize(
+        raw_payload,
+        canonical_dataset_id="stats-gov-sa-real-gdp-growth-quarterly",
+    )
+
+    assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
+    assert result.failure is None
+    assert len(result.records) == 1
+    assert result.records[0].dataset_id == "/en/news?q=gdp&delta=20&start=0"
+    assert result.records[0].fields["observation_quarter"] == "2025-Q2"
+    assert result.records[0].fields["gdp_series_code"] == "real_gdp_growth_rate_yoy"
+    assert result.records[0].fields["release_date"] == "2025-07-31"
+    assert result.records[0].fields["value_percent"] == 3.9
+
+
 def test_data_gov_sa_json_raw_payload_produces_record_derivable_pipeline_result() -> None:
     raw_payload = RawPayload(
         source="data-gov-sa",

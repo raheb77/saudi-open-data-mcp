@@ -556,10 +556,71 @@ GASTAT_LABOR_DATASET_IDS: tuple[str, ...] = tuple(
     contract.dataset_id for contract in GASTAT_LABOR_CONTRACTS
 )
 
+GASTAT_GDP_CONTRACTS: tuple[CanonicalDatasetContract, ...] = (
+    CanonicalDatasetContract(
+        dataset_id="stats-gov-sa-real-gdp-growth-quarterly",
+        schema_version="1.0.0",
+        record_shape=CanonicalRecordShape.TIME_SERIES_OBSERVATION,
+        temporal_granularity=TemporalGranularity.QUARTERLY,
+        primary_key=("observation_quarter", "gdp_series_code"),
+        dimensions=(
+            _dimension(
+                "observation_quarter",
+                type=CanonicalFieldType.YEAR_QUARTER,
+                description="Observed GDP quarter reported by the official release card.",
+            ),
+            _dimension(
+                "gdp_series_code",
+                type=CanonicalFieldType.STRING,
+                description="Stable code for the supported headline real GDP series.",
+            ),
+            _dimension(
+                "gdp_series_name",
+                type=CanonicalFieldType.STRING,
+                description="Human-readable label for the supported GDP series.",
+            ),
+            _dimension(
+                "release_date",
+                type=CanonicalFieldType.DATE,
+                description="Official publication date of the GDP release card.",
+            ),
+        ),
+        measures=(
+            _measure(
+                "value_percent",
+                type=CanonicalFieldType.DECIMAL,
+                description=(
+                    "Headline real GDP year-over-year growth rate, expressed as a "
+                    "percentage."
+                ),
+                unit="percent",
+            ),
+        ),
+        structure_note=(
+            "This first GASTAT GDP contract extracts supported quarterly headline real GDP "
+            "release cards from the official stats.gov.sa gdp-filtered news surface. "
+            "It does not yet claim GDP levels, nominal GDP, expenditure or activity "
+            "breakdowns, seasonally adjusted quarter-over-quarter growth, or the broader "
+            "national-accounts statistical releases."
+        ),
+        intended_analytical_uses=(
+            "Track the official quarterly headline real GDP growth path with explicit "
+            "release dates.",
+            "Support local exact-match analysis over one narrow GDP headline series "
+            "before broader national-accounts expansion.",
+        ),
+    ),
+)
+
+GASTAT_GDP_DATASET_IDS: tuple[str, ...] = tuple(
+    contract.dataset_id for contract in GASTAT_GDP_CONTRACTS
+)
+
 QUERY_PRIMARY_CANONICAL_DATASET_IDS: tuple[str, ...] = (
     SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_DATASET_IDS
     + GASTAT_INFLATION_DATASET_IDS
     + GASTAT_LABOR_DATASET_IDS
+    + GASTAT_GDP_DATASET_IDS
 )
 
 _CANONICAL_CONTRACTS_BY_DATASET_ID = {
@@ -568,6 +629,7 @@ _CANONICAL_CONTRACTS_BY_DATASET_ID = {
         SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_CONTRACTS
         + GASTAT_INFLATION_CONTRACTS
         + GASTAT_LABOR_CONTRACTS
+        + GASTAT_GDP_CONTRACTS
     )
 }
 

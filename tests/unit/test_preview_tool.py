@@ -353,6 +353,56 @@ def _stats_gov_sa_unemployment_rate_total_quarterly_html() -> str:
     """
 
 
+def _stats_gov_sa_real_gdp_growth_quarterly_html() -> str:
+    return """
+        <html><body>
+          <div class="card card-box media-card mb-0">
+            <div class="card-body">
+              <h3 class="card-title fw-700 max-lines-2">
+                GASTAT Real GDP grows by 3.9% in Q2 of 2025
+              </h3>
+              <p class="card-date my-3">31-07-2025</p>
+              <div class="card-text max-lines-3 mt-2">
+                <p>
+                  The General Authority for Statistics (GASTAT) released flash
+                  estimates for the Gross Domestic Product (GDP) for Q2 of 2025.
+                  The real GDP grew by 3.9% compared to the same period in 2024.
+                  Non-oil activities recorded a growth of 4.7%, oil activities grew
+                  by 3.8%, while government activities increased by 0.6%.
+                </p>
+              </div>
+            </div>
+            <div class="card-footer-link m-4">
+              <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/401">
+                Read More
+              </a>
+            </div>
+          </div>
+          <div class="card card-box media-card mb-0">
+            <div class="card-body">
+              <h3 class="card-title fw-700 max-lines-2">
+                GASTAT Real GDP contracts by 0.8% in Q4 of 2024
+              </h3>
+              <p class="card-date my-3">30-01-2025</p>
+              <div class="card-text max-lines-3 mt-2">
+                <p>
+                  The General Authority for Statistics (GASTAT) released flash
+                  estimates for the Gross Domestic Product (GDP) for Q4 of 2024.
+                  The real GDP contracted by 0.8% compared to the same period in
+                  2023, while non-oil activities grew by 4.1%.
+                </p>
+              </div>
+            </div>
+            <div class="card-footer-link m-4">
+              <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/402">
+                Read More
+              </a>
+            </div>
+          </div>
+        </body></html>
+    """
+
+
 def _write_snapshot_with_mtime(
     store: SnapshotStore,
     *,
@@ -722,6 +772,48 @@ async def test_stats_gov_sa_labor_fresh_snapshot_is_served_as_queryable_preview(
         "unemployment_rate_total_population_15_plus"
     )
     assert result.records[0].fields["value_percent"] == 2.8
+
+
+@pytest.mark.asyncio
+async def test_stats_gov_sa_gdp_fresh_snapshot_is_served_as_queryable_preview(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(
+        tmp_path,
+        source="stats-gov-sa",
+        dataset_id="stats-gov-sa-real-gdp-growth-quarterly",
+        source_locator="/en/news?q=gdp&delta=20&start=0",
+        update_frequency=UpdateFrequency.QUARTERLY,
+    )
+    store = _snapshot_store(tmp_path)
+    _write_snapshot_with_mtime(
+        store,
+        source="stats-gov-sa",
+        locator="/en/news?q=gdp&delta=20&start=0",
+        modified_at=datetime(2025, 8, 1, 12, 0, tzinfo=UTC),
+        body=_stats_gov_sa_real_gdp_growth_quarterly_html(),
+        content_type="text/html",
+    )
+    tool = DatasetPreviewTool(
+        repository,
+        SourceConnectorResolver({"stats-gov-sa": _ConnectorSpy([])}),
+        snapshot_store=store,
+    )
+
+    result = await tool.preview_dataset(
+        "stats-gov-sa-real-gdp-growth-quarterly",
+        reference_time=datetime(2025, 8, 2, 12, 0, tzinfo=UTC),
+    )
+
+    assert result.status is PreviewStatus.RECORD_DERIVABLE
+    assert result.resolution_outcome is PreviewResolutionOutcome.SERVE_LOCAL
+    assert result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT
+    assert result.freshness_status is SnapshotFreshnessStatus.FRESH
+    assert result.limitations == ()
+    assert len(result.records) == 2
+    assert result.records[0].fields["observation_quarter"] == "2025-Q2"
+    assert result.records[0].fields["gdp_series_code"] == "real_gdp_growth_rate_yoy"
+    assert result.records[0].fields["value_percent"] == 3.9
 
 
 @pytest.mark.asyncio

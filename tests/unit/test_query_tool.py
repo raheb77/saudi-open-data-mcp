@@ -284,6 +284,56 @@ def _stats_gov_sa_unemployment_rate_total_quarterly_html() -> str:
     """
 
 
+def _stats_gov_sa_real_gdp_growth_quarterly_html() -> str:
+    return """
+        <html><body>
+          <div class="card card-box media-card mb-0">
+            <div class="card-body">
+              <h3 class="card-title fw-700 max-lines-2">
+                GASTAT Real GDP grows by 3.9% in Q2 of 2025
+              </h3>
+              <p class="card-date my-3">31-07-2025</p>
+              <div class="card-text max-lines-3 mt-2">
+                <p>
+                  The General Authority for Statistics (GASTAT) released flash
+                  estimates for the Gross Domestic Product (GDP) for Q2 of 2025.
+                  The real GDP grew by 3.9% compared to the same period in 2024.
+                  Non-oil activities recorded a growth of 4.7%, oil activities grew
+                  by 3.8%, while government activities increased by 0.6%.
+                </p>
+              </div>
+            </div>
+            <div class="card-footer-link m-4">
+              <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/401">
+                Read More
+              </a>
+            </div>
+          </div>
+          <div class="card card-box media-card mb-0">
+            <div class="card-body">
+              <h3 class="card-title fw-700 max-lines-2">
+                GASTAT Real GDP contracts by 0.8% in Q4 of 2024
+              </h3>
+              <p class="card-date my-3">30-01-2025</p>
+              <div class="card-text max-lines-3 mt-2">
+                <p>
+                  The General Authority for Statistics (GASTAT) released flash
+                  estimates for the Gross Domestic Product (GDP) for Q4 of 2024.
+                  The real GDP contracted by 0.8% compared to the same period in
+                  2023, while non-oil activities grew by 4.1%.
+                </p>
+              </div>
+            </div>
+            <div class="card-footer-link m-4">
+              <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/402">
+                Read More
+              </a>
+            </div>
+          </div>
+        </body></html>
+    """
+
+
 def test_query_dataset_returns_explicit_missing_result_for_unknown_dataset(
     tmp_path: Path,
 ) -> None:
@@ -728,6 +778,82 @@ def test_query_dataset_returns_queryable_labor_records_for_stats_gov_sa(
             "Overall labor force participation rate (for Saudis and non-Saudis) "
             "reached 67.1%, while the overall unemployment rate (for Saudis and "
             "non-Saudis) reached 3.2%."
+        ),
+    }
+
+
+def test_query_dataset_returns_queryable_gdp_records_for_stats_gov_sa(
+    tmp_path: Path,
+) -> None:
+    repository = RegistryRepository(tmp_path / "registry.sqlite")
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    descriptor = DatasetDescriptor(
+        dataset_id="stats-gov-sa-real-gdp-growth-quarterly",
+        source="stats-gov-sa",
+        source_locator="/en/news?q=gdp&delta=20&start=0",
+        title="GDP Headline Growth Quarterly",
+        description="Official quarterly headline real GDP release cards published by stats.gov.sa.",
+        schema_version="0.1.0",
+        update_frequency=UpdateFrequency.QUARTERLY,
+        health_status=DatasetHealthStatus.UNKNOWN,
+        caveats=(
+            "Current canonical extraction covers supported headline real GDP release "
+            "cards only.",
+        ),
+        known_issues=(
+            "GDP levels, activity breakdowns, and seasonally adjusted quarterly "
+            "growth remain outside this first contract.",
+        ),
+    )
+    tool = DatasetQueryTool(repository, snapshot_store)
+
+    repository.upsert_dataset(descriptor)
+    snapshot_store.write_snapshot(
+        RawPayload(
+            source="stats-gov-sa",
+            dataset_id=descriptor.source_locator,
+            content={
+                "url": "https://www.stats.gov.sa/en/news?q=gdp&delta=20&start=0",
+                "status_code": 200,
+                "content_type": "text/html",
+                "body": _stats_gov_sa_real_gdp_growth_quarterly_html(),
+            },
+        )
+    )
+
+    result = tool.query_dataset(
+        descriptor.dataset_id,
+        filters={
+            "observation_quarter": "2025-Q2",
+            "gdp_series_code": "real_gdp_growth_rate_yoy",
+        },
+    )
+
+    assert result.status is DatasetQueryStatus.SUCCESS
+    assert result.source == "stats-gov-sa"
+    assert result.total_records_before_filter == 2
+    assert result.applied_filters == {
+        "observation_quarter": "2025-Q2",
+        "gdp_series_code": "real_gdp_growth_rate_yoy",
+    }
+    assert len(result.matched_records) == 1
+    assert result.matched_records[0].fields == {
+        "observation_quarter": "2025-Q2",
+        "gdp_series_code": "real_gdp_growth_rate_yoy",
+        "gdp_series_name": "Real GDP Growth Rate (Year-on-Year)",
+        "release_date": "2025-07-31",
+        "value_percent": 3.9,
+        "source_locator": "/en/news?q=gdp&delta=20&start=0",
+        "source_url": "https://www.stats.gov.sa/en/news?q=gdp&delta=20&start=0",
+        "source_release_url": "https://www.stats.gov.sa/en/w/news/401",
+        "source_release_title": "GASTAT Real GDP grows by 3.9% in Q2 of 2025",
+        "source_release_date_text": "31-07-2025",
+        "source_summary_text": (
+            "The General Authority for Statistics (GASTAT) released flash "
+            "estimates for the Gross Domestic Product (GDP) for Q2 of 2025. "
+            "The real GDP grew by 3.9% compared to the same period in 2024. "
+            "Non-oil activities recorded a growth of 4.7%, oil activities grew "
+            "by 3.8%, while government activities increased by 0.6%."
         ),
     }
 

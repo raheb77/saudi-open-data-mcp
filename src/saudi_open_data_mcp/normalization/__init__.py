@@ -2,6 +2,8 @@
 
 from .arabic import normalize_arabic_text
 from .contracts import (
+    GASTAT_GDP_CONTRACTS,
+    GASTAT_GDP_DATASET_IDS,
     GASTAT_INFLATION_CONTRACTS,
     GASTAT_INFLATION_DATASET_IDS,
     GASTAT_LABOR_CONTRACTS,
@@ -29,6 +31,8 @@ __all__ = [
     "CanonicalFieldType",
     "CanonicalRecord",
     "CanonicalRecordShape",
+    "GASTAT_GDP_CONTRACTS",
+    "GASTAT_GDP_DATASET_IDS",
     "GASTAT_INFLATION_CONTRACTS",
     "GASTAT_INFLATION_DATASET_IDS",
     "GASTAT_LABOR_CONTRACTS",

@@ -3,7 +3,7 @@
 ## Source Scope
 
 - Current MVP source scope is SAMA plus one narrow `data.gov.sa` pilot dataset and
-  two narrow `stats.gov.sa` macro datasets.
+  three narrow `stats.gov.sa` macro datasets.
 - Only approved official sources may be accessed.
 
 ## Current State
@@ -41,6 +41,7 @@ use an additive-within-major evolution policy.
 | `sama-reverse-repo-rate` | time-series observation | event | `effective_date` | `rate_percent` | reverse-repo policy timeline and comparison to repo moves |
 | `stats-gov-sa-cpi-headline-monthly` | time-series observation | monthly | `observation_month`, `inflation_series_code` | `yoy_rate_percent`, `mom_rate_percent` | monthly headline CPI inflation path from supported official release cards |
 | `stats-gov-sa-unemployment-rate-total-quarterly` | time-series observation | quarterly | `observation_quarter`, `labor_series_code` | `value_percent` | quarterly total-population unemployment path from supported official labor-market release cards |
+| `stats-gov-sa-real-gdp-growth-quarterly` | time-series observation | quarterly | `observation_quarter`, `gdp_series_code` | `value_percent` | quarterly headline real GDP growth path from supported official GDP release cards |
 
 `sama-deposits-core` remains intentionally bundled for now. The current SAMA
 monthly report surface publishes the core deposit components inside one shared
@@ -58,3 +59,9 @@ narrow. The current contract is limited to supported official labor-market
 release cards on the `stats.gov.sa` unemployment news surface; it does not yet
 claim the full labor-market publication tables, Saudi-only series, demographic
 breakdowns, or broader labor database coverage.
+
+`stats-gov-sa-real-gdp-growth-quarterly` also remains intentionally narrow. The
+current contract is limited to supported official headline real GDP release
+cards on the `stats.gov.sa` gdp news surface; it does not yet claim GDP levels,
+activity or expenditure breakdowns, seasonally adjusted quarter-over-quarter
+series, or broader national-accounts coverage.

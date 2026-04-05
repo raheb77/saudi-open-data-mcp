@@ -125,6 +125,30 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         ),
     ),
     DatasetDescriptor(
+        dataset_id="stats-gov-sa-real-gdp-growth-quarterly",
+        source="stats-gov-sa",
+        source_locator="/en/news?q=gdp&delta=20&start=0",
+        title="GDP Headline Growth Quarterly",
+        description=(
+            "Registry entry for quarterly headline real GDP release cards on the "
+            "official stats.gov.sa gdp news surface."
+        ),
+        schema_version="0.1.0",
+        update_frequency=UpdateFrequency.QUARTERLY,
+        health_status=DatasetHealthStatus.UNKNOWN,
+        caveats=(
+            "This first GASTAT GDP entry normalizes supported headline real GDP "
+            "release cards from the official stats.gov.sa gdp-filtered news page.",
+        ),
+        known_issues=(
+            "Only supported release cards with an explicit observation quarter, "
+            "headline real GDP growth rate, publication date, and release link are "
+            "normalized. This does not yet cover GDP levels, nominal GDP, activity "
+            "breakdowns, seasonally adjusted quarterly growth, PDFs, or the broader "
+            "national-accounts statistical database.",
+        ),
+    ),
+    DatasetDescriptor(
         dataset_id="sama-interest-rates",
         source="sama",
         source_locator="report.aspx?cid=52",
