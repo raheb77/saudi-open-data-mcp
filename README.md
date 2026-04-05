@@ -158,6 +158,20 @@ python src/saudi_open_data_mcp/cli.py run-stdio
 HTTP_AUTH_TOKEN=dev-internal-token python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
 ```
 
+The same source-tree CLI also provides a thin non-interactive local façade over
+the current core operations. These commands emit structured JSON by default and
+support `--output` for file writes:
+
+```bash
+python src/saudi_open_data_mcp/cli.py list
+python src/saudi_open_data_mcp/cli.py query sama-pos-weekly --filter week_end_date=2024-01-13 --limit 5
+python src/saudi_open_data_mcp/cli.py preview stats-gov-sa-cpi-headline-monthly
+python src/saudi_open_data_mcp/cli.py export sama-money-supply-weekly --output money_supply.json
+python src/saudi_open_data_mcp/cli.py health mof-budget-balance-quarterly
+python src/saudi_open_data_mcp/cli.py refresh --include-optional
+python src/saudi_open_data_mcp/cli.py config
+```
+
 Use the source-tree CLI or the local helper scripts for development and local
 host integration. Installed module entrypoints and packaged console scripts are
 still not part of the supported local workflow.

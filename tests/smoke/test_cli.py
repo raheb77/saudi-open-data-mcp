@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastmcp import Client
@@ -153,6 +155,238 @@ def test_cli_run_stdio_dispatches_to_server(monkeypatch) -> None:
             "log_level": "DEBUG",
         }
     ]
+
+
+def test_cli_list_invokes_search_tool_and_emits_json(
+    monkeypatch,
+    capsys,
+) -> None:
+    app = _DummyToolApp(
+        {
+            "search_datasets": _DummyToolRunner(
+                {
+                    "status": "results",
+                    "match_count": 1,
+                    "matches": [{"dataset_id": "sama-pos-weekly"}],
+                }
+            )
+        }
+    )
+    monkeypatch.setattr(cli_module, "load_config", lambda: RuntimeConfig())
+    monkeypatch.setattr(cli_module, "create_server", lambda runtime_config=None: app)
+
+    exit_code = cli_module.main(["list", "pos", "--format", "json"])
+
+    assert exit_code == 0
+    assert app.calls["search_datasets"] == [{"query": "pos"}]
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == {
+        "match_count": 1,
+        "matches": [{"dataset_id": "sama-pos-weekly"}],
+        "status": "results",
+    }
+
+
+def test_cli_query_parses_scalar_filters_and_limit(
+    monkeypatch,
+    capsys,
+) -> None:
+    app = _DummyToolApp(
+        {
+            "query_dataset": _DummyToolRunner(
+                {
+                    "status": "success",
+                    "dataset_id": "stats-gov-sa-cpi-headline-monthly",
+                    "matched_records": [],
+                }
+            )
+        }
+    )
+    monkeypatch.setattr(cli_module, "load_config", lambda: RuntimeConfig())
+    monkeypatch.setattr(cli_module, "create_server", lambda runtime_config=None: app)
+
+    exit_code = cli_module.main(
+        [
+            "query",
+            "stats-gov-sa-cpi-headline-monthly",
+            "--filter",
+            "observation_month=2026-01",
+            "--filter",
+            "limit_hit=true",
+            "--filter",
+            "count=10",
+            "--filter",
+            "missing=null",
+            "--limit",
+            "5",
+        ]
+    )
+
+    assert exit_code == 0
+    assert app.calls["query_dataset"] == [
+        {
+            "dataset_id": "stats-gov-sa-cpi-headline-monthly",
+            "filters": {
+                "observation_month": "2026-01",
+                "limit_hit": True,
+                "count": 10,
+                "missing": None,
+            },
+            "limit": 5,
+        }
+    ]
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["status"] == "success"
+
+
+def test_cli_health_invokes_health_tool(
+    monkeypatch,
+    capsys,
+) -> None:
+    app = _DummyToolApp(
+        {
+            "dataset_health": _DummyToolRunner(
+                {
+                    "status": "found",
+                    "dataset_id": "mof-budget-balance-quarterly",
+                    "health_status": "unknown",
+                }
+            )
+        }
+    )
+    monkeypatch.setattr(cli_module, "load_config", lambda: RuntimeConfig())
+    monkeypatch.setattr(cli_module, "create_server", lambda runtime_config=None: app)
+
+    exit_code = cli_module.main(["health", "mof-budget-balance-quarterly"])
+
+    assert exit_code == 0
+    assert app.calls["dataset_health"] == [{"dataset_id": "mof-budget-balance-quarterly"}]
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["dataset_id"] == "mof-budget-balance-quarterly"
+
+
+def test_cli_preview_invokes_preview_tool(
+    monkeypatch,
+    capsys,
+) -> None:
+    app = _DummyToolApp(
+        {
+            "preview_dataset": _DummyToolRunner(
+                {
+                    "status": "record_derivable",
+                    "dataset_id": "stats-gov-sa-cpi-headline-monthly",
+                    "resolution_outcome": "serve_local",
+                }
+            )
+        }
+    )
+    monkeypatch.setattr(cli_module, "load_config", lambda: RuntimeConfig())
+    monkeypatch.setattr(cli_module, "create_server", lambda runtime_config=None: app)
+
+    exit_code = cli_module.main(["preview", "stats-gov-sa-cpi-headline-monthly"])
+
+    assert exit_code == 0
+    assert app.calls["preview_dataset"] == [
+        {"dataset_id": "stats-gov-sa-cpi-headline-monthly"}
+    ]
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["resolution_outcome"] == "serve_local"
+
+
+def test_cli_refresh_invokes_materialize_tool(
+    monkeypatch,
+    capsys,
+) -> None:
+    app = _DummyToolApp(
+        {
+            "materialize_hot_set": _DummyToolRunner(
+                {
+                    "requested_dataset_count": 6,
+                    "materialized_count": 6,
+                    "failed_count": 0,
+                }
+            )
+        }
+    )
+    monkeypatch.setattr(cli_module, "load_config", lambda: RuntimeConfig())
+    monkeypatch.setattr(cli_module, "create_server", lambda runtime_config=None: app)
+
+    exit_code = cli_module.main(["refresh", "--include-optional"])
+
+    assert exit_code == 0
+    assert app.calls["materialize_hot_set"] == [{"include_optional": True}]
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["materialized_count"] == 6
+
+
+def test_cli_export_writes_query_result_to_output_file_and_respects_quiet(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    output_path = tmp_path / "export.json"
+    app = _DummyToolApp(
+        {
+            "query_dataset": _DummyToolRunner(
+                {
+                    "status": "success",
+                    "dataset_id": "sama-pos-weekly",
+                    "matched_records": [{"dataset_id": "sama-pos-weekly"}],
+                }
+            )
+        }
+    )
+    monkeypatch.setattr(cli_module, "load_config", lambda: RuntimeConfig())
+    monkeypatch.setattr(cli_module, "create_server", lambda runtime_config=None: app)
+
+    exit_code = cli_module.main(
+        [
+            "export",
+            "sama-pos-weekly",
+            "--output",
+            str(output_path),
+            "--quiet",
+        ]
+    )
+
+    assert exit_code == 0
+    assert app.calls["query_dataset"] == [
+        {
+            "dataset_id": "sama-pos-weekly",
+            "filters": None,
+            "limit": None,
+        }
+    ]
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert json.loads(output_path.read_text())["matched_records"] == [
+        {"dataset_id": "sama-pos-weekly"}
+    ]
+
+
+def test_cli_config_redacts_http_auth_token(
+    monkeypatch,
+    capsys,
+) -> None:
+    config = RuntimeConfig(
+        transport=TransportConfig(
+            http_auth_token=SecretStr("internal-test-token"),
+            http_auth_role=HTTPAuthRole.VIEWER,
+            http_auth_capabilities=frozenset({HTTPAuthCapability.READ}),
+        )
+    )
+    monkeypatch.setattr(cli_module, "load_config", lambda: config)
+
+    exit_code = cli_module.main(["config"])
+
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["transport"]["http_auth_token_configured"] is True
+    assert payload["transport"]["http_auth_capabilities"] == ["read"]
+    assert payload["transport"]["http_auth_role"] == "viewer"
+    assert "http_auth_token" not in payload["transport"]
+    assert "internal-test-token" not in captured.out
 
 
 def test_cli_check_startup_reports_runtime_configuration_errors(monkeypatch, capsys) -> None:
@@ -379,3 +613,24 @@ def _restore_optional_bytes(path: Path, contents: bytes | None) -> None:
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(contents)
+
+
+class _DummyToolRunner:
+    def __init__(self, structured_content: dict[str, object]) -> None:
+        self.structured_content = structured_content
+        self.calls: list[dict[str, object]] = []
+
+    async def run(self, arguments: dict[str, object]) -> SimpleNamespace:
+        self.calls.append(arguments)
+        return SimpleNamespace(structured_content=self.structured_content)
+
+
+class _DummyToolApp:
+    def __init__(self, tools: dict[str, _DummyToolRunner]) -> None:
+        self._tools = tools
+        self.calls: dict[str, list[dict[str, object]]] = {
+            name: runner.calls for name, runner in tools.items()
+        }
+
+    async def get_tools(self) -> dict[str, _DummyToolRunner]:
+        return self._tools

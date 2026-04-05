@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -19,6 +21,8 @@ from saudi_open_data_mcp.config import (
 from saudi_open_data_mcp.security.http_auth import build_http_auth_middleware
 from saudi_open_data_mcp.security.http_readiness import build_http_readiness_middleware
 from saudi_open_data_mcp.server import create_server
+
+JSON_FORMAT = "json"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -78,6 +82,73 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_http_parser.set_defaults(command="run-http")
 
+    list_parser = subparsers.add_parser(
+        "list",
+        help="List bootstrapped datasets using the current registry-backed search path.",
+    )
+    list_parser.add_argument(
+        "query",
+        nargs="?",
+        default="",
+        help="Optional substring search query. Empty means list all datasets.",
+    )
+    _add_output_arguments(list_parser)
+    list_parser.set_defaults(command="list")
+
+    query_parser = subparsers.add_parser(
+        "query",
+        help="Run the current local-only query_dataset path for one dataset_id.",
+    )
+    _add_dataset_query_arguments(query_parser)
+    _add_output_arguments(query_parser)
+    query_parser.set_defaults(command="query")
+
+    preview_parser = subparsers.add_parser(
+        "preview",
+        help="Run the current preview_dataset path for one dataset_id.",
+    )
+    preview_parser.add_argument("dataset_id", help="Exact canonical dataset_id.")
+    _add_output_arguments(preview_parser)
+    preview_parser.set_defaults(command="preview")
+
+    export_parser = subparsers.add_parser(
+        "export",
+        help=(
+            "Export the exact structured output of the current local-only query_dataset "
+            "path for one dataset_id."
+        ),
+    )
+    _add_dataset_query_arguments(export_parser)
+    _add_output_arguments(export_parser)
+    export_parser.set_defaults(command="export")
+
+    health_parser = subparsers.add_parser(
+        "health",
+        help="Run the current dataset_health lookup for one dataset_id.",
+    )
+    health_parser.add_argument("dataset_id", help="Exact canonical dataset_id.")
+    _add_output_arguments(health_parser)
+    health_parser.set_defaults(command="health")
+
+    refresh_parser = subparsers.add_parser(
+        "refresh",
+        help="Run the current materialize_hot_set path.",
+    )
+    refresh_parser.add_argument(
+        "--include-optional",
+        action="store_true",
+        help="Include the current optional Tier B hot-set dataset ids.",
+    )
+    _add_output_arguments(refresh_parser)
+    refresh_parser.set_defaults(command="refresh")
+
+    config_parser = subparsers.add_parser(
+        "config",
+        help="Print the current runtime configuration with auth token presence redacted.",
+    )
+    _add_output_arguments(config_parser)
+    config_parser.set_defaults(command="config")
+
     return parser
 
 
@@ -131,8 +202,279 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 0
 
+    if args.command == "config":
+        config = _load_config_or_exit(parser)
+        _write_payload_or_exit(
+            parser,
+            payload=_config_payload(config),
+            output_path=args.output,
+            quiet=args.quiet,
+            output_format=args.format,
+        )
+        return 0
+
+    if args.command == "list":
+        config = _load_config_or_exit(parser)
+        app = _create_server_or_exit(parser, config)
+        payload = asyncio.run(
+            _invoke_tool_payload(
+                app,
+                tool_name="search_datasets",
+                arguments={"query": args.query},
+            )
+        )
+        _write_payload_or_exit(
+            parser,
+            payload=payload,
+            output_path=args.output,
+            quiet=args.quiet,
+            output_format=args.format,
+        )
+        return 0
+
+    if args.command in {"query", "export"}:
+        config = _load_config_or_exit(parser)
+        app = _create_server_or_exit(parser, config)
+        filters = _parse_filter_arguments_or_exit(parser, args.filter)
+        payload = asyncio.run(
+            _invoke_tool_payload(
+                app,
+                tool_name="query_dataset",
+                arguments={
+                    "dataset_id": args.dataset_id,
+                    "filters": filters or None,
+                    "limit": args.limit,
+                },
+            )
+        )
+        _write_payload_or_exit(
+            parser,
+            payload=payload,
+            output_path=args.output,
+            quiet=args.quiet,
+            output_format=args.format,
+        )
+        return 0
+
+    if args.command == "preview":
+        config = _load_config_or_exit(parser)
+        app = _create_server_or_exit(parser, config)
+        payload = asyncio.run(
+            _invoke_tool_payload(
+                app,
+                tool_name="preview_dataset",
+                arguments={"dataset_id": args.dataset_id},
+            )
+        )
+        _write_payload_or_exit(
+            parser,
+            payload=payload,
+            output_path=args.output,
+            quiet=args.quiet,
+            output_format=args.format,
+        )
+        return 0
+
+    if args.command == "health":
+        config = _load_config_or_exit(parser)
+        app = _create_server_or_exit(parser, config)
+        payload = asyncio.run(
+            _invoke_tool_payload(
+                app,
+                tool_name="dataset_health",
+                arguments={"dataset_id": args.dataset_id},
+            )
+        )
+        _write_payload_or_exit(
+            parser,
+            payload=payload,
+            output_path=args.output,
+            quiet=args.quiet,
+            output_format=args.format,
+        )
+        return 0
+
+    if args.command == "refresh":
+        config = _load_config_or_exit(parser)
+        app = _create_server_or_exit(parser, config)
+        payload = asyncio.run(
+            _invoke_tool_payload(
+                app,
+                tool_name="materialize_hot_set",
+                arguments={"include_optional": args.include_optional},
+            )
+        )
+        _write_payload_or_exit(
+            parser,
+            payload=payload,
+            output_path=args.output,
+            quiet=args.quiet,
+            output_format=args.format,
+        )
+        return 0
+
     parser.error("unsupported command")
     return 2
+
+
+def _add_dataset_query_arguments(subparser: argparse.ArgumentParser) -> None:
+    """Add the shared dataset query argument set used by query/export commands."""
+
+    subparser.add_argument("dataset_id", help="Exact canonical dataset_id.")
+    subparser.add_argument(
+        "--filter",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help=(
+            "Exact-match query filter. Values are parsed as JSON scalars when possible; "
+            "otherwise they remain strings."
+        ),
+    )
+    subparser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Optional maximum number of matching records to return.",
+    )
+
+
+def _add_output_arguments(subparser: argparse.ArgumentParser) -> None:
+    """Add the current machine-friendly output arguments for local CLI commands."""
+
+    subparser.add_argument(
+        "--format",
+        choices=(JSON_FORMAT,),
+        default=JSON_FORMAT,
+        help="Output format. Only json is currently supported.",
+    )
+    subparser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Write the rendered command output to this file instead of stdout.",
+    )
+    subparser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress the confirmation line when writing to --output.",
+    )
+
+
+def _parse_filter_arguments_or_exit(
+    parser: argparse.ArgumentParser,
+    filter_arguments: Sequence[str],
+) -> dict[str, str | int | float | bool | None]:
+    """Parse repeated KEY=VALUE filters or exit with a concise parser error."""
+
+    try:
+        return _parse_filter_arguments(filter_arguments)
+    except ValueError as exc:
+        parser.error(str(exc))
+
+
+def _parse_filter_arguments(
+    filter_arguments: Sequence[str],
+) -> dict[str, str | int | float | bool | None]:
+    """Parse repeated exact-match filter arguments into query-compatible scalars."""
+
+    parsed_filters: dict[str, str | int | float | bool | None] = {}
+    for filter_argument in filter_arguments:
+        if "=" not in filter_argument:
+            raise ValueError("filters must use KEY=VALUE syntax")
+
+        key, raw_value = filter_argument.split("=", 1)
+        normalized_key = key.strip()
+        if not normalized_key:
+            raise ValueError("filter keys must not be empty")
+        parsed_filters[normalized_key] = _parse_filter_value(raw_value)
+
+    return parsed_filters
+
+
+def _parse_filter_value(raw_value: str) -> str | int | float | bool | None:
+    """Parse a CLI filter value as a scalar JSON literal when possible."""
+
+    if raw_value == "":
+        return ""
+
+    try:
+        parsed_value = json.loads(raw_value)
+    except json.JSONDecodeError:
+        return raw_value
+
+    if isinstance(parsed_value, (str, int, float, bool)) or parsed_value is None:
+        return parsed_value
+
+    raise ValueError("query filter values must be scalar JSON literals or plain strings")
+
+
+async def _invoke_tool_payload(
+    app: Any,
+    *,
+    tool_name: str,
+    arguments: dict[str, Any],
+) -> dict[str, Any]:
+    """Invoke one already-registered MCP tool and return its structured payload."""
+
+    tools = await app.get_tools()
+    tool_result = await tools[tool_name].run(arguments)
+    return tool_result.structured_content
+
+
+def _config_payload(config: RuntimeConfig) -> dict[str, Any]:
+    """Return a redacted JSON-friendly config payload for local operator use."""
+
+    payload = config.model_dump(
+        mode="json",
+        exclude={"transport": {"http_auth_token"}},
+    )
+    transport_payload = dict(payload["transport"])
+    transport_payload["http_auth_capabilities"] = sorted(
+        capability.value for capability in config.transport.http_auth_capabilities
+    )
+    transport_payload["http_auth_token_configured"] = (
+        config.transport.http_auth_token is not None
+    )
+    payload["transport"] = transport_payload
+    return payload
+
+
+def _write_payload_or_exit(
+    parser: argparse.ArgumentParser,
+    *,
+    payload: dict[str, Any],
+    output_path: Path | None,
+    quiet: bool,
+    output_format: str,
+) -> None:
+    """Render one JSON payload and write it to stdout or a file."""
+
+    rendered = _render_payload(payload, output_format=output_format)
+
+    if output_path is None:
+        print(rendered)
+        return
+
+    try:
+        output_path.write_text(rendered + "\n", encoding="utf-8")
+    except OSError as exc:
+        parser.error(f"unable to write output file '{output_path}': {exc}")
+
+    if not quiet:
+        print(f"Wrote {output_path}")
+
+
+def _render_payload(
+    payload: dict[str, Any],
+    *,
+    output_format: str,
+) -> str:
+    """Render one command payload using the currently supported output format."""
+
+    if output_format != JSON_FORMAT:
+        raise ValueError(f"unsupported output format: {output_format}")
+    return json.dumps(payload, indent=2, sort_keys=True)
 
 
 def _load_config_or_exit(parser: argparse.ArgumentParser):
