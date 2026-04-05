@@ -8,6 +8,7 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from saudi_open_data_mcp.observability import log_audit_event
 from saudi_open_data_mcp.registry.models import (
     DatasetDescriptor,
     DatasetHealthStatus,
@@ -120,7 +121,9 @@ class DatasetHealthTool:
         normalized_dataset_id = sanitize_dataset_id(dataset_id)
         descriptor = self._repository.get_dataset(normalized_dataset_id)
         if descriptor is None:
-            return DatasetHealthLookupResult.missing(normalized_dataset_id)
+            result = DatasetHealthLookupResult.missing(normalized_dataset_id)
+            _audit_health_result(result, source=None)
+            return result
 
         health_metadata = self._repository.get_health(normalized_dataset_id)
         health_status = (
@@ -143,7 +146,7 @@ class DatasetHealthTool:
             else None
         )
 
-        return DatasetHealthLookupResult.found(
+        result = DatasetHealthLookupResult.found(
             dataset_id=descriptor.dataset_id,
             health_status=health_status,
             schema_version=descriptor.schema_version,
@@ -151,6 +154,8 @@ class DatasetHealthTool:
             known_issues=descriptor.known_issues,
             freshness=freshness,
         )
+        _audit_health_result(result, source=descriptor.source)
+        return result
 
 
 def _merge_exclude(exclude: object, field_name: str) -> object:
@@ -175,3 +180,28 @@ def _bind_canonical_dataset_id(
     """Rewrite source-locator-based freshness output to the canonical dataset identity."""
 
     return freshness.model_copy(update={"dataset_id": descriptor.dataset_id})
+
+
+def _audit_health_result(
+    result: DatasetHealthLookupResult,
+    *,
+    source: str | None,
+) -> None:
+    """Emit one audit event for registry-backed dataset health lookup."""
+
+    log_audit_event(
+        "dataset_health",
+        result_status=result.status,
+        dataset_id=result.dataset_id,
+        source=source,
+        health_status=(
+            result.health_status.value
+            if result.health_status is not None
+            else None
+        ),
+        freshness_status=(
+            result.freshness.status.value
+            if result.freshness is not None
+            else None
+        ),
+    )

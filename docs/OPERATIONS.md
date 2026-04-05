@@ -69,11 +69,14 @@ Readiness for the internal container path is intentionally narrow:
 - Use structured logs for event detail:
   - `server.startup.*`
   - `preview.request.*`
+  - `audit.*`
   - `connector.request.*`
   - `materialize.*`
   - `tier_a_refresh.*`
   - `http.authz.rejected`
   - `http.authz.coverage_missing`
+- `audit.*` logs are the narrow governance/audit layer for important core operations such as query, preview, materialization, local artifact lookup, metadata/health lookup, and capability denials.
+- When the request context is available on the HTTP path, audit events include best-effort request identity fields such as request id, JSON-RPC id, transport, and a token fingerprint rather than the raw bearer token.
 - Do not treat `resource://observability` as a health endpoint or a public metrics API.
 
 ## HTTP Capabilities

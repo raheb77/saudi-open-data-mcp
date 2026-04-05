@@ -17,7 +17,12 @@ from saudi_open_data_mcp.normalization.pipeline import (
     NormalizationPipelineStatus,
     NormalizationResult,
 )
-from saudi_open_data_mcp.observability import get_logger, get_metrics, log_event
+from saudi_open_data_mcp.observability import (
+    get_logger,
+    get_metrics,
+    log_audit_event,
+    log_event,
+)
 from saudi_open_data_mcp.registry.bootstrap import (
     WAVE_1_HOT_SET_OPTIONAL_DATASET_IDS,
     WAVE_1_HOT_SET_TIER_A_DATASET_IDS,
@@ -353,13 +358,29 @@ class HotSetMaterializationTool:
                 metrics.increment("materialize.successes", materialized_count)
             if failed_count:
                 metrics.increment("materialize.failures", failed_count)
-            return HotSetMaterializationResult(
+            result = HotSetMaterializationResult(
                 include_optional=include_optional,
                 requested_dataset_count=len(selected_dataset_ids),
                 materialized_count=materialized_count,
                 failed_count=failed_count,
                 results=tuple(results),
             )
+            log_audit_event(
+                "materialize_hot_set",
+                result_status=(
+                    "success"
+                    if failed_count == 0
+                    else "failed"
+                    if materialized_count == 0
+                    else "partial_success"
+                ),
+                level=logging.WARNING if failed_count else logging.INFO,
+                include_optional=include_optional,
+                requested_dataset_count=result.requested_dataset_count,
+                materialized_count=result.materialized_count,
+                failed_count=result.failed_count,
+            )
+            return result
 
     async def _materialize_source_locator(
         self,

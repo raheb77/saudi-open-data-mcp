@@ -16,6 +16,7 @@ from saudi_open_data_mcp.normalization.pipeline import (
     NormalizationPipelineStatus,
     NormalizationResult,
 )
+from saudi_open_data_mcp.observability import log_audit_event
 from saudi_open_data_mcp.registry.models import DatasetDescriptor, NonEmptyText
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.security.sanitization import (
@@ -287,11 +288,13 @@ class DatasetQueryTool:
 
         descriptor = self._repository.get_dataset(normalized_dataset_id)
         if descriptor is None:
-            return DatasetQueryResult.missing(
+            result = DatasetQueryResult.missing(
                 dataset_id=normalized_dataset_id,
                 applied_filters=normalized_filters,
                 limit=normalized_limit,
             )
+            _audit_query_result(result)
+            return result
 
         try:
             raw_payload = self._snapshot_store.read_snapshot(
@@ -299,13 +302,15 @@ class DatasetQueryTool:
                 descriptor.source_locator,
             )
         except FileNotFoundError:
-            return DatasetQueryResult.snapshot_missing(
+            result = DatasetQueryResult.snapshot_missing(
                 descriptor=descriptor,
                 applied_filters=normalized_filters,
                 limit=normalized_limit,
             )
+            _audit_query_result(result)
+            return result
         except Exception as exc:
-            return DatasetQueryResult.failed(
+            result = DatasetQueryResult.failed(
                 descriptor=descriptor,
                 stage=QueryFailureStage.SNAPSHOT_READ,
                 error_type=type(exc).__name__,
@@ -313,13 +318,15 @@ class DatasetQueryTool:
                 applied_filters=normalized_filters,
                 limit=normalized_limit,
             )
+            _audit_query_result(result)
+            return result
 
         normalization_result = self._normalization_pipeline.normalize(
             raw_payload,
             canonical_dataset_id=descriptor.dataset_id,
         )
         if normalization_result.status is NormalizationPipelineStatus.FAILED:
-            return DatasetQueryResult.failed(
+            result = DatasetQueryResult.failed(
                 descriptor=descriptor,
                 stage=QueryFailureStage.NORMALIZATION,
                 error_type=_normalization_error_type(normalization_result.failure),
@@ -327,14 +334,18 @@ class DatasetQueryTool:
                 applied_filters=normalized_filters,
                 limit=normalized_limit,
             )
+            _audit_query_result(result)
+            return result
 
         if normalization_result.status is NormalizationPipelineStatus.LIMITED:
-            return DatasetQueryResult.limited(
+            result = DatasetQueryResult.limited(
                 descriptor=descriptor,
                 normalization_result=normalization_result,
                 applied_filters=normalized_filters,
                 limit=normalized_limit,
             )
+            _audit_query_result(result)
+            return result
 
         filtered_records = _apply_filters(
             _bind_canonical_dataset_id(
@@ -348,13 +359,15 @@ class DatasetQueryTool:
             if normalized_limit is not None
             else filtered_records
         )
-        return DatasetQueryResult.success(
+        result = DatasetQueryResult.success(
             descriptor=descriptor,
             records=limited_records,
             total_records_before_filter=len(normalization_result.records),
             applied_filters=normalized_filters,
             limit=normalized_limit,
         )
+        _audit_query_result(result)
+        return result
 
 
 def _validate_dataset_id(dataset_id: str) -> str:
@@ -426,6 +439,27 @@ def _bind_canonical_dataset_id(
     return tuple(
         record.model_copy(update={"dataset_id": descriptor.dataset_id})
         for record in records
+    )
+
+
+def _audit_query_result(result: DatasetQueryResult) -> None:
+    """Emit one audit event for a completed local query operation."""
+
+    log_audit_event(
+        "query_dataset",
+        result_status=result.status.value,
+        dataset_id=result.dataset_id,
+        source=result.source,
+        filter_keys=tuple(sorted(result.applied_filters)),
+        limit=result.limit,
+        total_records_before_filter=result.total_records_before_filter,
+        matched_record_count=len(result.matched_records),
+        limitation_count=len(result.limitations),
+        failure_stage=(
+            result.failure.stage.value
+            if result.failure is not None
+            else None
+        ),
     )
 
 

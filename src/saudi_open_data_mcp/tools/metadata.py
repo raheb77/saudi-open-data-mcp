@@ -6,6 +6,7 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from saudi_open_data_mcp.observability import log_audit_event
 from saudi_open_data_mcp.registry.models import (
     DatasetDescriptor,
     DatasetHealthStatus,
@@ -101,6 +102,21 @@ class DatasetMetadataTool:
         normalized_dataset_id = sanitize_dataset_id(dataset_id)
         descriptor = self._repository.get_dataset(normalized_dataset_id)
         if descriptor is None:
-            return DatasetMetadataLookupResult.missing(normalized_dataset_id)
+            result = DatasetMetadataLookupResult.missing(normalized_dataset_id)
+            _audit_metadata_result(result)
+            return result
 
-        return DatasetMetadataLookupResult.found(descriptor)
+        result = DatasetMetadataLookupResult.found(descriptor)
+        _audit_metadata_result(result)
+        return result
+
+
+def _audit_metadata_result(result: DatasetMetadataLookupResult) -> None:
+    """Emit one audit event for exact metadata lookup."""
+
+    log_audit_event(
+        "dataset_metadata",
+        result_status=result.status,
+        dataset_id=result.dataset_id,
+        source=result.metadata.source if result.metadata is not None else None,
+    )

@@ -9,6 +9,7 @@ from typing import Self
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from saudi_open_data_mcp.observability import log_audit_event
 from saudi_open_data_mcp.registry.models import DatasetDescriptor, NonEmptyText
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.security.sanitization import sanitize_dataset_id
@@ -164,7 +165,9 @@ class DatasetDownloadTool:
         normalized_dataset_id = sanitize_dataset_id(dataset_id)
         descriptor = self._repository.get_dataset(normalized_dataset_id)
         if descriptor is None:
-            return DatasetDownloadResult.missing(normalized_dataset_id)
+            result = DatasetDownloadResult.missing(normalized_dataset_id)
+            _audit_download_result(result)
+            return result
 
         freshness = evaluate_snapshot_freshness(
             source=descriptor.source,
@@ -179,9 +182,13 @@ class DatasetDownloadTool:
         )
 
         if freshness.status is SnapshotFreshnessStatus.MISSING:
-            return DatasetDownloadResult.artifact_missing(descriptor, freshness)
+            result = DatasetDownloadResult.artifact_missing(descriptor, freshness)
+            _audit_download_result(result)
+            return result
 
-        return DatasetDownloadResult.available(descriptor, freshness)
+        result = DatasetDownloadResult.available(descriptor, freshness)
+        _audit_download_result(result)
+        return result
 
 
 def _bind_canonical_dataset_id(
@@ -192,3 +199,21 @@ def _bind_canonical_dataset_id(
     """Rewrite source-locator-based freshness output to the canonical dataset identity."""
 
     return freshness.model_copy(update={"dataset_id": descriptor.dataset_id})
+
+
+def _audit_download_result(result: DatasetDownloadResult) -> None:
+    """Emit one audit event for local artifact availability lookup."""
+
+    log_audit_event(
+        "download_dataset",
+        result_status=result.status.value,
+        dataset_id=result.dataset_id,
+        source=result.source,
+        reason=result.reason.value,
+        local_snapshot_exists=result.local_snapshot_exists,
+        freshness_status=(
+            result.freshness.status.value
+            if result.freshness is not None
+            else None
+        ),
+    )

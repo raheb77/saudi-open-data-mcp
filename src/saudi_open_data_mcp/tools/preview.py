@@ -18,7 +18,12 @@ from saudi_open_data_mcp.normalization.pipeline import (
     NormalizationPipelineStatus,
     NormalizationResult,
 )
-from saudi_open_data_mcp.observability import get_logger, get_metrics, log_event
+from saudi_open_data_mcp.observability import (
+    get_logger,
+    get_metrics,
+    log_audit_event,
+    log_event,
+)
 from saudi_open_data_mcp.registry.models import DatasetDescriptor, UpdateFrequency
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.security.rate_limit import (
@@ -612,12 +617,23 @@ class DatasetPreviewTool:
     @staticmethod
     def _record_result(result: DatasetPreviewResult) -> None:
         metrics = get_metrics()
+        audit_level = (
+            logging.WARNING
+            if result.status is PreviewStatus.FAILED
+            else logging.INFO
+        )
 
         if result.status is PreviewStatus.MISSING:
             log_event(
                 LOGGER,
                 logging.INFO,
                 "preview.request.missing",
+                dataset_id=result.dataset_id,
+            )
+            log_audit_event(
+                "preview_dataset",
+                result_status=result.status.value,
+                level=audit_level,
                 dataset_id=result.dataset_id,
             )
             return
@@ -654,6 +670,29 @@ class DatasetPreviewTool:
                 message=result.failure.message,
                 **log_fields,
             )
+            log_audit_event(
+                "preview_dataset",
+                result_status=result.status.value,
+                level=audit_level,
+                dataset_id=result.dataset_id,
+                resolution_outcome=(
+                    result.resolution_outcome.value
+                    if result.resolution_outcome is not None
+                    else None
+                ),
+                data_origin=(
+                    result.data_origin.value
+                    if result.data_origin is not None
+                    else None
+                ),
+                freshness_status=(
+                    result.freshness_status.value
+                    if result.freshness_status is not None
+                    else None
+                ),
+                snapshot_modified_at=result.snapshot_modified_at,
+                failure_stage=result.failure.stage.value,
+            )
             return
 
         log_event(
@@ -664,6 +703,30 @@ class DatasetPreviewTool:
             record_count=len(result.records),
             limitation_count=len(result.limitations),
             **log_fields,
+        )
+        log_audit_event(
+            "preview_dataset",
+            result_status=result.status.value,
+            level=audit_level,
+            dataset_id=result.dataset_id,
+            resolution_outcome=(
+                result.resolution_outcome.value
+                if result.resolution_outcome is not None
+                else None
+            ),
+            data_origin=(
+                result.data_origin.value
+                if result.data_origin is not None
+                else None
+            ),
+            freshness_status=(
+                result.freshness_status.value
+                if result.freshness_status is not None
+                else None
+            ),
+            snapshot_modified_at=result.snapshot_modified_at,
+            record_count=len(result.records),
+            limitation_count=len(result.limitations),
         )
 
 

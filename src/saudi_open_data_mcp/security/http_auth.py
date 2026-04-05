@@ -13,7 +13,14 @@ from starlette.middleware import Middleware as ASGIMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from saudi_open_data_mcp.observability import get_logger, get_metrics, log_event
+from saudi_open_data_mcp.observability import (
+    audit_context,
+    build_token_fingerprint,
+    get_logger,
+    get_metrics,
+    log_audit_event,
+    log_event,
+)
 
 LOGGER = get_logger(__name__)
 
@@ -131,48 +138,77 @@ class HTTPBearerAuthMiddleware:
 
         metrics.increment("http.auth.accepted")
         request_body, replay_receive = await _buffer_http_request_body(receive)
-        authz_decision = _authorization_decision(scope, request_body)
-        if (
-            authz_decision.required_capability is not None
-            and authz_decision.required_capability not in self._capabilities
+        with audit_context(
+            transport="http",
+            actor_type="http_bearer_token",
+            actor_token_fingerprint=build_token_fingerprint(presented_token),
+            actor_capabilities=tuple(
+                sorted(capability.value for capability in self._capabilities)
+            ),
+            request_id=_extract_request_id(request),
+            rpc_request_id=_extract_rpc_request_id(request_body),
+            path=scope.get("path"),
         ):
-            metrics.increment("http.authz.rejected")
-            metrics.increment("http.authz.rejected.insufficient_capability")
-            log_event(
-                LOGGER,
-                logging.WARNING,
-                "http.authz.rejected",
-                path=scope.get("path"),
-                mcp_method=authz_decision.mcp_method,
-                target=authz_decision.target,
-                required_capability=authz_decision.required_capability.value,
-                granted_capabilities=sorted(
+            authz_decision = _authorization_decision(scope, request_body)
+            if (
+                authz_decision.required_capability is not None
+                and authz_decision.required_capability not in self._capabilities
+            ):
+                metrics.increment("http.authz.rejected")
+                metrics.increment("http.authz.rejected.insufficient_capability")
+                granted_capabilities = sorted(
                     capability.value for capability in self._capabilities
-                ),
-            )
-            await _forbidden_response(
-                f"insufficient capability: {authz_decision.required_capability.value}"
-            )(scope, replay_receive, send)
-            return
-        if authz_decision.coverage_error is not None:
-            metrics.increment("http.authz.coverage_missing")
-            log_event(
-                LOGGER,
-                logging.ERROR,
-                "http.authz.coverage_missing",
-                path=scope.get("path"),
-                mcp_method=authz_decision.mcp_method,
-                target=authz_decision.target,
-                message=authz_decision.coverage_error,
-            )
-            await _internal_error_response(authz_decision.coverage_error)(
-                scope,
-                replay_receive,
-                send,
-            )
-            return
+                )
+                log_event(
+                    LOGGER,
+                    logging.WARNING,
+                    "http.authz.rejected",
+                    path=scope.get("path"),
+                    mcp_method=authz_decision.mcp_method,
+                    target=authz_decision.target,
+                    required_capability=authz_decision.required_capability.value,
+                    granted_capabilities=granted_capabilities,
+                )
+                log_audit_event(
+                    "authorization_denied",
+                    result_status="rejected",
+                    level=logging.WARNING,
+                    mcp_method=authz_decision.mcp_method,
+                    target=authz_decision.target,
+                    required_capability=authz_decision.required_capability.value,
+                    granted_capabilities=tuple(granted_capabilities),
+                )
+                await _forbidden_response(
+                    f"insufficient capability: {authz_decision.required_capability.value}"
+                )(scope, replay_receive, send)
+                return
+            if authz_decision.coverage_error is not None:
+                metrics.increment("http.authz.coverage_missing")
+                log_event(
+                    LOGGER,
+                    logging.ERROR,
+                    "http.authz.coverage_missing",
+                    path=scope.get("path"),
+                    mcp_method=authz_decision.mcp_method,
+                    target=authz_decision.target,
+                    message=authz_decision.coverage_error,
+                )
+                log_audit_event(
+                    "authorization_coverage_missing",
+                    result_status="error",
+                    level=logging.ERROR,
+                    mcp_method=authz_decision.mcp_method,
+                    target=authz_decision.target,
+                    message=authz_decision.coverage_error,
+                )
+                await _internal_error_response(authz_decision.coverage_error)(
+                    scope,
+                    replay_receive,
+                    send,
+                )
+                return
 
-        await self.app(scope, replay_receive, send)
+            await self.app(scope, replay_receive, send)
 
 
 def build_http_auth_middleware(
@@ -246,6 +282,35 @@ def _extract_bearer_token(authorization_header: str | None) -> str | None:
     if scheme.lower() != "bearer" or not token:
         return None
     return token
+
+
+def _extract_request_id(request: Request) -> str | None:
+    """Return an operator-supplied correlation/request id when present."""
+
+    for header_name in ("x-request-id", "x-correlation-id"):
+        value = request.headers.get(header_name)
+        if value is not None:
+            normalized = value.strip()
+            if normalized:
+                return normalized
+    return None
+
+
+def _extract_rpc_request_id(request_body: bytes) -> str | int | None:
+    """Return the JSON-RPC request id when present and trivially parseable."""
+
+    if not request_body:
+        return None
+    try:
+        message = json.loads(request_body)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(message, dict):
+        return None
+    rpc_request_id = message.get("id")
+    if isinstance(rpc_request_id, (str, int)):
+        return rpc_request_id
+    return None
 
 
 class _AuthorizationDecision:

@@ -12,7 +12,7 @@ from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from saudi_open_data_mcp.observability import get_metrics
+from saudi_open_data_mcp.observability import build_token_fingerprint, get_metrics
 from saudi_open_data_mcp.security.http_auth import (
     HTTPAuthCapability,
     HTTPBearerAuthMiddleware,
@@ -117,7 +117,10 @@ async def test_read_capability_allows_local_query_tool_call() -> None:
     ) as client:
         response = await client.post(
             "/mcp",
-            headers={"Authorization": "Bearer internal-test-token"},
+            headers={
+                "Authorization": "Bearer internal-test-token",
+                "X-Request-ID": "req-authz-1",
+            },
             json={
                 "jsonrpc": "2.0",
                 "id": "1",
@@ -143,7 +146,10 @@ async def test_refresh_capability_is_required_for_preview_tool_call(
     ) as client:
         response = await client.post(
             "/mcp",
-            headers={"Authorization": "Bearer internal-test-token"},
+            headers={
+                "Authorization": "Bearer internal-test-token",
+                "X-Request-ID": "req-authz-1",
+            },
             json={
                 "jsonrpc": "2.0",
                 "id": "1",
@@ -161,6 +167,14 @@ async def test_refresh_capability_is_required_for_preview_tool_call(
     assert any(
         json.loads(record.getMessage())["required_capability"] == "refresh"
         and json.loads(record.getMessage())["target"] == "preview_dataset"
+        for record in caplog.records
+    )
+    assert any(
+        json.loads(record.getMessage())["event"] == "audit.authorization_denied"
+        and json.loads(record.getMessage())["required_capability"] == "refresh"
+        and json.loads(record.getMessage())["request_id"] == "req-authz-1"
+        and json.loads(record.getMessage())["actor_token_fingerprint"]
+        == build_token_fingerprint("internal-test-token")
         for record in caplog.records
     )
 
@@ -246,7 +260,11 @@ async def test_read_capability_is_required_for_tools_list_method() -> None:
 
 
 @pytest.mark.asyncio
-async def test_unmapped_tool_calls_fail_closed_with_internal_error() -> None:
+async def test_unmapped_tool_calls_fail_closed_with_internal_error(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.ERROR)
+
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=_app()),
         base_url="http://testserver",
@@ -267,6 +285,11 @@ async def test_unmapped_tool_calls_fail_closed_with_internal_error() -> None:
         "error": "authorization coverage missing for tool: future_tool"
     }
     assert get_metrics().get("http.authz.coverage_missing") == 1
+    assert any(
+        json.loads(record.getMessage())["event"] == "audit.authorization_coverage_missing"
+        and json.loads(record.getMessage())["target"] == "future_tool"
+        for record in caplog.records
+    )
 
 
 @pytest.mark.asyncio
