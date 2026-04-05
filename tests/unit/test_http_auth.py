@@ -113,10 +113,7 @@ async def test_valid_bearer_token_is_accepted() -> None:
 
 def test_role_bundles_are_explicit() -> None:
     assert capabilities_for_http_auth_role(HTTPAuthRole.VIEWER) == frozenset(
-        {
-            HTTPAuthCapability.READ,
-            HTTPAuthCapability.REFRESH,
-        }
+        {HTTPAuthCapability.READ}
     )
     assert capabilities_for_http_auth_role(HTTPAuthRole.OPERATOR) == frozenset(
         HTTPAuthCapability
@@ -200,7 +197,7 @@ async def test_refresh_capability_is_required_for_preview_tool_call(
 
 
 @pytest.mark.asyncio
-async def test_viewer_role_allows_preview_tool_call() -> None:
+async def test_viewer_role_rejects_preview_tool_call() -> None:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(
             app=_app(
@@ -221,7 +218,8 @@ async def test_viewer_role_allows_preview_tool_call() -> None:
             },
         )
 
-    assert response.status_code == 200
+    assert response.status_code == 403
+    assert response.json() == {"error": "insufficient capability: refresh"}
 
 
 @pytest.mark.asyncio

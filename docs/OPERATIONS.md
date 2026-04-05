@@ -87,9 +87,8 @@ Readiness for the internal container path is intentionally narrow:
 
 - `viewer`:
   - `read`
-  - `refresh`
 - `operator`:
-  - `viewer` capabilities plus `materialize`
+  - `viewer` capabilities plus `refresh` and `materialize`
 - `admin`:
   - same current operational bundle as `operator`
   - kept as the highest role for governance clarity and future expansion
@@ -110,8 +109,8 @@ Current capability bundles remain explicit:
 - `materialize`:
   - `materialize_hot_set`
 
-`preview_dataset` stays inside `viewer` because its hybrid policy is part of the
-current read/inspection surface, even though it may trigger a live refresh.
+`preview_dataset` requires `refresh`, so it now sits with `operator` and
+`admin`, not `viewer`.
 
 Role context is derived from `HTTP_AUTH_ROLE` on the HTTP serving path and is
 bound into the current request audit context alongside the token fingerprint and

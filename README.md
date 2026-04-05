@@ -273,8 +273,8 @@ Container/runtime expectations:
 - no external scheduler or distributed refresh system is added in this phase
 - minimal bearer-token auth is enforced on the HTTP path only
 - HTTP roles are enforced on the HTTP path only:
-  - `viewer` for read/query/preview/metadata/health/policies/observability
-  - `operator` for `viewer` access plus `materialize_hot_set`
+  - `viewer` for read/query/metadata/health/policies/observability
+  - `operator` for `viewer` access plus `preview_dataset` and `materialize_hot_set`
   - `admin` as the highest current role with the same operational bundle as `operator`
 - the current role bundles remain capability-based under the hood:
   - `read` for resources and local read/query/search tools

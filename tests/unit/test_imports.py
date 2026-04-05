@@ -78,7 +78,7 @@ def test_load_config_respects_http_transport_overrides(
     monkeypatch.setenv("HTTP_PORT", "8080")
     monkeypatch.setenv("HTTP_AUTH_TOKEN", "internal-test-token")
     monkeypatch.setenv("HTTP_AUTH_ROLE", "viewer")
-    monkeypatch.setenv("HTTP_AUTH_CAPABILITIES", "read,refresh")
+    monkeypatch.setenv("HTTP_AUTH_CAPABILITIES", "read")
     monkeypatch.setenv("TIER_A_REFRESH_ENABLED", "true")
     monkeypatch.setenv("TIER_A_REFRESH_INTERVAL_SECONDS", "900")
 
@@ -92,7 +92,6 @@ def test_load_config_respects_http_transport_overrides(
     assert config.transport.http_auth_capabilities == frozenset(
         {
             HTTPAuthCapability.READ,
-            HTTPAuthCapability.REFRESH,
         }
     )
     assert config.tier_a_refresh.enabled is True

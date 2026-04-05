@@ -44,12 +44,7 @@ class HTTPAuthRole(StrEnum):
 ALL_HTTP_AUTH_CAPABILITIES = frozenset(HTTPAuthCapability)
 DEFAULT_HTTP_AUTH_ROLE = HTTPAuthRole.OPERATOR
 HTTP_AUTH_ROLE_CAPABILITIES = {
-    HTTPAuthRole.VIEWER: frozenset(
-        {
-            HTTPAuthCapability.READ,
-            HTTPAuthCapability.REFRESH,
-        }
-    ),
+    HTTPAuthRole.VIEWER: frozenset({HTTPAuthCapability.READ}),
     HTTPAuthRole.OPERATOR: ALL_HTTP_AUTH_CAPABILITIES,
     HTTPAuthRole.ADMIN: ALL_HTTP_AUTH_CAPABILITIES,
 }
