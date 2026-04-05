@@ -76,7 +76,7 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
         bootstrapped_descriptors = bootstrap_registry(repository)
         snapshot_store = SnapshotStore(runtime_config.snapshot_dir)
         connector_resolver = build_default_connector_resolver(
-            sama_base_url=runtime_config.source.base_url,
+            sama_base_url=runtime_config.source.sama_base_url,
             data_gov_sa_base_url=runtime_config.source.data_gov_sa_base_url,
         )
 

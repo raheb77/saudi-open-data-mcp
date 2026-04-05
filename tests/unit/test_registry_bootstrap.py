@@ -6,6 +6,7 @@ from pathlib import Path
 
 from saudi_open_data_mcp.registry.bootstrap import (
     INITIAL_DATASET_DESCRIPTORS,
+    SAMA_SHARED_SOURCE_LOCATOR_GROUPS,
     WAVE_1_HOT_SET_OPTIONAL_DATASET_IDS,
     WAVE_1_HOT_SET_TIER_A_DATASET_IDS,
     bootstrap_registry,
@@ -49,6 +50,24 @@ def test_bootstrap_inserts_expected_initial_descriptors(tmp_path: Path) -> None:
     assert (
         descriptors_by_id["sama-exchange-rates-current"].source_locator
         == "/en-US/FinExc/Pages/Currency.aspx"
+    )
+    assert SAMA_SHARED_SOURCE_LOCATOR_GROUPS == {
+        ("sama", "/en-US/Indices/Pages/POS.aspx"): (
+            "sama-pos-by-city",
+            "sama-pos-weekly",
+        ),
+        ("sama", "report.aspx?cid=55"): (
+            "sama-deposits-core",
+            "sama-money-supply",
+        ),
+    }
+    assert any(
+        "shares the same SAMA page locator as sama-pos-by-city" in caveat
+        for caveat in descriptors_by_id["sama-pos-weekly"].caveats
+    )
+    assert any(
+        "shares the same SAMA report locator as sama-money-supply" in caveat
+        for caveat in descriptors_by_id["sama-deposits-core"].caveats
     )
     assert any(descriptor.source == "data-gov-sa" for descriptor in bootstrapped_descriptors)
 

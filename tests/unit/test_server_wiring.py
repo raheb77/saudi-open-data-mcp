@@ -686,7 +686,7 @@ async def test_server_wires_preview_through_connector_resolver(
             registry_path=tmp_path / "registry.sqlite",
             snapshot_dir=tmp_path / "snapshots",
             source={
-                "base_url": "https://www.sama.gov.sa",
+                "sama_base_url": "https://www.sama.gov.sa",
                 "data_gov_sa_base_url": "https://open.data.gov.sa",
             },
         )

@@ -279,6 +279,9 @@ Container/runtime expectations:
 - `HTTP_AUTH_TOKEN`, `HTTP_AUTH_CAPABILITIES`, `TIER_A_REFRESH_ENABLED`, `TIER_A_REFRESH_INTERVAL_SECONDS`,
   `SAMA_BASE_URL`, `DATA_GOV_SA_BASE_URL`, and `LOG_LEVEL` are the main
   operator-facing overrides
+  These base-URL overrides remain explicitly source-specific in the current
+  config because the runtime still carries SAMA-specific and data.gov.sa-pilot
+  assumptions.
 
 Startup/readiness contract:
 

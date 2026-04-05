@@ -15,6 +15,7 @@ from saudi_open_data_mcp.normalization.pipeline import (
 )
 from saudi_open_data_mcp.normalization.validators import TEXT_HTML_LIMITATION
 from saudi_open_data_mcp.registry.bootstrap import (
+    SAMA_SHARED_SOURCE_LOCATOR_GROUPS,
     WAVE_1_HOT_SET_OPTIONAL_DATASET_IDS,
     WAVE_1_HOT_SET_TIER_A_DATASET_IDS,
     bootstrap_registry,
@@ -44,18 +45,6 @@ WAVE_1_TIER_A_EXPECTATIONS = {
         UpdateFrequency.MONTHLY,
     ),
 }
-
-EXPECTED_SHARED_SOURCE_LOCATOR_GROUPS = {
-    ("sama", "/en-US/Indices/Pages/POS.aspx"): {
-        "sama-pos-by-city",
-        "sama-pos-weekly",
-    },
-    ("sama", "report.aspx?cid=55"): {
-        "sama-deposits-core",
-        "sama-money-supply",
-    },
-}
-
 
 def _bootstrapped_descriptors(tmp_path: Path):
     repository = RegistryRepository(tmp_path / "registry.sqlite")
@@ -125,7 +114,9 @@ def test_shared_source_locator_groups_are_explicit_and_limited(tmp_path: Path) -
         if len(dataset_ids) > 1
     }
 
-    assert shared_groups == EXPECTED_SHARED_SOURCE_LOCATOR_GROUPS
+    assert shared_groups == {
+        key: set(dataset_ids) for key, dataset_ids in SAMA_SHARED_SOURCE_LOCATOR_GROUPS.items()
+    }
 
 
 @pytest.mark.parametrize(

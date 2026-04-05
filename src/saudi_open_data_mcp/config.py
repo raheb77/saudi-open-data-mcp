@@ -31,14 +31,14 @@ class RuntimeConfigurationError(ValueError):
 
 
 class SourceConfig(BaseModel):
-    """Approved source configuration."""
+    """Current approved source endpoint configuration.
 
-    name: str = "sama"
-    base_url: str = "https://www.sama.gov.sa"
-    # TODO(next source expansion): replace per-source base URL fields with a
-    # structured source config map before adding source 3.
+    The fields remain explicitly source-specific so future source expansion does
+    not inherit hidden assumptions from the current SAMA-first baseline.
+    """
+
+    sama_base_url: str = "https://www.sama.gov.sa"
     data_gov_sa_base_url: str = "https://open.data.gov.sa"
-    approved_only: bool = True
 
 
 class TransportConfig(BaseModel):
@@ -192,7 +192,7 @@ def load_config() -> RuntimeConfig:
     try:
         return RuntimeConfig(
             source=SourceConfig(
-                base_url=getenv("SAMA_BASE_URL", "https://www.sama.gov.sa"),
+                sama_base_url=getenv("SAMA_BASE_URL", "https://www.sama.gov.sa"),
                 data_gov_sa_base_url=getenv(
                     "DATA_GOV_SA_BASE_URL",
                     "https://open.data.gov.sa",

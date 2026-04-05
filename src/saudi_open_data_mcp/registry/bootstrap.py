@@ -13,6 +13,16 @@ WAVE_1_HOT_SET_TIER_A_DATASET_IDS: tuple[str, ...] = (
     "sama-deposits-core",
 )
 WAVE_1_HOT_SET_OPTIONAL_DATASET_IDS: tuple[str, ...] = ("sama-pos-by-city",)
+SAMA_SHARED_SOURCE_LOCATOR_GROUPS: dict[tuple[str, str], tuple[str, ...]] = {
+    ("sama", "/en-US/Indices/Pages/POS.aspx"): (
+        "sama-pos-by-city",
+        "sama-pos-weekly",
+    ),
+    ("sama", "report.aspx?cid=55"): (
+        "sama-deposits-core",
+        "sama-money-supply",
+    ),
+}
 
 INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
     DatasetDescriptor(
@@ -83,6 +93,8 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
             "This bundled canonical dataset remains intentionally unsplit for now "
             "because the current SAMA monthly report surface publishes the core "
             "deposit components inside one shared report payload.",
+            "This descriptor intentionally shares the same SAMA report locator as "
+            "sama-money-supply.",
         ),
         known_issues=(
             "This upstream mapping is hand-curated and may need revision if SAMA "
@@ -117,6 +129,8 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=(
             "This is a hand-curated registry entry, not a complete SAMA catalog entry.",
+            "This descriptor intentionally shares the same SAMA report locator as "
+            "sama-deposits-core.",
         ),
         known_issues=(
             "This upstream mapping is hand-curated and may need revision if SAMA "
@@ -133,8 +147,8 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         update_frequency=UpdateFrequency.WEEKLY,
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=(
-            "This first-wave hot-set entry materializes the official page payload "
-            "without source-specific weekly series extraction.",
+            "This canonical dataset normalizes supported weekly aggregate tables "
+            "from the official weekly money-supply page.",
         ),
         known_issues=(
             "This upstream mapping is hand-curated and may need revision if SAMA "
@@ -171,6 +185,8 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         caveats=(
             "This first-wave Tier B entry reuses the same official POS page payload "
             "as the weekly POS hot-set entry.",
+            "This descriptor intentionally shares the same SAMA page locator as "
+            "sama-pos-weekly, but keeps a separate canonical dataset_id.",
         ),
         known_issues=(
             "This upstream mapping is hand-curated and may need revision if SAMA "
@@ -187,8 +203,10 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         update_frequency=UpdateFrequency.WEEKLY,
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=(
-            "This first-wave hot-set entry materializes the official page payload "
-            "without source-specific weekly table extraction.",
+            "This canonical dataset normalizes supported weekly summary tables "
+            "from the official POS page.",
+            "This descriptor intentionally shares the same SAMA page locator as "
+            "sama-pos-by-city.",
         ),
         known_issues=(
             "This upstream mapping is hand-curated and may need revision if SAMA "
