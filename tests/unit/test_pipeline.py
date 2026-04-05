@@ -355,6 +355,60 @@ def test_stats_gov_sa_cpi_headline_monthly_html_produces_queryable_monthly_recor
     assert result.records[0].fields["mom_rate_percent"] == 0.1
 
 
+def test_stats_gov_sa_unemployment_rate_total_quarterly_html_produces_queryable_quarterly_records(
+) -> None:
+    raw_payload = RawPayload(
+        source="stats-gov-sa",
+        dataset_id="/en/news?q=unemployment&delta=20&start=0",
+        content={
+            "url": "https://www.stats.gov.sa/en/news?q=unemployment&delta=20&start=0",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": """
+                <html><body>
+                  <div class="card card-box media-card mb-0">
+                    <div class="card-body">
+                      <h3 class="card-title fw-700 max-lines-2">
+                        GASTAT publishes Labor Market Statistics for Q2 of 2025
+                      </h3>
+                      <p class="card-date my-3">30-09-2025</p>
+                      <div class="card-text max-lines-3 mt-2">
+                        <p>
+                          GASTAT released Labor Market Statistics Publication for Q2 of 2025.
+                          Overall labor force participation rate (for Saudis and non-Saudis)
+                          reached 67.1%, while the overall unemployment rate (for Saudis and
+                          non-Saudis) reached 3.2%.
+                        </p>
+                      </div>
+                    </div>
+                    <div class="card-footer-link m-4">
+                      <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/202">
+                        Read More
+                      </a>
+                    </div>
+                  </div>
+                </body></html>
+            """,
+        },
+    )
+
+    result = NormalizationPipeline().normalize(
+        raw_payload,
+        canonical_dataset_id="stats-gov-sa-unemployment-rate-total-quarterly",
+    )
+
+    assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
+    assert result.failure is None
+    assert len(result.records) == 1
+    assert result.records[0].dataset_id == "/en/news?q=unemployment&delta=20&start=0"
+    assert result.records[0].fields["observation_quarter"] == "2025-Q2"
+    assert result.records[0].fields["labor_series_code"] == (
+        "unemployment_rate_total_population_15_plus"
+    )
+    assert result.records[0].fields["release_date"] == "2025-09-30"
+    assert result.records[0].fields["value_percent"] == 3.2
+
+
 def test_data_gov_sa_json_raw_payload_produces_record_derivable_pipeline_result() -> None:
     raw_payload = RawPayload(
         source="data-gov-sa",

@@ -130,6 +130,7 @@ async def test_server_registers_current_mcp_surface(
         "sama-repo-rate",
         "sama-reverse-repo-rate",
         "stats-gov-sa-cpi-headline-monthly",
+        "stats-gov-sa-unemployment-rate-total-quarterly",
     ]
     assert [policy["tool_name"] for policy in policies_payload["tool_policies"]] == [
         "query_dataset",

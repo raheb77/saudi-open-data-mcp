@@ -28,6 +28,7 @@ class CanonicalFieldType(StrEnum):
     DECIMAL = "decimal"
     INTEGER = "integer"
     STRING = "string"
+    YEAR_QUARTER = "year_quarter"
     YEAR_MONTH = "year_month"
 
 
@@ -44,6 +45,7 @@ class TemporalGranularity(StrEnum):
     DAILY = "daily"
     EVENT = "event"
     MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
     WEEKLY = "weekly"
 
 
@@ -492,14 +494,80 @@ GASTAT_INFLATION_DATASET_IDS: tuple[str, ...] = tuple(
     contract.dataset_id for contract in GASTAT_INFLATION_CONTRACTS
 )
 
+GASTAT_LABOR_CONTRACTS: tuple[CanonicalDatasetContract, ...] = (
+    CanonicalDatasetContract(
+        dataset_id="stats-gov-sa-unemployment-rate-total-quarterly",
+        schema_version="1.0.0",
+        record_shape=CanonicalRecordShape.TIME_SERIES_OBSERVATION,
+        temporal_granularity=TemporalGranularity.QUARTERLY,
+        primary_key=("observation_quarter", "labor_series_code"),
+        dimensions=(
+            _dimension(
+                "observation_quarter",
+                type=CanonicalFieldType.YEAR_QUARTER,
+                description=(
+                    "Observed labor-market quarter reported by the official release card."
+                ),
+            ),
+            _dimension(
+                "labor_series_code",
+                type=CanonicalFieldType.STRING,
+                description="Stable code for the supported total-unemployment series.",
+            ),
+            _dimension(
+                "labor_series_name",
+                type=CanonicalFieldType.STRING,
+                description="Human-readable label for the supported labor series.",
+            ),
+            _dimension(
+                "release_date",
+                type=CanonicalFieldType.DATE,
+                description="Official publication date of the labor-market release card.",
+            ),
+        ),
+        measures=(
+            _measure(
+                "value_percent",
+                type=CanonicalFieldType.DECIMAL,
+                description=(
+                    "Overall unemployment rate for the total population, expressed "
+                    "as a percentage."
+                ),
+                unit="percent",
+            ),
+        ),
+        structure_note=(
+            "This first GASTAT labor contract extracts supported quarterly labor-market "
+            "release cards from the official stats.gov.sa unemployment-filtered news "
+            "surface. It does not yet claim full labor-market publication tables, "
+            "Saudi-only series, sex or age cuts, participation rates, or the broader "
+            "labor statistical database."
+        ),
+        intended_analytical_uses=(
+            "Track the quarterly total-population unemployment rate with explicit "
+            "release dates.",
+            "Support local exact-match analysis over a narrow official labor-market "
+            "headline series before broader labor-family expansion.",
+        ),
+    ),
+)
+
+GASTAT_LABOR_DATASET_IDS: tuple[str, ...] = tuple(
+    contract.dataset_id for contract in GASTAT_LABOR_CONTRACTS
+)
+
 QUERY_PRIMARY_CANONICAL_DATASET_IDS: tuple[str, ...] = (
-    SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_DATASET_IDS + GASTAT_INFLATION_DATASET_IDS
+    SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_DATASET_IDS
+    + GASTAT_INFLATION_DATASET_IDS
+    + GASTAT_LABOR_DATASET_IDS
 )
 
 _CANONICAL_CONTRACTS_BY_DATASET_ID = {
     contract.dataset_id: contract
     for contract in (
-        SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_CONTRACTS + GASTAT_INFLATION_CONTRACTS
+        SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_CONTRACTS
+        + GASTAT_INFLATION_CONTRACTS
+        + GASTAT_LABOR_CONTRACTS
     )
 }
 

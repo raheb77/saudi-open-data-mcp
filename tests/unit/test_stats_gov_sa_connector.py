@@ -11,10 +11,15 @@ from saudi_open_data_mcp.connectors.errors import SourceAccessPolicyViolationErr
 from saudi_open_data_mcp.connectors.stats_gov_sa import StatsGovSaConnector
 
 INFLATION_NEWS_LOCATOR = "/en/news?q=inflation&delta=20&start=0"
+LABOR_NEWS_LOCATOR = "/en/news?q=unemployment&delta=20&start=0"
 
 
 def _news_url() -> str:
     return f"https://www.stats.gov.sa{INFLATION_NEWS_LOCATOR}"
+
+
+def _labor_news_url() -> str:
+    return f"https://www.stats.gov.sa{LABOR_NEWS_LOCATOR}"
 
 
 @pytest.mark.asyncio
@@ -37,6 +42,28 @@ async def test_fetch_dataset_payload_returns_raw_payload_for_approved_inflation_
     assert payload.source == "stats-gov-sa"
     assert payload.dataset_id == INFLATION_NEWS_LOCATOR
     assert payload.content["url"] == _news_url()
+    assert payload.content["content_type"] == "text/html"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fetch_dataset_payload_returns_raw_payload_for_approved_labor_news_route() -> None:
+    route = respx.get(_labor_news_url()).mock(
+        return_value=httpx.Response(
+            200,
+            text="<html><body>official stats labor news</body></html>",
+            headers={"content-type": "text/html; charset=utf-8"},
+        )
+    )
+    connector = StatsGovSaConnector()
+
+    payload = await connector.fetch_dataset_payload(LABOR_NEWS_LOCATOR)
+
+    assert route.called
+    assert isinstance(payload, RawPayload)
+    assert payload.source == "stats-gov-sa"
+    assert payload.dataset_id == LABOR_NEWS_LOCATOR
+    assert payload.content["url"] == _labor_news_url()
     assert payload.content["content_type"] == "text/html"
 
 

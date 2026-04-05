@@ -73,7 +73,7 @@ It does not claim full IAM, compliance controls, or public-internet maturity.
 - Live source access remains connector-scoped and approved-source-only.
   Current live source families in the repo are still explicit and source-specific:
   - SAMA
-  - `stats.gov.sa` inflation surface
+  - `stats.gov.sa` inflation and labor news surfaces
   - existing `data.gov.sa` pilot paths already in the registry
 
 ## Retention / Deletion Basics

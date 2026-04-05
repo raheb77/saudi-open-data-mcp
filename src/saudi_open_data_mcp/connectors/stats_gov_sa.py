@@ -1,4 +1,4 @@
-"""stats.gov.sa raw payload connector for the narrow inflation news surface."""
+"""stats.gov.sa raw payload connector for narrow approved macro news surfaces."""
 
 from __future__ import annotations
 
@@ -15,11 +15,12 @@ from .errors import (
 
 
 class StatsGovSaConnector(Connector):
-    """Connector for the current narrow official stats.gov.sa inflation news surface."""
+    """Connector for the current narrow official stats.gov.sa macro news surfaces."""
 
     source_name = "stats-gov-sa"
     approved_base_url = "https://www.stats.gov.sa"
     approved_news_path = "/en/news"
+    approved_news_queries = frozenset({"inflation", "unemployment"})
 
     def __init__(
         self,
@@ -36,7 +37,7 @@ class StatsGovSaConnector(Connector):
             self.request_policy = request_policy
 
     async def fetch_dataset_payload(self, dataset_id: str) -> RawPayload:
-        """Fetch a raw stats.gov.sa payload from the approved inflation news locator."""
+        """Fetch a raw stats.gov.sa payload from the approved news locator."""
 
         dataset_locator = dataset_id
         source_url = self._build_source_url(dataset_locator)
@@ -49,7 +50,7 @@ class StatsGovSaConnector(Connector):
         return payload
 
     def _build_source_url(self, dataset_locator: str) -> str:
-        """Build and validate the approved stats.gov.sa inflation news URL."""
+        """Build and validate the approved stats.gov.sa news URL."""
 
         normalized = dataset_locator.strip()
         if not normalized:
@@ -82,7 +83,7 @@ class StatsGovSaConnector(Connector):
             raise SourceAccessPolicyViolationError(
                 source_name=self.source_name,
                 message=(
-                    "stats.gov.sa connector only fetches the approved inflation news route"
+                    "stats.gov.sa connector only fetches the approved official news route"
                 ),
                 dataset_id=dataset_locator,
             )
@@ -99,19 +100,19 @@ class StatsGovSaConnector(Connector):
             raise SourceAccessPolicyViolationError(
                 source_name=self.source_name,
                 message=(
-                    "stats.gov.sa inflation news requests may only use q, delta, page, and "
+                    "stats.gov.sa approved news requests may only use q, delta, page, and "
                     "start query parameters"
                 ),
                 dataset_id=dataset_locator,
             )
 
         q_values = tuple(value.strip().lower() for value in query.get("q", ()))
-        if q_values != ("inflation",):
+        if len(q_values) != 1 or q_values[0] not in self.approved_news_queries:
             raise SourceAccessPolicyViolationError(
                 source_name=self.source_name,
                 message=(
-                    "stats.gov.sa connector only fetches the official inflation-filtered "
-                    "news route"
+                    "stats.gov.sa connector only fetches the official inflation- or "
+                    "unemployment-filtered news routes"
                 ),
                 dataset_id=dataset_locator,
             )
@@ -122,7 +123,7 @@ class StatsGovSaConnector(Connector):
                     raise SourceAccessPolicyViolationError(
                         source_name=self.source_name,
                         message=(
-                            f"stats.gov.sa inflation news parameter '{parameter}' must be a "
+                            f"stats.gov.sa approved news parameter '{parameter}' must be a "
                             "positive integer"
                         ),
                         dataset_id=dataset_locator,

@@ -254,6 +254,30 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
             "effective-date and rate content are normalized.",
         ),
     ),
+    DatasetDescriptor(
+        dataset_id="stats-gov-sa-unemployment-rate-total-quarterly",
+        source="stats-gov-sa",
+        source_locator="/en/news?q=unemployment&delta=20&start=0",
+        title="Unemployment Rate Total Population Quarterly",
+        description=(
+            "Registry entry for quarterly total-population unemployment release cards "
+            "on the official stats.gov.sa unemployment news surface."
+        ),
+        schema_version="0.1.0",
+        update_frequency=UpdateFrequency.QUARTERLY,
+        health_status=DatasetHealthStatus.UNKNOWN,
+        caveats=(
+            "This first GASTAT labor entry normalizes supported labor-market release "
+            "cards from the official stats.gov.sa unemployment-filtered news page.",
+        ),
+        known_issues=(
+            "Only supported release cards with an explicit observation quarter, "
+            "overall unemployment rate for Saudis and non-Saudis, publication date, "
+            "and release link are normalized. This does not yet cover Saudi-only "
+            "series, participation rates, demographic cuts, publication PDFs, or the "
+            "broader labor statistical database.",
+        ),
+    ),
 )
 
 

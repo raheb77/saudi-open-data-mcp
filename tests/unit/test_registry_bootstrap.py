@@ -74,6 +74,10 @@ def test_bootstrap_inserts_expected_initial_descriptors(tmp_path: Path) -> None:
         descriptors_by_id["stats-gov-sa-cpi-headline-monthly"].source_locator
         == "/en/news?q=inflation&delta=20&start=0"
     )
+    assert (
+        descriptors_by_id["stats-gov-sa-unemployment-rate-total-quarterly"].source_locator
+        == "/en/news?q=unemployment&delta=20&start=0"
+    )
     assert any(descriptor.source == "stats-gov-sa" for descriptor in bootstrapped_descriptors)
 
 

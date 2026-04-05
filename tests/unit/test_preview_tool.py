@@ -303,6 +303,56 @@ def _stats_gov_sa_cpi_headline_monthly_html() -> str:
     """
 
 
+def _stats_gov_sa_unemployment_rate_total_quarterly_html() -> str:
+    return """
+        <html><body>
+          <div class="card card-box media-card mb-0">
+            <div class="card-body">
+              <h3 class="card-title fw-700 max-lines-2">
+                Unemployment rate of total population reaches 2.8% in Q1 2025
+              </h3>
+              <p class="card-date my-3">29-06-2025</p>
+              <div class="card-text max-lines-3 mt-2">
+                <p>
+                  The General Authority for Statistics (GASTAT) released today the
+                  Labor Market Statistics Publication for Q1 of 2025. According to the
+                  results, the overall unemployment rate (including Saudis and
+                  non-Saudis) stood at 2.8%, while the overall labor force
+                  participation rate reached 68.2%.
+                </p>
+              </div>
+            </div>
+            <div class="card-footer-link m-4">
+              <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/201">
+                Read More
+              </a>
+            </div>
+          </div>
+          <div class="card card-box media-card mb-0">
+            <div class="card-body">
+              <h3 class="card-title fw-700 max-lines-2">
+                GASTAT publishes Labor Market Statistics for Q2 of 2025
+              </h3>
+              <p class="card-date my-3">30-09-2025</p>
+              <div class="card-text max-lines-3 mt-2">
+                <p>
+                  GASTAT released Labor Market Statistics Publication for Q2 of 2025.
+                  Overall labor force participation rate (for Saudis and non-Saudis)
+                  reached 67.1%, while the overall unemployment rate (for Saudis and
+                  non-Saudis) reached 3.2%.
+                </p>
+              </div>
+            </div>
+            <div class="card-footer-link m-4">
+              <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/202">
+                Read More
+              </a>
+            </div>
+          </div>
+        </body></html>
+    """
+
+
 def _write_snapshot_with_mtime(
     store: SnapshotStore,
     *,
@@ -628,6 +678,50 @@ async def test_stats_gov_sa_cpi_headline_monthly_fresh_snapshot_is_served_as_que
     assert result.records[0].fields["inflation_series_code"] == "headline_cpi_all_items"
     assert result.records[0].fields["yoy_rate_percent"] == 2.1
     assert result.records[0].fields["mom_rate_percent"] == 0.1
+
+
+@pytest.mark.asyncio
+async def test_stats_gov_sa_labor_fresh_snapshot_is_served_as_queryable_preview(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(
+        tmp_path,
+        source="stats-gov-sa",
+        dataset_id="stats-gov-sa-unemployment-rate-total-quarterly",
+        source_locator="/en/news?q=unemployment&delta=20&start=0",
+        update_frequency=UpdateFrequency.QUARTERLY,
+    )
+    store = _snapshot_store(tmp_path)
+    _write_snapshot_with_mtime(
+        store,
+        source="stats-gov-sa",
+        locator="/en/news?q=unemployment&delta=20&start=0",
+        modified_at=datetime(2025, 10, 1, 12, 0, tzinfo=UTC),
+        body=_stats_gov_sa_unemployment_rate_total_quarterly_html(),
+        content_type="text/html",
+    )
+    tool = DatasetPreviewTool(
+        repository,
+        SourceConnectorResolver({"stats-gov-sa": _ConnectorSpy([])}),
+        snapshot_store=store,
+    )
+
+    result = await tool.preview_dataset(
+        "stats-gov-sa-unemployment-rate-total-quarterly",
+        reference_time=datetime(2025, 10, 2, 12, 0, tzinfo=UTC),
+    )
+
+    assert result.status is PreviewStatus.RECORD_DERIVABLE
+    assert result.resolution_outcome is PreviewResolutionOutcome.SERVE_LOCAL
+    assert result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT
+    assert result.freshness_status is SnapshotFreshnessStatus.FRESH
+    assert result.limitations == ()
+    assert len(result.records) == 2
+    assert result.records[0].fields["observation_quarter"] == "2025-Q1"
+    assert result.records[0].fields["labor_series_code"] == (
+        "unemployment_rate_total_population_15_plus"
+    )
+    assert result.records[0].fields["value_percent"] == 2.8
 
 
 @pytest.mark.asyncio

@@ -32,6 +32,9 @@ from saudi_open_data_mcp.normalization.sama_pos_weekly import (
 from saudi_open_data_mcp.normalization.stats_gov_sa_cpi_headline_monthly import (
     STATS_GOV_SA_CPI_HEADLINE_MONTHLY_HTML_LIMITATION,
 )
+from saudi_open_data_mcp.normalization.stats_gov_sa_unemployment_rate_total_quarterly import (
+    STATS_GOV_SA_UNEMPLOYMENT_RATE_TOTAL_QUARTERLY_HTML_LIMITATION,
+)
 
 
 def test_json_raw_payload_maps_to_structured_field_mapping_result() -> None:
@@ -907,6 +910,181 @@ def test_stats_gov_sa_cpi_headline_monthly_html_with_monthly_decrease_still_extr
     assert result.record_extraction_shape is RecordExtractionShape.ROWS_OBJECT_LIST
     assert result.limitations == ()
     assert result.canonical_fields["structured_body"]["rows"][0]["mom_rate_percent"] == -0.2
+
+
+def test_stats_gov_sa_unemployment_rate_total_quarterly_html_can_map_to_structured_quarterly_rows(
+) -> None:
+    raw_payload = RawPayload(
+        source="stats-gov-sa",
+        dataset_id="/en/news?q=unemployment&delta=20&start=0",
+        content={
+            "url": "https://www.stats.gov.sa/en/news?q=unemployment&delta=20&start=0",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": """
+                <html><body>
+                  <div class="card card-box media-card mb-0">
+                    <div class="card-body">
+                      <h3 class="card-title fw-700 max-lines-2">
+                        GASTAT holds a labor-market workshop with regional partners
+                      </h3>
+                      <p class="card-date my-3">01-10-2025</p>
+                      <div class="card-text max-lines-3 mt-2">
+                        <p>The workshop reviewed labor-market measurement concepts.</p>
+                      </div>
+                    </div>
+                    <div class="card-footer-link m-4">
+                      <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/301">
+                        Read More
+                      </a>
+                    </div>
+                  </div>
+                  <div class="card card-box media-card mb-0">
+                    <div class="card-body">
+                      <h3 class="card-title fw-700 max-lines-2">
+                        Unemployment rate of total population reaches 2.8% in Q1 2025
+                      </h3>
+                      <p class="card-date my-3">29-06-2025</p>
+                      <div class="card-text max-lines-3 mt-2">
+                        <p>
+                          The General Authority for Statistics (GASTAT) released today the
+                          Labor Market Statistics Publication for Q1 of 2025. According to the
+                          results, the overall unemployment rate (including Saudis and non-Saudis)
+                          stood at 2.8%, while the overall labor force participation rate reached
+                          68.2%.
+                        </p>
+                      </div>
+                    </div>
+                    <div class="card-footer-link m-4">
+                      <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/201">
+                        Read More
+                      </a>
+                    </div>
+                  </div>
+                  <div class="card card-box media-card mb-0">
+                    <div class="card-body">
+                      <h3 class="card-title fw-700 max-lines-2">
+                        GASTAT publishes Labor Market Statistics for Q2 of 2025
+                      </h3>
+                      <p class="card-date my-3">30-09-2025</p>
+                      <div class="card-text max-lines-3 mt-2">
+                        <p>
+                          GASTAT released Labor Market Statistics Publication for Q2 of 2025.
+                          Overall labor force participation rate (for Saudis and non-Saudis)
+                          reached 67.1%, while the overall unemployment rate (for Saudis and
+                          non-Saudis) reached 3.2%.
+                        </p>
+                      </div>
+                    </div>
+                    <div class="card-footer-link m-4">
+                      <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/202">
+                        Read More
+                      </a>
+                    </div>
+                  </div>
+                </body></html>
+            """,
+        },
+    )
+
+    result = get_field_mapping(
+        raw_payload,
+        canonical_dataset_id="stats-gov-sa-unemployment-rate-total-quarterly",
+    )
+
+    assert result.body_kind is MappingBodyKind.HTML
+    assert result.record_extraction_shape is RecordExtractionShape.ROWS_OBJECT_LIST
+    assert result.can_derive_records is True
+    assert result.limitations == ()
+    assert result.canonical_fields["structured_body"] == {
+        "rows": [
+            {
+                "observation_quarter": "2025-Q1",
+                "labor_series_code": "unemployment_rate_total_population_15_plus",
+                "labor_series_name": "Unemployment Rate of Total Population (15+)",
+                "release_date": "2025-06-29",
+                "value_percent": 2.8,
+                "source_locator": "/en/news?q=unemployment&delta=20&start=0",
+                "source_url": "https://www.stats.gov.sa/en/news?q=unemployment&delta=20&start=0",
+                "source_release_url": "https://www.stats.gov.sa/en/w/news/201",
+                "source_release_title": (
+                    "Unemployment rate of total population reaches 2.8% in Q1 2025"
+                ),
+                "source_release_date_text": "29-06-2025",
+                "source_summary_text": (
+                    "The General Authority for Statistics (GASTAT) released today the "
+                    "Labor Market Statistics Publication for Q1 of 2025. According to the "
+                    "results, the overall unemployment rate (including Saudis and "
+                    "non-Saudis) stood at 2.8%, while the overall labor force "
+                    "participation rate reached 68.2%."
+                ),
+            },
+            {
+                "observation_quarter": "2025-Q2",
+                "labor_series_code": "unemployment_rate_total_population_15_plus",
+                "labor_series_name": "Unemployment Rate of Total Population (15+)",
+                "release_date": "2025-09-30",
+                "value_percent": 3.2,
+                "source_locator": "/en/news?q=unemployment&delta=20&start=0",
+                "source_url": "https://www.stats.gov.sa/en/news?q=unemployment&delta=20&start=0",
+                "source_release_url": "https://www.stats.gov.sa/en/w/news/202",
+                "source_release_title": "GASTAT publishes Labor Market Statistics for Q2 of 2025",
+                "source_release_date_text": "30-09-2025",
+                "source_summary_text": (
+                    "GASTAT released Labor Market Statistics Publication for Q2 of 2025. "
+                    "Overall labor force participation rate (for Saudis and non-Saudis) "
+                    "reached 67.1%, while the overall unemployment rate (for Saudis and "
+                    "non-Saudis) reached 3.2%."
+                ),
+            },
+        ]
+    }
+
+
+def test_stats_gov_sa_unemployment_release_cards_without_supported_rows_remain_limited(
+) -> None:
+    raw_payload = RawPayload(
+        source="stats-gov-sa",
+        dataset_id="/en/news?q=unemployment&delta=20&start=0",
+        content={
+            "url": "https://www.stats.gov.sa/en/news?q=unemployment&delta=20&start=0",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": """
+                <html><body>
+                  <div class="card card-box media-card mb-0">
+                    <div class="card-body">
+                      <h3 class="card-title fw-700 max-lines-2">
+                        GASTAT holds a labor-market workshop with regional partners
+                      </h3>
+                      <p class="card-date my-3">01-10-2025</p>
+                      <div class="card-text max-lines-3 mt-2">
+                        <p>The workshop reviewed labor-market measurement concepts.</p>
+                      </div>
+                    </div>
+                    <div class="card-footer-link m-4">
+                      <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/301">
+                        Read More
+                      </a>
+                    </div>
+                  </div>
+                </body></html>
+            """,
+        },
+    )
+
+    result = get_field_mapping(
+        raw_payload,
+        canonical_dataset_id="stats-gov-sa-unemployment-rate-total-quarterly",
+    )
+
+    assert result.body_kind is MappingBodyKind.HTML
+    assert result.can_derive_records is False
+    assert result.record_extraction_shape is RecordExtractionShape.NONE
+    assert result.limitations == (
+        "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+        STATS_GOV_SA_UNEMPLOYMENT_RATE_TOTAL_QUARTERLY_HTML_LIMITATION,
+    )
 
 
 def test_field_mapping_dispatches_by_source(monkeypatch: pytest.MonkeyPatch) -> None:

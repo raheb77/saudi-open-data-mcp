@@ -42,8 +42,9 @@ class PoliciesResource:
             decision="keep_current_surface",
             summary=(
                 "Wave 3A enrichment makes the current local-only query surface "
-                "materially useful for the enriched SAMA high-frequency core, so "
-                "stable tool semantics remain unchanged."
+                "materially useful for the enriched SAMA high-frequency core and "
+                "the current narrow stats.gov.sa macro datasets, so stable tool "
+                "semantics remain unchanged."
             ),
             query_primary_dataset_ids=QUERY_PRIMARY_CANONICAL_DATASET_IDS,
             tool_policies=(
@@ -90,7 +91,7 @@ class PoliciesResource:
                 "preview_dataset remains the right surface for freshness-aware "
                 "inspection rather than stable analytical reads.",
                 "No new data-serving tool is introduced in this phase because the "
-                "enriched Wave 3A datasets are now materially queryable through the "
-                "existing local-only query path.",
+                "current enriched macro datasets are materially queryable through "
+                "the existing local-only query path.",
             ),
         )
