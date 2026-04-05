@@ -43,8 +43,8 @@ class PoliciesResource:
             summary=(
                 "Wave 3A enrichment makes the current local-only query surface "
                 "materially useful for the enriched SAMA high-frequency core and "
-                "the current narrow stats.gov.sa macro datasets, so stable tool "
-                "semantics remain unchanged."
+                "the current narrow stats.gov.sa macro and Ministry of Finance "
+                "headline datasets, so stable tool semantics remain unchanged."
             ),
             query_primary_dataset_ids=QUERY_PRIMARY_CANONICAL_DATASET_IDS,
             tool_policies=(

@@ -43,6 +43,29 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         ),
     ),
     DatasetDescriptor(
+        dataset_id="mof-budget-balance-quarterly",
+        source="mof",
+        source_locator="/en/financialreport/2025/Pages/default.aspx",
+        title="Budget Balance Quarterly",
+        description=(
+            "Registry entry for the Ministry of Finance quarterly budget performance "
+            "reports page and linked quarterly report PDFs."
+        ),
+        schema_version="0.1.0",
+        update_frequency=UpdateFrequency.QUARTERLY,
+        health_status=DatasetHealthStatus.UNKNOWN,
+        caveats=(
+            "This first Ministry of Finance fiscal entry normalizes one narrow "
+            "headline budget-balance series from supported quarterly report PDFs "
+            "linked by the official MoF 2025 budget performance page.",
+        ),
+        known_issues=(
+            "Only the top-line quarterly budget-balance series is normalized. This "
+            "does not yet cover total revenue, total expenditure, financing tables, "
+            "public debt, or broader fiscal statement coverage.",
+        ),
+    ),
+    DatasetDescriptor(
         dataset_id="data-gov-sa-census-marital-status",
         source="data-gov-sa",
         source_locator=(

@@ -11,6 +11,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastmcp>=2,<3",
     "httpx>=0.28.1",
+    "pypdf>=6.9.2",
     "pydantic>=2,<3",
 ]
 

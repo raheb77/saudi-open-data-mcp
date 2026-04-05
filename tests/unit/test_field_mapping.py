@@ -14,6 +14,9 @@ from saudi_open_data_mcp.normalization.field_mapping import (
     RecordExtractionShape,
     get_field_mapping,
 )
+from saudi_open_data_mcp.normalization.mof_budget_balance_quarterly import (
+    MOF_BUDGET_BALANCE_QUARTERLY_JSON_LIMITATION,
+)
 from saudi_open_data_mcp.normalization.sama_deposits_core import (
     SAMA_DEPOSITS_CORE_JSON_ROWS_LIMITATION,
 )
@@ -1259,6 +1262,128 @@ def test_stats_gov_sa_real_gdp_release_cards_without_supported_rows_remain_limit
     assert result.limitations == (
         "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
         STATS_GOV_SA_REAL_GDP_GROWTH_QUARTERLY_HTML_LIMITATION,
+    )
+
+
+def test_mof_budget_balance_quarterly_json_can_map_to_structured_rows() -> None:
+    raw_payload = RawPayload(
+        source="mof",
+        dataset_id="/en/financialreport/2025/Pages/default.aspx",
+        content={
+            "url": "https://www.mof.gov.sa/en/financialreport/2025/Pages/default.aspx",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {
+                "reports_page_url": (
+                    "https://www.mof.gov.sa/en/financialreport/2025/Pages/default.aspx"
+                ),
+                "reports": [
+                    {
+                        "report_url": (
+                            "https://www.mof.gov.sa/en/financialreport/2025/Documents/"
+                            "Q1E%202025-%20Final.pdf"
+                        ),
+                        "report_text": (
+                            "Results of Surplus/(Deficit) and financing sources in "
+                            "Q1 of FY 2025 Item Q1 2025 Total Surplus/(Deficit) "
+                            "(58,701) Financing Sources Government Reserves 0"
+                        ),
+                    },
+                    {
+                        "report_url": (
+                            "https://www.mof.gov.sa/en/financialreport/2025/Documents/"
+                            "Q2E%202025-%20Final.pdf"
+                        ),
+                        "report_text": (
+                            "Results of Surplus/(Deficit) and financing sources in "
+                            "H1 of FY 2025 Item Q1 2025 Q2 2025 Total "
+                            "Surplus/(Deficit) (58,701) (34,534) Financing Sources "
+                            "Government Reserves 0 0"
+                        ),
+                    },
+                ],
+            },
+        },
+    )
+
+    result = get_field_mapping(
+        raw_payload,
+        canonical_dataset_id="mof-budget-balance-quarterly",
+    )
+
+    assert result.body_kind is MappingBodyKind.JSON
+    assert result.record_extraction_shape is RecordExtractionShape.ROWS_OBJECT_LIST
+    assert result.can_derive_records is True
+    assert result.limitations == ()
+    assert result.canonical_fields["structured_body"] == {
+        "rows": [
+            {
+                "observation_quarter": "2025-Q1",
+                "fiscal_series_code": "headline_budget_balance",
+                "fiscal_series_name": "Headline Budget Balance",
+                "value_sar_bn": -58.701,
+                "source_locator": "/en/financialreport/2025/Pages/default.aspx",
+                "source_url": "https://www.mof.gov.sa/en/financialreport/2025/Pages/default.aspx",
+                "source_report_url": (
+                    "https://www.mof.gov.sa/en/financialreport/2025/Documents/"
+                    "Q1E%202025-%20Final.pdf"
+                ),
+                "source_release_title": "Quarterly Budget Performance Q1 of FY 2025",
+            },
+            {
+                "observation_quarter": "2025-Q2",
+                "fiscal_series_code": "headline_budget_balance",
+                "fiscal_series_name": "Headline Budget Balance",
+                "value_sar_bn": -34.534,
+                "source_locator": "/en/financialreport/2025/Pages/default.aspx",
+                "source_url": "https://www.mof.gov.sa/en/financialreport/2025/Pages/default.aspx",
+                "source_report_url": (
+                    "https://www.mof.gov.sa/en/financialreport/2025/Documents/"
+                    "Q2E%202025-%20Final.pdf"
+                ),
+                "source_release_title": "Quarterly Budget Performance Q2 of FY 2025",
+            },
+        ]
+    }
+
+
+def test_mof_budget_balance_quarterly_json_without_supported_report_bundle_remains_limited(
+) -> None:
+    raw_payload = RawPayload(
+        source="mof",
+        dataset_id="/en/financialreport/2025/Pages/default.aspx",
+        content={
+            "url": "https://www.mof.gov.sa/en/financialreport/2025/Pages/default.aspx",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {
+                "reports_page_url": (
+                    "https://www.mof.gov.sa/en/financialreport/2025/Pages/default.aspx"
+                ),
+                "reports": [
+                    {
+                        "report_url": (
+                            "https://www.mof.gov.sa/en/financialreport/2025/Documents/"
+                            "Q1E%202025-%20Final.pdf"
+                        ),
+                        "report_text": "Unsupported fiscal summary text without a balance table.",
+                    }
+                ],
+            },
+        },
+    )
+
+    result = get_field_mapping(
+        raw_payload,
+        canonical_dataset_id="mof-budget-balance-quarterly",
+    )
+
+    assert result.body_kind is MappingBodyKind.JSON
+    assert result.can_derive_records is False
+    assert result.record_extraction_shape is RecordExtractionShape.NONE
+    assert result.limitations == (
+        "json_body_requires_supported_object_list_shape_for_record_normalization",
+        MOF_BUDGET_BALANCE_QUARTERLY_JSON_LIMITATION,
     )
 
 

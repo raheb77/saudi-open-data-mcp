@@ -461,6 +461,50 @@ def test_stats_gov_sa_real_gdp_growth_quarterly_html_produces_queryable_records(
     assert result.records[0].fields["value_percent"] == 3.9
 
 
+def test_mof_budget_balance_quarterly_json_produces_queryable_records() -> None:
+    raw_payload = RawPayload(
+        source="mof",
+        dataset_id="/en/financialreport/2025/Pages/default.aspx",
+        content={
+            "url": "https://www.mof.gov.sa/en/financialreport/2025/Pages/default.aspx",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {
+                "reports_page_url": (
+                    "https://www.mof.gov.sa/en/financialreport/2025/Pages/default.aspx"
+                ),
+                "reports": [
+                    {
+                        "report_url": (
+                            "https://www.mof.gov.sa/en/financialreport/2025/Documents/"
+                            "Q2E%202025-%20Final.pdf"
+                        ),
+                        "report_text": (
+                            "Results of Surplus/(Deficit) and financing sources in "
+                            "H1 of FY 2025 Item Q1 2025 Q2 2025 Total "
+                            "Surplus/(Deficit) (58,701) (34,534) Financing Sources "
+                            "Government Reserves 0 0"
+                        ),
+                    }
+                ],
+            },
+        },
+    )
+
+    result = NormalizationPipeline().normalize(
+        raw_payload,
+        canonical_dataset_id="mof-budget-balance-quarterly",
+    )
+
+    assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
+    assert result.failure is None
+    assert len(result.records) == 1
+    assert result.records[0].dataset_id == "/en/financialreport/2025/Pages/default.aspx"
+    assert result.records[0].fields["observation_quarter"] == "2025-Q2"
+    assert result.records[0].fields["fiscal_series_code"] == "headline_budget_balance"
+    assert result.records[0].fields["value_sar_bn"] == -34.534
+
+
 def test_data_gov_sa_json_raw_payload_produces_record_derivable_pipeline_result() -> None:
     raw_payload = RawPayload(
         source="data-gov-sa",

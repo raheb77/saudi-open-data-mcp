@@ -32,6 +32,7 @@ def test_load_config_defaults() -> None:
     assert config.source.sama_base_url == "https://www.sama.gov.sa"
     assert config.source.stats_gov_sa_base_url == "https://www.stats.gov.sa"
     assert config.source.data_gov_sa_base_url == "https://open.data.gov.sa"
+    assert config.source.mof_base_url == "https://www.mof.gov.sa"
     assert config.transport.http_host == "127.0.0.1"
     assert config.transport.http_port == 8000
     assert config.transport.http_auth_token is None
@@ -69,6 +70,16 @@ def test_load_config_respects_sama_base_url_override(
     config = load_config()
 
     assert config.source.sama_base_url == "https://example.sama.gov.sa"
+
+
+def test_load_config_respects_mof_base_url_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MOF_BASE_URL", "https://example.mof.gov.sa")
+
+    config = load_config()
+
+    assert config.source.mof_base_url == "https://example.mof.gov.sa"
 
 
 def test_load_config_respects_http_transport_overrides(
@@ -248,6 +259,7 @@ def test_storage_and_connector_modules_import_cleanly_in_fresh_interpreter() -> 
                 "import saudi_open_data_mcp.connectors.data_gov_sa; "
                 "import saudi_open_data_mcp.connectors.sama; "
                 "import saudi_open_data_mcp.connectors.stats_gov_sa; "
+                "import saudi_open_data_mcp.connectors.mof; "
                 "import saudi_open_data_mcp.connectors; "
                 "print('ok')"
             ),

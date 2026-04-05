@@ -110,6 +110,10 @@ def _payload(
         if not locator.startswith("/"):
             raise ValueError("stats-gov-sa test payloads must use absolute locators")
         url = f"https://www.stats.gov.sa{locator}"
+    elif source == "mof":
+        if not locator.startswith("/"):
+            raise ValueError("mof test payloads must use absolute locators")
+        url = f"https://www.mof.gov.sa{locator}"
     elif locator.startswith("/"):
         url = f"https://www.sama.gov.sa{locator}"
     else:
@@ -401,6 +405,36 @@ def _stats_gov_sa_real_gdp_growth_quarterly_html() -> str:
           </div>
         </body></html>
     """
+
+
+def _mof_budget_balance_quarterly_body() -> dict[str, object]:
+    return {
+        "reports_page_url": "https://www.mof.gov.sa/en/financialreport/2025/Pages/default.aspx",
+        "reports": [
+            {
+                "report_url": (
+                    "https://www.mof.gov.sa/en/financialreport/2025/Documents/"
+                    "Q1E%202025-%20Final.pdf"
+                ),
+                "report_text": (
+                    "Results of Surplus/(Deficit) and financing sources in Q1 of FY 2025 "
+                    "Item Q1 2025 Total Surplus/(Deficit) (58,701) Financing Sources "
+                    "Government Reserves 0"
+                ),
+            },
+            {
+                "report_url": (
+                    "https://www.mof.gov.sa/en/financialreport/2025/Documents/"
+                    "Q2E%202025-%20Final.pdf"
+                ),
+                "report_text": (
+                    "Results of Surplus/(Deficit) and financing sources in H1 of FY 2025 "
+                    "Item Q1 2025 Q2 2025 Total Surplus/(Deficit) (58,701) (34,534) "
+                    "Financing Sources Government Reserves 0 0"
+                ),
+            },
+        ],
+    }
 
 
 def _write_snapshot_with_mtime(
@@ -814,6 +848,48 @@ async def test_stats_gov_sa_gdp_fresh_snapshot_is_served_as_queryable_preview(
     assert result.records[0].fields["observation_quarter"] == "2025-Q2"
     assert result.records[0].fields["gdp_series_code"] == "real_gdp_growth_rate_yoy"
     assert result.records[0].fields["value_percent"] == 3.9
+
+
+@pytest.mark.asyncio
+async def test_mof_budget_balance_quarterly_fresh_snapshot_is_served_as_queryable_preview(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(
+        tmp_path,
+        source="mof",
+        dataset_id="mof-budget-balance-quarterly",
+        source_locator="/en/financialreport/2025/Pages/default.aspx",
+        update_frequency=UpdateFrequency.QUARTERLY,
+    )
+    store = _snapshot_store(tmp_path)
+    _write_snapshot_with_mtime(
+        store,
+        source="mof",
+        locator="/en/financialreport/2025/Pages/default.aspx",
+        modified_at=datetime(2025, 7, 1, 12, 0, tzinfo=UTC),
+        body=_mof_budget_balance_quarterly_body(),
+        content_type="application/json",
+    )
+    tool = DatasetPreviewTool(
+        repository,
+        SourceConnectorResolver({"mof": _ConnectorSpy([])}),
+        snapshot_store=store,
+    )
+
+    result = await tool.preview_dataset(
+        "mof-budget-balance-quarterly",
+        reference_time=datetime(2025, 7, 2, 12, 0, tzinfo=UTC),
+    )
+
+    assert result.status is PreviewStatus.RECORD_DERIVABLE
+    assert result.resolution_outcome is PreviewResolutionOutcome.SERVE_LOCAL
+    assert result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT
+    assert result.freshness_status is SnapshotFreshnessStatus.FRESH
+    assert result.limitations == ()
+    assert len(result.records) == 2
+    assert result.records[0].fields["observation_quarter"] == "2025-Q1"
+    assert result.records[0].fields["fiscal_series_code"] == "headline_budget_balance"
+    assert result.records[0].fields["value_sar_bn"] == -58.701
 
 
 @pytest.mark.asyncio

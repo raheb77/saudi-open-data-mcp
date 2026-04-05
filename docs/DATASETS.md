@@ -2,8 +2,9 @@
 
 ## Source Scope
 
-- Current MVP source scope is SAMA plus one narrow `data.gov.sa` pilot dataset and
-  three narrow `stats.gov.sa` macro datasets.
+- Current MVP source scope is SAMA plus one narrow `data.gov.sa` pilot dataset,
+  three narrow `stats.gov.sa` macro datasets, and one narrow Ministry of
+  Finance fiscal dataset.
 - Only approved official sources may be accessed.
 
 ## Current State
@@ -42,6 +43,7 @@ use an additive-within-major evolution policy.
 | `stats-gov-sa-cpi-headline-monthly` | time-series observation | monthly | `observation_month`, `inflation_series_code` | `yoy_rate_percent`, `mom_rate_percent` | monthly headline CPI inflation path from supported official release cards |
 | `stats-gov-sa-unemployment-rate-total-quarterly` | time-series observation | quarterly | `observation_quarter`, `labor_series_code` | `value_percent` | quarterly total-population unemployment path from supported official labor-market release cards |
 | `stats-gov-sa-real-gdp-growth-quarterly` | time-series observation | quarterly | `observation_quarter`, `gdp_series_code` | `value_percent` | quarterly headline real GDP growth path from supported official GDP release cards |
+| `mof-budget-balance-quarterly` | time-series observation | quarterly | `observation_quarter`, `fiscal_series_code` | `value_sar_bn` | quarterly headline budget balance path from supported official MoF budget performance reports |
 
 `sama-deposits-core` remains intentionally bundled for now. The current SAMA
 monthly report surface publishes the core deposit components inside one shared
@@ -65,3 +67,9 @@ current contract is limited to supported official headline real GDP release
 cards on the `stats.gov.sa` gdp news surface; it does not yet claim GDP levels,
 activity or expenditure breakdowns, seasonally adjusted quarter-over-quarter
 series, or broader national-accounts coverage.
+
+`mof-budget-balance-quarterly` also remains intentionally narrow. The current
+contract is limited to one supported headline budget-balance series extracted
+from official Ministry of Finance quarterly budget performance report PDFs
+linked on the 2025 budget-performance page; it does not yet claim total
+revenue, total expenditure, public debt, or broader fiscal-statement coverage.

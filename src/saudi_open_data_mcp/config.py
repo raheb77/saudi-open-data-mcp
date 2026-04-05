@@ -42,6 +42,7 @@ class SourceConfig(BaseModel):
     sama_base_url: str = "https://www.sama.gov.sa"
     stats_gov_sa_base_url: str = "https://www.stats.gov.sa"
     data_gov_sa_base_url: str = "https://open.data.gov.sa"
+    mof_base_url: str = "https://www.mof.gov.sa"
 
 
 class TransportConfig(BaseModel):
@@ -234,6 +235,7 @@ def load_config() -> RuntimeConfig:
                     "DATA_GOV_SA_BASE_URL",
                     "https://open.data.gov.sa",
                 ),
+                mof_base_url=getenv("MOF_BASE_URL", "https://www.mof.gov.sa"),
             ),
             registry_path=_path_from_env("REGISTRY_PATH", DEFAULT_REGISTRY_PATH),
             snapshot_dir=_path_from_env("SNAPSHOT_DIR", DEFAULT_SNAPSHOT_DIR),

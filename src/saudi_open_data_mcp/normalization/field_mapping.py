@@ -10,6 +10,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..connectors.base import RawPayload
 from .errors import UnknownNormalizationSourceError
+from .mof_budget_balance_quarterly import (
+    MOF_BUDGET_BALANCE_QUARTERLY_JSON_LIMITATION,
+    extract_mof_budget_balance_quarterly_rows_from_json,
+)
 from .sama_deposits_core import (
     SAMA_DEPOSITS_CORE_JSON_ROWS_LIMITATION,
     extract_sama_deposits_core_rows_from_json,
@@ -261,6 +265,48 @@ def _map_tabular_source_payload(
             limitations=(
                 TEXT_HTML_EXTRACTION_LIMITATION,
                 STATS_GOV_SA_REAL_GDP_GROWTH_QUARTERLY_HTML_LIMITATION,
+            ),
+        )
+
+    if (
+        raw_payload.source == "mof"
+        and canonical_dataset_id == "mof-budget-balance-quarterly"
+        and body_kind is MappingBodyKind.JSON
+        and isinstance(raw_body, dict)
+    ):
+        extracted_rows = extract_mof_budget_balance_quarterly_rows_from_json(
+            body=raw_body,
+            source_locator=raw_payload.dataset_id,
+            source_url=response_metadata.url,
+        )
+        if extracted_rows:
+            return FieldMappingResult(
+                source=raw_payload.source,
+                dataset_locator=raw_payload.dataset_id,
+                response_metadata=response_metadata,
+                body_kind=body_kind,
+                raw_body=raw_body,
+                canonical_fields={
+                    **base_canonical_fields,
+                    "structured_body": {"rows": extracted_rows},
+                },
+                record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
+                can_derive_records=True,
+                limitations=(),
+            )
+
+        return FieldMappingResult(
+            source=raw_payload.source,
+            dataset_locator=raw_payload.dataset_id,
+            response_metadata=response_metadata,
+            body_kind=body_kind,
+            raw_body=raw_body,
+            canonical_fields=base_canonical_fields,
+            record_extraction_shape=RecordExtractionShape.NONE,
+            can_derive_records=False,
+            limitations=(
+                JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
+                MOF_BUDGET_BALANCE_QUARTERLY_JSON_LIMITATION,
             ),
         )
 
@@ -522,6 +568,7 @@ FieldMapper = Callable[[RawPayload, str | None], FieldMappingResult]
 _FIELD_MAPPERS: dict[str, FieldMapper] = {
     "sama": _map_tabular_source_payload,
     "data-gov-sa": _map_tabular_source_payload,
+    "mof": _map_tabular_source_payload,
     "stats-gov-sa": _map_tabular_source_payload,
 }
 

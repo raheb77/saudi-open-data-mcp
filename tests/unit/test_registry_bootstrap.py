@@ -83,6 +83,11 @@ def test_bootstrap_inserts_expected_initial_descriptors(tmp_path: Path) -> None:
         == "/en/news?q=gdp&delta=20&start=0"
     )
     assert any(descriptor.source == "stats-gov-sa" for descriptor in bootstrapped_descriptors)
+    assert (
+        descriptors_by_id["mof-budget-balance-quarterly"].source_locator
+        == "/en/financialreport/2025/Pages/default.aspx"
+    )
+    assert any(descriptor.source == "mof" for descriptor in bootstrapped_descriptors)
 
 
 def test_bootstrap_is_idempotent_and_deterministic(tmp_path: Path) -> None:

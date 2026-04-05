@@ -334,6 +334,36 @@ def _stats_gov_sa_real_gdp_growth_quarterly_html() -> str:
     """
 
 
+def _mof_budget_balance_quarterly_body() -> dict[str, object]:
+    return {
+        "reports_page_url": "https://www.mof.gov.sa/en/financialreport/2025/Pages/default.aspx",
+        "reports": [
+            {
+                "report_url": (
+                    "https://www.mof.gov.sa/en/financialreport/2025/Documents/"
+                    "Q1E%202025-%20Final.pdf"
+                ),
+                "report_text": (
+                    "Results of Surplus/(Deficit) and financing sources in Q1 of FY 2025 "
+                    "Item Q1 2025 Total Surplus/(Deficit) (58,701) Financing Sources "
+                    "Government Reserves 0"
+                ),
+            },
+            {
+                "report_url": (
+                    "https://www.mof.gov.sa/en/financialreport/2025/Documents/"
+                    "Q2E%202025-%20Final.pdf"
+                ),
+                "report_text": (
+                    "Results of Surplus/(Deficit) and financing sources in H1 of FY 2025 "
+                    "Item Q1 2025 Q2 2025 Total Surplus/(Deficit) (58,701) (34,534) "
+                    "Financing Sources Government Reserves 0 0"
+                ),
+            },
+        ],
+    }
+
+
 def test_query_dataset_returns_explicit_missing_result_for_unknown_dataset(
     tmp_path: Path,
 ) -> None:
@@ -855,6 +885,76 @@ def test_query_dataset_returns_queryable_gdp_records_for_stats_gov_sa(
             "Non-oil activities recorded a growth of 4.7%, oil activities grew "
             "by 3.8%, while government activities increased by 0.6%."
         ),
+    }
+
+
+def test_query_dataset_returns_queryable_mof_budget_balance_records(
+    tmp_path: Path,
+) -> None:
+    repository = RegistryRepository(tmp_path / "registry.sqlite")
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    descriptor = DatasetDescriptor(
+        dataset_id="mof-budget-balance-quarterly",
+        source="mof",
+        source_locator="/en/financialreport/2025/Pages/default.aspx",
+        title="Budget Balance Quarterly",
+        description="Official headline budget-balance series from MoF quarterly reports.",
+        schema_version="0.1.0",
+        update_frequency=UpdateFrequency.QUARTERLY,
+        health_status=DatasetHealthStatus.UNKNOWN,
+        caveats=(
+            "Current canonical extraction covers one supported top-line budget-balance "
+            "series only.",
+        ),
+        known_issues=(
+            "Revenue, expenditure, financing sources, and broader fiscal statements "
+            "remain outside this first contract.",
+        ),
+    )
+    tool = DatasetQueryTool(repository, snapshot_store)
+
+    repository.upsert_dataset(descriptor)
+    snapshot_store.write_snapshot(
+        RawPayload(
+            source="mof",
+            dataset_id=descriptor.source_locator,
+            content={
+                "url": "https://www.mof.gov.sa/en/financialreport/2025/Pages/default.aspx",
+                "status_code": 200,
+                "content_type": "application/json",
+                "body": _mof_budget_balance_quarterly_body(),
+            },
+        )
+    )
+
+    result = tool.query_dataset(
+        descriptor.dataset_id,
+        filters={
+            "observation_quarter": "2025-Q2",
+            "fiscal_series_code": "headline_budget_balance",
+        },
+    )
+
+    assert result.status is DatasetQueryStatus.SUCCESS
+    assert result.source == "mof"
+    assert result.total_records_before_filter == 2
+    assert result.applied_filters == {
+        "observation_quarter": "2025-Q2",
+        "fiscal_series_code": "headline_budget_balance",
+    }
+    assert len(result.matched_records) == 1
+    assert result.matched_records[0].fields == {
+        "observation_quarter": "2025-Q2",
+        "fiscal_series_code": "headline_budget_balance",
+        "fiscal_series_name": "Headline Budget Balance",
+        "value_sar_bn": -34.534,
+        "source_locator": "/en/financialreport/2025/Pages/default.aspx",
+        "source_url": "https://www.mof.gov.sa/en/financialreport/2025/Pages/default.aspx",
+        "source_report_url": (
+            "https://www.mof.gov.sa/en/financialreport/2025/Documents/"
+            "Q2E%202025-%20Final.pdf"
+        ),
+        "source_release_title": "Quarterly Budget Performance Q2 of FY 2025",
     }
 
 

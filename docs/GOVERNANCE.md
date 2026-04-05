@@ -74,6 +74,7 @@ It does not claim full IAM, compliance controls, or public-internet maturity.
   Current live source families in the repo are still explicit and source-specific:
   - SAMA
   - `stats.gov.sa` inflation, labor, and gdp news surfaces
+  - Ministry of Finance quarterly budget performance reports
   - existing `data.gov.sa` pilot paths already in the registry
 
 ## Retention / Deletion Basics

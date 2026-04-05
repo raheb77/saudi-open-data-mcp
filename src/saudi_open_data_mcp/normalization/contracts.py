@@ -616,11 +616,70 @@ GASTAT_GDP_DATASET_IDS: tuple[str, ...] = tuple(
     contract.dataset_id for contract in GASTAT_GDP_CONTRACTS
 )
 
+MOF_FISCAL_CONTRACTS: tuple[CanonicalDatasetContract, ...] = (
+    CanonicalDatasetContract(
+        dataset_id="mof-budget-balance-quarterly",
+        schema_version="1.0.0",
+        record_shape=CanonicalRecordShape.TIME_SERIES_OBSERVATION,
+        temporal_granularity=TemporalGranularity.QUARTERLY,
+        primary_key=("observation_quarter", "fiscal_series_code"),
+        dimensions=(
+            _dimension(
+                "observation_quarter",
+                type=CanonicalFieldType.YEAR_QUARTER,
+                description=(
+                    "Observed fiscal quarter reported by the official Ministry of Finance "
+                    "quarterly budget performance materials."
+                ),
+            ),
+            _dimension(
+                "fiscal_series_code",
+                type=CanonicalFieldType.STRING,
+                description="Stable code for the supported top-line fiscal series.",
+            ),
+            _dimension(
+                "fiscal_series_name",
+                type=CanonicalFieldType.STRING,
+                description="Human-readable label for the supported fiscal series.",
+            ),
+        ),
+        measures=(
+            _measure(
+                "value_sar_bn",
+                type=CanonicalFieldType.DECIMAL,
+                description=(
+                    "Quarterly headline budget balance normalized to Saudi Riyals, "
+                    "billions."
+                ),
+                unit="SAR bn",
+            ),
+        ),
+        structure_note=(
+            "This first Ministry of Finance fiscal contract extracts the headline budget "
+            "balance series from supported quarterly budget performance report PDFs "
+            "linked from the official 2025 Ministry of Finance budget performance page. "
+            "It does not yet claim total revenue, total expenditure, financing tables, "
+            "public debt, or broader fiscal statement coverage."
+        ),
+        intended_analytical_uses=(
+            "Track the quarterly top-line budget balance path on the official Ministry "
+            "of Finance reporting surface.",
+            "Support local exact-match analysis over one narrow fiscal headline series "
+            "before broader public-finance expansion.",
+        ),
+    ),
+)
+
+MOF_FISCAL_DATASET_IDS: tuple[str, ...] = tuple(
+    contract.dataset_id for contract in MOF_FISCAL_CONTRACTS
+)
+
 QUERY_PRIMARY_CANONICAL_DATASET_IDS: tuple[str, ...] = (
     SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_DATASET_IDS
     + GASTAT_INFLATION_DATASET_IDS
     + GASTAT_LABOR_DATASET_IDS
     + GASTAT_GDP_DATASET_IDS
+    + MOF_FISCAL_DATASET_IDS
 )
 
 _CANONICAL_CONTRACTS_BY_DATASET_ID = {
@@ -630,6 +689,7 @@ _CANONICAL_CONTRACTS_BY_DATASET_ID = {
         + GASTAT_INFLATION_CONTRACTS
         + GASTAT_LABOR_CONTRACTS
         + GASTAT_GDP_CONTRACTS
+        + MOF_FISCAL_CONTRACTS
     )
 }
 
