@@ -1,4 +1,4 @@
-"""Canonical contract targets for Wave 3 SAMA high-frequency enrichment."""
+"""Canonical contract targets for the current enriched macro dataset set."""
 
 from __future__ import annotations
 
@@ -431,8 +431,76 @@ SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_DATASET_IDS: tuple[str, ...] = tuple(
     contract.dataset_id for contract in SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_CONTRACTS
 )
 
-_SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_CONTRACTS_BY_DATASET_ID = {
-    contract.dataset_id: contract for contract in SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_CONTRACTS
+GASTAT_INFLATION_CONTRACTS: tuple[CanonicalDatasetContract, ...] = (
+    CanonicalDatasetContract(
+        dataset_id="stats-gov-sa-cpi-headline-monthly",
+        schema_version="1.0.0",
+        record_shape=CanonicalRecordShape.TIME_SERIES_OBSERVATION,
+        temporal_granularity=TemporalGranularity.MONTHLY,
+        primary_key=("observation_month", "inflation_series_code"),
+        dimensions=(
+            _dimension(
+                "observation_month",
+                type=CanonicalFieldType.YEAR_MONTH,
+                description="Observed CPI month reported by the official release card.",
+            ),
+            _dimension(
+                "inflation_series_code",
+                type=CanonicalFieldType.STRING,
+                description="Stable code for the supported headline CPI series.",
+            ),
+            _dimension(
+                "inflation_series_name",
+                type=CanonicalFieldType.STRING,
+                description="Human-readable label for the supported headline CPI series.",
+            ),
+            _dimension(
+                "release_date",
+                type=CanonicalFieldType.DATE,
+                description="Official publication date of the release card.",
+            ),
+        ),
+        measures=(
+            _measure(
+                "yoy_rate_percent",
+                type=CanonicalFieldType.DECIMAL,
+                description="Headline year-over-year CPI inflation rate.",
+                unit="percent",
+            ),
+            _measure(
+                "mom_rate_percent",
+                type=CanonicalFieldType.DECIMAL,
+                description="Headline month-over-month CPI inflation rate.",
+                unit="percent",
+            ),
+        ),
+        structure_note=(
+            "This first GASTAT inflation contract extracts supported headline CPI "
+            "release cards from the official stats.gov.sa inflation-filtered news "
+            "surface. It does not yet claim full CPI category tables, index values, "
+            "regional cuts, or direct statistical-database coverage."
+        ),
+        intended_analytical_uses=(
+            "Track the monthly headline CPI inflation path with explicit release dates.",
+            "Support local exact-match analysis over monthly headline year-over-year "
+            "and month-over-month inflation rates.",
+        ),
+    ),
+)
+
+GASTAT_INFLATION_DATASET_IDS: tuple[str, ...] = tuple(
+    contract.dataset_id for contract in GASTAT_INFLATION_CONTRACTS
+)
+
+QUERY_PRIMARY_CANONICAL_DATASET_IDS: tuple[str, ...] = (
+    SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_DATASET_IDS + GASTAT_INFLATION_DATASET_IDS
+)
+
+_CANONICAL_CONTRACTS_BY_DATASET_ID = {
+    contract.dataset_id: contract
+    for contract in (
+        SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_CONTRACTS + GASTAT_INFLATION_CONTRACTS
+    )
 }
 
 
@@ -440,7 +508,7 @@ def get_canonical_dataset_contract(dataset_id: str) -> CanonicalDatasetContract:
     """Return the declared canonical contract for a supported dataset identifier."""
 
     try:
-        return _SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_CONTRACTS_BY_DATASET_ID[dataset_id]
+        return _CANONICAL_CONTRACTS_BY_DATASET_ID[dataset_id]
     except KeyError as exc:
         raise ValueError(
             f"No canonical contract is defined for dataset_id '{dataset_id}'"

@@ -70,6 +70,11 @@ def test_bootstrap_inserts_expected_initial_descriptors(tmp_path: Path) -> None:
         for caveat in descriptors_by_id["sama-deposits-core"].caveats
     )
     assert any(descriptor.source == "data-gov-sa" for descriptor in bootstrapped_descriptors)
+    assert (
+        descriptors_by_id["stats-gov-sa-cpi-headline-monthly"].source_locator
+        == "/en/news?q=inflation&delta=20&start=0"
+    )
+    assert any(descriptor.source == "stats-gov-sa" for descriptor in bootstrapped_descriptors)
 
 
 def test_bootstrap_is_idempotent_and_deterministic(tmp_path: Path) -> None:

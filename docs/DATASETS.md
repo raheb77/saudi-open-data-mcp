@@ -2,7 +2,8 @@
 
 ## Source Scope
 
-- Current MVP source scope is SAMA plus one narrow `data.gov.sa` pilot dataset.
+- Current MVP source scope is SAMA plus one narrow `data.gov.sa` pilot dataset and
+  one narrow `stats.gov.sa` inflation dataset.
 - Only approved official sources may be accessed.
 
 ## Current State
@@ -22,11 +23,10 @@
 
 ## Wave 3 Canonical Contract Targets
 
-These contracts define the intended enriched record shapes for the first SAMA
-high-frequency economic core. They are contract targets for upcoming
-source-specific enrichment work. They do not change the current local-only
-`query_dataset` semantics or imply that every target contract is already
-materialized and query-ready today.
+These contracts define the intended enriched record shapes for the current
+query-oriented macro datasets. They do not change the current local-only
+`query_dataset` semantics or imply that every contract target has the same
+source richness or hot-set status.
 
 All Wave 3 canonical contracts currently start at schema version `1.0.0` and
 use an additive-within-major evolution policy.
@@ -39,9 +39,15 @@ use an additive-within-major evolution policy.
 | `sama-exchange-rates-current` | snapshot observation | daily | `as_of_date`, `currency_code` | `buy_rate_sar`, `sell_rate_sar` | daily SAR-quoted FX lookup and cross-currency spread comparison |
 | `sama-repo-rate` | time-series observation | event | `effective_date` | `rate_percent` | policy-rate timeline and linkage to liquidity indicators |
 | `sama-reverse-repo-rate` | time-series observation | event | `effective_date` | `rate_percent` | reverse-repo policy timeline and comparison to repo moves |
+| `stats-gov-sa-cpi-headline-monthly` | time-series observation | monthly | `observation_month`, `inflation_series_code` | `yoy_rate_percent`, `mom_rate_percent` | monthly headline CPI inflation path from supported official release cards |
 
 `sama-deposits-core` remains intentionally bundled for now. The current SAMA
 monthly report surface publishes the core deposit components inside one shared
 report payload, so the canonical Wave 3 direction is a bundled monthly dataset
 with stable deposit-category fields rather than prematurely splitting it into
 separate standalone deposit datasets.
+
+`stats-gov-sa-cpi-headline-monthly` remains intentionally narrow. The current
+contract is limited to supported headline CPI release cards on the official
+`stats.gov.sa` inflation news surface; it does not yet claim full CPI tables,
+index values, or category-level breakdowns.

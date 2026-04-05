@@ -78,6 +78,7 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
         connector_resolver = build_default_connector_resolver(
             sama_base_url=runtime_config.source.sama_base_url,
             data_gov_sa_base_url=runtime_config.source.data_gov_sa_base_url,
+            stats_gov_sa_base_url=runtime_config.source.stats_gov_sa_base_url,
         )
 
         catalog_resource = CatalogResource(repository)

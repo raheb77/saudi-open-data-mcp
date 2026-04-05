@@ -129,6 +129,7 @@ async def test_server_registers_current_mcp_surface(
         "sama-exchange-rates-current",
         "sama-repo-rate",
         "sama-reverse-repo-rate",
+        "stats-gov-sa-cpi-headline-monthly",
     ]
     assert [policy["tool_name"] for policy in policies_payload["tool_policies"]] == [
         "query_dataset",
@@ -663,9 +664,15 @@ async def test_server_wires_preview_through_connector_resolver(
     captured: dict[str, object] = {}
     resolver_sentinel = object()
 
-    def _resolver_factory(*, sama_base_url: str, data_gov_sa_base_url: str):
+    def _resolver_factory(
+        *,
+        sama_base_url: str,
+        data_gov_sa_base_url: str,
+        stats_gov_sa_base_url: str,
+    ):
         captured["sama_base_url"] = sama_base_url
         captured["data_gov_sa_base_url"] = data_gov_sa_base_url
+        captured["stats_gov_sa_base_url"] = stats_gov_sa_base_url
         return resolver_sentinel
 
     class PreviewToolSpy:
@@ -688,6 +695,7 @@ async def test_server_wires_preview_through_connector_resolver(
             source={
                 "sama_base_url": "https://www.sama.gov.sa",
                 "data_gov_sa_base_url": "https://open.data.gov.sa",
+                "stats_gov_sa_base_url": "https://www.stats.gov.sa",
             },
         )
     )
@@ -698,6 +706,7 @@ async def test_server_wires_preview_through_connector_resolver(
     assert captured["connector_resolver"] is resolver_sentinel
     assert captured["sama_base_url"] == "https://www.sama.gov.sa"
     assert captured["data_gov_sa_base_url"] == "https://open.data.gov.sa"
+    assert captured["stats_gov_sa_base_url"] == "https://www.stats.gov.sa"
 
 
 def _write_snapshot_with_mtime(

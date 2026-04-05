@@ -38,6 +38,7 @@ class SourceConfig(BaseModel):
     """
 
     sama_base_url: str = "https://www.sama.gov.sa"
+    stats_gov_sa_base_url: str = "https://www.stats.gov.sa"
     data_gov_sa_base_url: str = "https://open.data.gov.sa"
 
 
@@ -193,6 +194,10 @@ def load_config() -> RuntimeConfig:
         return RuntimeConfig(
             source=SourceConfig(
                 sama_base_url=getenv("SAMA_BASE_URL", "https://www.sama.gov.sa"),
+                stats_gov_sa_base_url=getenv(
+                    "STATS_GOV_SA_BASE_URL",
+                    "https://www.stats.gov.sa",
+                ),
                 data_gov_sa_base_url=getenv(
                     "DATA_GOV_SA_BASE_URL",
                     "https://open.data.gov.sa",

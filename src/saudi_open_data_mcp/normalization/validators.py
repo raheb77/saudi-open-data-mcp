@@ -110,6 +110,7 @@ FieldMappingValidator = Callable[[FieldMappingResult], FieldMappingValidationRes
 _FIELD_MAPPING_VALIDATORS: dict[str, FieldMappingValidator] = {
     "sama": _validate_tabular_source_field_mapping,
     "data-gov-sa": _validate_tabular_source_field_mapping,
+    "stats-gov-sa": _validate_tabular_source_field_mapping,
 }
 
 

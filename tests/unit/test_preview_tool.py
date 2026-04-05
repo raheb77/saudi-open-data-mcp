@@ -100,17 +100,22 @@ def _tool(
 
 def _payload(
     *,
+    source: str = "sama",
     locator: str = REPORT_LOCATOR,
     body: object | None = None,
     content_type: str = "application/json",
 ) -> RawPayload:
-    if locator.startswith("/"):
+    if source == "stats-gov-sa":
+        if not locator.startswith("/"):
+            raise ValueError("stats-gov-sa test payloads must use absolute locators")
+        url = f"https://www.stats.gov.sa{locator}"
+    elif locator.startswith("/"):
         url = f"https://www.sama.gov.sa{locator}"
     else:
         url = f"https://www.sama.gov.sa/en-US/EconomicReports/Pages/{locator}"
 
     return RawPayload(
-        source="sama",
+        source=source,
         dataset_id=locator,
         content={
             "url": url,
@@ -231,16 +236,88 @@ def _reverse_repo_rate_html() -> str:
     """
 
 
+def _stats_gov_sa_cpi_headline_monthly_html() -> str:
+    return """
+        <html><body>
+          <div class="card card-box media-card mb-0">
+            <div class="card-body">
+              <h3 class="card-title fw-700 max-lines-2">
+                GASTAT holds a workshop on developing the Consumer Price Index (CPI)
+              </h3>
+              <p class="card-date my-3">01-04-2026</p>
+              <div class="card-text max-lines-3 mt-2">
+                <p>The workshop reviewed the developmental journey of the CPI.</p>
+              </div>
+            </div>
+            <div class="card-footer-link m-4">
+              <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/176">
+                Read More
+              </a>
+            </div>
+          </div>
+          <div class="card card-box media-card mb-0">
+            <div class="card-body">
+              <h3 class="card-title fw-700 max-lines-2">
+                GASTAT: Saudi Arabia’s inflation rate records 2.1% in December 2025
+              </h3>
+              <p class="card-date my-3">15-01-2026</p>
+              <div class="card-text max-lines-3 mt-2">
+                <p>
+                  The annual inflation rate in Saudi Arabia reached 2.1% in December 2025,
+                  compared to December 2024, while it recorded a monthly increase of 0.1%
+                  compared to November 2025. It is worth noting that the Consumer Price
+                  Index (CPI) reflects changes in prices paid by consumers.
+                </p>
+              </div>
+            </div>
+            <div class="card-footer-link m-4">
+              <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/155">
+                Read More
+              </a>
+            </div>
+          </div>
+          <div class="card card-box media-card mb-0">
+            <div class="card-body">
+              <h3 class="card-title fw-700 max-lines-2">
+                GASTAT: Inflation in Saudi Arabia reaches 1.9% in November 2025
+              </h3>
+              <p class="card-date my-3">15-12-2025</p>
+              <div class="card-text max-lines-3 mt-2">
+                <p>
+                  The annual inflation rate of the Consumer Price Index (CPI) in Saudi
+                  Arabia reached 1.9% in November 2025, compared with November 2024,
+                  recording relative stability on a monthly basis at 0.1% compared with
+                  October 2025. It is noteworthy that CPI reflects changes in the prices
+                  paid by consumers.
+                </p>
+              </div>
+            </div>
+            <div class="card-footer-link m-4">
+              <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/136">
+                Read More
+              </a>
+            </div>
+          </div>
+        </body></html>
+    """
+
+
 def _write_snapshot_with_mtime(
     store: SnapshotStore,
     *,
+    source: str = "sama",
     locator: str = REPORT_LOCATOR,
     modified_at: datetime,
     body: object | None = None,
     content_type: str = "application/json",
 ) -> Path:
     path = store.write_snapshot(
-        _payload(locator=locator, body=body, content_type=content_type)
+        _payload(
+            source=source,
+            locator=locator,
+            body=body,
+            content_type=content_type,
+        )
     )
     timestamp = modified_at.timestamp()
     os.utime(path, (timestamp, timestamp))
@@ -507,6 +584,49 @@ async def test_sama_reverse_repo_rate_fresh_snapshot_is_served_as_queryable_poli
     assert len(result.records) == 1
     assert result.records[0].fields["policy_rate_code"] == "reverse_repo_rate"
     assert result.records[0].fields["rate_percent"] == 4.75
+
+
+@pytest.mark.asyncio
+async def test_stats_gov_sa_cpi_headline_monthly_fresh_snapshot_is_served_as_queryable_preview(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(
+        tmp_path,
+        source="stats-gov-sa",
+        dataset_id="stats-gov-sa-cpi-headline-monthly",
+        source_locator="/en/news?q=inflation&delta=20&start=0",
+        update_frequency=UpdateFrequency.MONTHLY,
+    )
+    store = _snapshot_store(tmp_path)
+    _write_snapshot_with_mtime(
+        store,
+        source="stats-gov-sa",
+        locator="/en/news?q=inflation&delta=20&start=0",
+        modified_at=datetime(2026, 1, 15, 12, 0, tzinfo=UTC),
+        body=_stats_gov_sa_cpi_headline_monthly_html(),
+        content_type="text/html",
+    )
+    tool = DatasetPreviewTool(
+        repository,
+        SourceConnectorResolver({"stats-gov-sa": _ConnectorSpy([])}),
+        snapshot_store=store,
+    )
+
+    result = await tool.preview_dataset(
+        "stats-gov-sa-cpi-headline-monthly",
+        reference_time=datetime(2026, 1, 16, 12, 0, tzinfo=UTC),
+    )
+
+    assert result.status is PreviewStatus.RECORD_DERIVABLE
+    assert result.resolution_outcome is PreviewResolutionOutcome.SERVE_LOCAL
+    assert result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT
+    assert result.freshness_status is SnapshotFreshnessStatus.FRESH
+    assert result.limitations == ()
+    assert len(result.records) == 2
+    assert result.records[0].fields["observation_month"] == "2025-12"
+    assert result.records[0].fields["inflation_series_code"] == "headline_cpi_all_items"
+    assert result.records[0].fields["yoy_rate_percent"] == 2.1
+    assert result.records[0].fields["mom_rate_percent"] == 0.1
 
 
 @pytest.mark.asyncio

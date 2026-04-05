@@ -2,6 +2,9 @@
 
 from .arabic import normalize_arabic_text
 from .contracts import (
+    GASTAT_INFLATION_CONTRACTS,
+    GASTAT_INFLATION_DATASET_IDS,
+    QUERY_PRIMARY_CANONICAL_DATASET_IDS,
     SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_CONTRACTS,
     SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_DATASET_IDS,
     CanonicalDatasetContract,
@@ -24,8 +27,11 @@ __all__ = [
     "CanonicalFieldType",
     "CanonicalRecord",
     "CanonicalRecordShape",
+    "GASTAT_INFLATION_CONTRACTS",
+    "GASTAT_INFLATION_DATASET_IDS",
     "NormalizationPipeline",
     "NormalizationResult",
+    "QUERY_PRIMARY_CANONICAL_DATASET_IDS",
     "SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_CONTRACTS",
     "SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_DATASET_IDS",
     "SchemaEvolutionPolicy",
