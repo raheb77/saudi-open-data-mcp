@@ -15,6 +15,10 @@ Internal-only runtime and durability guidance for the current container-first ph
 2. Set `HTTP_AUTH_ROLE` for the allowed HTTP role bundle.
 3. Optionally set `HTTP_AUTH_CAPABILITIES` only when you want to make the
 configured role bundle explicit; it must match the selected role.
+   Migration note: deployments that previously set `HTTP_AUTH_CAPABILITIES`
+   without `HTTP_AUTH_ROLE` should now set the matching role explicitly. A
+   capability-only override is no longer enough because startup now validates
+   that the configured role and capability bundle agree.
 4. Set persistent `REGISTRY_PATH` and `SNAPSHOT_DIR` if you are not using the default container volume.
 5. Optionally set `TIER_A_REFRESH_ENABLED=true` and `TIER_A_REFRESH_INTERVAL_SECONDS`.
 6. Validate startup locally with:
