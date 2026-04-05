@@ -214,7 +214,10 @@ def _extract_record(
         title=title,
         summary_text=summary_text,
     )
-    mom_rate_percent = _extract_monthly_rate_percent(summary_text)
+    try:
+        mom_rate_percent = _extract_monthly_rate_percent(summary_text)
+    except ValueError:
+        return None
     release_date = _parse_release_date(release_date_text)
 
     return {

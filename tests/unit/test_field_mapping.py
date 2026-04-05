@@ -760,6 +760,56 @@ def test_stats_gov_sa_cpi_headline_monthly_html_without_supported_release_cards_
     )
 
 
+def test_stats_gov_sa_cpi_headline_monthly_html_without_parseable_monthly_rate_degrades_to_limited(
+) -> None:
+    raw_payload = RawPayload(
+        source="stats-gov-sa",
+        dataset_id="/en/news?q=inflation&delta=20&start=0",
+        content={
+            "url": "https://www.stats.gov.sa/en/news?q=inflation&delta=20&start=0",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": """
+                <html><body>
+                  <div class="card card-box media-card mb-0">
+                    <div class="card-body">
+                      <h3 class="card-title fw-700 max-lines-2">
+                        GASTAT: Saudi Arabia’s inflation rate records 2.1% in December 2025
+                      </h3>
+                      <p class="card-date my-3">15-01-2026</p>
+                      <div class="card-text max-lines-3 mt-2">
+                        <p>
+                          The annual inflation rate in Saudi Arabia reached 2.1% in December 2025,
+                          compared to December 2024. It is worth noting that the Consumer Price
+                          Index (CPI) reflects changes in prices paid by consumers.
+                        </p>
+                      </div>
+                    </div>
+                    <div class="card-footer-link m-4">
+                      <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/155">
+                        Read More
+                      </a>
+                    </div>
+                  </div>
+                </body></html>
+            """,
+        },
+    )
+
+    result = get_field_mapping(
+        raw_payload,
+        canonical_dataset_id="stats-gov-sa-cpi-headline-monthly",
+    )
+
+    assert result.body_kind is MappingBodyKind.HTML
+    assert result.can_derive_records is False
+    assert result.record_extraction_shape is RecordExtractionShape.NONE
+    assert result.limitations == (
+        "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+        STATS_GOV_SA_CPI_HEADLINE_MONTHLY_HTML_LIMITATION,
+    )
+
+
 def test_field_mapping_dispatches_by_source(monkeypatch: pytest.MonkeyPatch) -> None:
     raw_payload = RawPayload(
         source="source-2",
