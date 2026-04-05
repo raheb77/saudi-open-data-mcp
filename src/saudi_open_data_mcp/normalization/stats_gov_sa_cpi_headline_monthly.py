@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
 from datetime import date, datetime
-from html.parser import HTMLParser
 from typing import Any
+
+from .stats_gov_sa_release_cards import (
+    StatsGovSaReleaseCard,
+    StatsGovSaReleaseCardParser,
+)
 
 STATS_GOV_SA_CPI_HEADLINE_MONTHLY_HTML_LIMITATION = (
     "stats_gov_sa_cpi_headline_monthly_html_requires_supported_release_cards"
@@ -78,106 +81,6 @@ _RELEASE_DATE_FORMAT = "%d-%m-%Y"
 _OBSERVATION_MONTH_FORMATS = ("%B %Y", "%b %Y")
 
 
-@dataclass(slots=True)
-class _ParsedCard:
-    title_chunks: list[str] = field(default_factory=list)
-    date_chunks: list[str] = field(default_factory=list)
-    summary_chunks: list[str] = field(default_factory=list)
-    release_url: str | None = None
-
-    @property
-    def title(self) -> str:
-        return " ".join(self.title_chunks).strip()
-
-    @property
-    def release_date_text(self) -> str:
-        return " ".join(self.date_chunks).strip()
-
-    @property
-    def summary_text(self) -> str:
-        return " ".join(self.summary_chunks).strip()
-
-
-class _InflationNewsCardParser(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self.cards: list[_ParsedCard] = []
-        self._current_card: _ParsedCard | None = None
-        self._card_div_depth = 0
-        self._capture_title = False
-        self._capture_date = False
-        self._summary_div_depth = 0
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        attributes = {name: value or "" for name, value in attrs}
-        class_names = _class_names(attributes.get("class"))
-
-        if tag == "div" and {"card", "card-box", "media-card"}.issubset(class_names):
-            if self._current_card is None:
-                self._current_card = _ParsedCard()
-                self._card_div_depth = 1
-            else:
-                self._card_div_depth += 1
-            return
-
-        if self._current_card is None:
-            return
-
-        if tag == "div":
-            self._card_div_depth += 1
-            if "card-text" in class_names:
-                self._summary_div_depth += 1
-            return
-
-        if tag == "h3" and "card-title" in class_names:
-            self._capture_title = True
-            return
-
-        if tag == "p" and "card-date" in class_names:
-            self._capture_date = True
-            return
-
-        if tag == "a":
-            href = attributes.get("href", "").strip()
-            if href.startswith("http") and "/en/w/" in href:
-                self._current_card.release_url = href
-
-    def handle_data(self, data: str) -> None:
-        if self._current_card is None:
-            return
-
-        text = " ".join(data.split())
-        if not text:
-            return
-
-        if self._capture_title:
-            self._current_card.title_chunks.append(text)
-        elif self._capture_date:
-            self._current_card.date_chunks.append(text)
-        elif self._summary_div_depth > 0:
-            self._current_card.summary_chunks.append(text)
-
-    def handle_endtag(self, tag: str) -> None:
-        if self._current_card is None:
-            return
-
-        if tag == "h3":
-            self._capture_title = False
-            return
-
-        if tag == "p":
-            self._capture_date = False
-            return
-
-        if tag == "div":
-            if self._summary_div_depth > 0:
-                self._summary_div_depth -= 1
-            self._card_div_depth -= 1
-            if self._card_div_depth == 0:
-                self.cards.append(self._current_card)
-                self._current_card = None
-
-
 def extract_stats_gov_sa_cpi_headline_monthly_rows_from_html(
     *,
     html: str,
@@ -186,7 +89,7 @@ def extract_stats_gov_sa_cpi_headline_monthly_rows_from_html(
 ) -> list[dict[str, Any]] | None:
     """Extract headline CPI monthly observations from supported stats.gov.sa release cards."""
 
-    parser = _InflationNewsCardParser()
+    parser = StatsGovSaReleaseCardParser()
     parser.feed(html)
 
     extracted_rows: list[dict[str, Any]] = []
@@ -213,7 +116,7 @@ def extract_stats_gov_sa_cpi_headline_monthly_rows_from_html(
 
 def _extract_record(
     *,
-    card: _ParsedCard,
+    card: StatsGovSaReleaseCard,
     source_locator: str,
     source_url: str,
 ) -> dict[str, Any] | None:
@@ -324,8 +227,3 @@ def _normalize_text(text: str) -> str:
     normalized = text.replace("\xa0", " ").replace("’", "'").strip()
     return _TITLE_NORMALIZATION_PATTERN.sub(" ", normalized)
 
-
-def _class_names(raw_value: str | None) -> set[str]:
-    if raw_value is None:
-        return set()
-    return {value for value in raw_value.split() if value}
