@@ -25,6 +25,10 @@ from saudi_open_data_mcp.security.sanitization import (
     sanitize_query_filter_string_value,
 )
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
+from saudi_open_data_mcp.tools.result_metadata import (
+    ResultDataOrigin,
+    ResultDegradationReason,
+)
 
 QueryFilterValue = str | int | float | bool | None
 MAX_QUERY_RESULT_LIMIT = 1000
@@ -65,9 +69,12 @@ class DatasetQueryResult(BaseModel):
     dataset_id: NonEmptyText
     status: DatasetQueryStatus
     source: NonEmptyText | None = None
+    data_origin: ResultDataOrigin | None = None
     applied_filters: dict[str, QueryFilterValue] = Field(default_factory=dict)
     limit: int | None = Field(default=None, ge=1)
     total_records_before_filter: int | None = Field(default=None, ge=0)
+    failure_stage: QueryFailureStage | None = None
+    degradation_reason: ResultDegradationReason | None = None
     matched_records: tuple[CanonicalRecord, ...] = Field(default_factory=tuple)
     limitations: tuple[str, ...] = Field(default_factory=tuple)
     failure: QueryFailure | None = None
@@ -75,13 +82,20 @@ class DatasetQueryResult(BaseModel):
     @model_validator(mode="after")
     def _validate_consistency(self) -> Self:
         if self.status is DatasetQueryStatus.MISSING:
-            if self.source is not None:
-                raise ValueError("missing results must not include source")
+            if self.source is not None or self.data_origin is not None:
+                raise ValueError("missing results must not include source or data_origin")
             if self.total_records_before_filter is not None:
                 raise ValueError("missing results must not include total_records_before_filter")
-            if self.matched_records or self.limitations or self.failure is not None:
+            if (
+                self.matched_records
+                or self.limitations
+                or self.failure is not None
+                or self.failure_stage is not None
+                or self.degradation_reason is not None
+            ):
                 raise ValueError(
-                    "missing results must not include records, limitations, or failure"
+                    "missing results must not include records, limitations, failure, "
+                    "failure_stage, or degradation_reason"
                 )
             return self
 
@@ -89,15 +103,27 @@ class DatasetQueryResult(BaseModel):
             raise ValueError("known dataset query results must include source")
 
         if self.status is DatasetQueryStatus.SNAPSHOT_MISSING:
+            if self.data_origin is not None:
+                raise ValueError("snapshot_missing results must not include data_origin")
             if self.total_records_before_filter is not None:
                 raise ValueError(
                     "snapshot_missing results must not include total_records_before_filter"
                 )
-            if self.matched_records or self.limitations or self.failure is not None:
+            if (
+                self.matched_records
+                or self.limitations
+                or self.failure is not None
+                or self.failure_stage is not None
+                or self.degradation_reason is not None
+            ):
                 raise ValueError(
-                    "snapshot_missing results must not include records, limitations, or failure"
+                    "snapshot_missing results must not include records, limitations, "
+                    "failure, failure_stage, or degradation_reason"
                 )
             return self
+
+        if self.data_origin is not ResultDataOrigin.LOCAL_SNAPSHOT:
+            raise ValueError("query results backed by local artifacts must expose data_origin")
 
         if self.status is DatasetQueryStatus.LIMITED:
             if not self.limitations:
@@ -106,23 +132,35 @@ class DatasetQueryResult(BaseModel):
                 raise ValueError(
                     "limited results must not include queryable record counts or matches"
                 )
-            if self.failure is not None:
+            if self.failure is not None or self.failure_stage is not None:
                 raise ValueError("limited results must not include failure details")
+            if self.degradation_reason is not ResultDegradationReason.NORMALIZATION_LIMITED:
+                raise ValueError(
+                    "limited results must expose normalization_limited degradation_reason"
+                )
             return self
 
         if self.status is DatasetQueryStatus.FAILED:
             if self.failure is None:
                 raise ValueError("failed results must include failure details")
+            if self.failure_stage is not self.failure.stage:
+                raise ValueError("failed results must expose matching failure_stage")
             if self.total_records_before_filter is not None or self.matched_records:
                 raise ValueError(
                     "failed results must not include queryable record counts or matches"
                 )
-            if self.limitations:
-                raise ValueError("failed results must not include limitations")
+            if self.limitations or self.degradation_reason is not None:
+                raise ValueError(
+                    "failed results must not include limitations or degradation_reason"
+                )
             return self
 
-        if self.failure is not None or self.limitations:
-            raise ValueError("successful query results must not include failure or limitations")
+        if self.failure is not None or self.failure_stage is not None or self.limitations:
+            raise ValueError(
+                "successful query results must not include failure, failure_stage, or limitations"
+            )
+        if self.degradation_reason is not None:
+            raise ValueError("successful query results must not include degradation_reason")
         if self.total_records_before_filter is None:
             raise ValueError("successful query results must include total_records_before_filter")
         if self.total_records_before_filter < len(self.matched_records):
@@ -189,8 +227,10 @@ class DatasetQueryResult(BaseModel):
             dataset_id=descriptor.dataset_id,
             status=DatasetQueryStatus.LIMITED,
             source=descriptor.source,
+            data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
             applied_filters=applied_filters,
             limit=limit,
+            degradation_reason=ResultDegradationReason.NORMALIZATION_LIMITED,
             limitations=limitations,
         )
 
@@ -211,8 +251,10 @@ class DatasetQueryResult(BaseModel):
             dataset_id=descriptor.dataset_id,
             status=DatasetQueryStatus.FAILED,
             source=descriptor.source,
+            data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
             applied_filters=applied_filters,
             limit=limit,
+            failure_stage=stage,
             failure=QueryFailure(
                 stage=stage,
                 error_type=error_type,
@@ -236,6 +278,7 @@ class DatasetQueryResult(BaseModel):
             dataset_id=descriptor.dataset_id,
             status=DatasetQueryStatus.SUCCESS,
             source=descriptor.source,
+            data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
             applied_filters=applied_filters,
             limit=limit,
             total_records_before_filter=total_records_before_filter,
@@ -450,14 +493,20 @@ def _audit_query_result(result: DatasetQueryResult) -> None:
         result_status=result.status.value,
         dataset_id=result.dataset_id,
         source=result.source,
+        data_origin=result.data_origin.value if result.data_origin is not None else None,
         filter_keys=tuple(sorted(result.applied_filters)),
         limit=result.limit,
         total_records_before_filter=result.total_records_before_filter,
         matched_record_count=len(result.matched_records),
         limitation_count=len(result.limitations),
         failure_stage=(
-            result.failure.stage.value
-            if result.failure is not None
+            result.failure_stage.value
+            if result.failure_stage is not None
+            else None
+        ),
+        degradation_reason=(
+            result.degradation_reason.value
+            if result.degradation_reason is not None
             else None
         ),
     )

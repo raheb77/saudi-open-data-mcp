@@ -22,6 +22,7 @@ from saudi_open_data_mcp.tools.download import (
     DatasetDownloadStatus,
     DatasetDownloadTool,
 )
+from saudi_open_data_mcp.tools.result_metadata import ResultDataOrigin
 
 
 def _descriptor(dataset_id: str = "sama-money-supply") -> DatasetDescriptor:
@@ -52,6 +53,8 @@ def test_get_dataset_download_returns_explicit_missing_result_for_unknown_datase
     assert result.reason is DatasetDownloadReason.DATASET_NOT_IN_REGISTRY
     assert result.local_snapshot_exists is False
     assert result.source is None
+    assert result.data_origin is None
+    assert result.freshness_status is None
     assert result.freshness is None
 
 
@@ -71,7 +74,9 @@ def test_get_dataset_download_returns_explicit_missing_local_artifact(
     assert result.dataset_id == descriptor.dataset_id
     assert result.local_snapshot_exists is False
     assert result.source == "sama"
+    assert result.data_origin is None
     assert result.freshness is not None
+    assert result.freshness_status is SnapshotFreshnessStatus.MISSING
     assert result.freshness.dataset_id == descriptor.dataset_id
     assert result.freshness.artifact_present is False
     assert result.freshness.status is SnapshotFreshnessStatus.MISSING
@@ -98,6 +103,8 @@ def test_get_dataset_download_uses_source_locator_not_canonical_dataset_id_for_l
     assert result.dataset_id == descriptor.dataset_id
     assert result.local_snapshot_exists is False
     assert result.freshness is not None
+    assert result.data_origin is None
+    assert result.freshness_status is SnapshotFreshnessStatus.MISSING
     assert result.freshness.artifact_present is False
 
 
@@ -127,7 +134,9 @@ def test_get_dataset_download_returns_available_local_artifact_result(
     assert result.dataset_id == descriptor.dataset_id
     assert result.local_snapshot_exists is True
     assert result.source == "sama"
+    assert result.data_origin is ResultDataOrigin.LOCAL_SNAPSHOT
     assert result.freshness is not None
+    assert result.freshness_status is SnapshotFreshnessStatus.FRESH
     assert result.freshness.dataset_id == descriptor.dataset_id
     assert result.freshness.artifact_present is True
     assert result.freshness.status is SnapshotFreshnessStatus.FRESH
@@ -160,7 +169,9 @@ def test_get_dataset_download_keeps_available_result_when_freshness_is_stale(
     assert result.dataset_id == descriptor.dataset_id
     assert result.local_snapshot_exists is True
     assert result.source == "sama"
+    assert result.data_origin is ResultDataOrigin.LOCAL_SNAPSHOT
     assert result.freshness is not None
+    assert result.freshness_status is SnapshotFreshnessStatus.STALE
     assert result.freshness.dataset_id == descriptor.dataset_id
     assert result.freshness.artifact_present is True
     assert result.freshness.status is SnapshotFreshnessStatus.STALE

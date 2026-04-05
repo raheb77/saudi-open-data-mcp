@@ -185,6 +185,7 @@ Local state expectations:
 - If no local snapshot exists, `download_dataset` returns `artifact_missing` and `query_dataset` returns `snapshot_missing`.
 - On a fresh checkout, those local-only states are the expected result until snapshots have been written under the configured snapshot directory.
 - Public download and health outputs expose artifact presence plus freshness evidence, not local snapshot paths.
+- When meaningful, core tool results expose consistent top-level metadata such as `data_origin`, `freshness_status`, `failure_stage`, and `degradation_reason` to make degraded and failed paths easier to interpret.
 
 The helper script remains available for local HTTP development:
 

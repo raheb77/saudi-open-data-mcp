@@ -31,9 +31,14 @@ from saudi_open_data_mcp.registry.models import DatasetDescriptor, NonEmptyText
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.storage.freshness import (
     SnapshotFreshnessResult,
+    SnapshotFreshnessStatus,
     evaluate_snapshot_freshness,
 )
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
+from saudi_open_data_mcp.tools.result_metadata import (
+    ResultDataOrigin,
+    ResultDegradationReason,
+)
 
 LOGGER = get_logger(__name__)
 
@@ -79,9 +84,13 @@ class HotSetDatasetMaterializationResult(BaseModel):
     tier: HotSetTier
     status: HotSetMaterializationStatus
     source: NonEmptyText | None = None
+    data_origin: ResultDataOrigin | None = None
     local_snapshot_exists: bool
+    freshness_status: SnapshotFreshnessStatus | None = None
     freshness: SnapshotFreshnessResult | None = None
     normalization_status: NormalizationPipelineStatus | None = None
+    failure_stage: HotSetMaterializationFailureStage | None = None
+    degradation_reason: ResultDegradationReason | None = None
     limitations: tuple[str, ...] = Field(default_factory=tuple)
     failure: HotSetMaterializationFailure | None = None
 
@@ -92,32 +101,60 @@ class HotSetDatasetMaterializationResult(BaseModel):
                 raise ValueError(
                     "materialized hot-set results must include source and freshness"
                 )
+            if self.data_origin is not ResultDataOrigin.LIVE_REFRESH:
+                raise ValueError(
+                    "materialized hot-set results must expose live_refresh data_origin"
+                )
             if not self.local_snapshot_exists or not self.freshness.artifact_present:
                 raise ValueError(
                     "materialized hot-set results must include positive snapshot evidence"
+                )
+            if self.freshness_status is not self.freshness.status:
+                raise ValueError(
+                    "materialized hot-set results must include matching freshness_status"
                 )
             if self.normalization_status is None:
                 raise ValueError(
                     "materialized hot-set results must include normalization status"
                 )
-            if self.failure is not None:
+            if self.failure is not None or self.failure_stage is not None:
                 raise ValueError("materialized hot-set results must not include failure")
             if self.freshness.dataset_id != self.dataset_id:
                 raise ValueError("freshness.dataset_id must match dataset_id")
             if self.freshness.source != self.source:
                 raise ValueError("freshness.source must match source")
+            if self.normalization_status is NormalizationPipelineStatus.LIMITED:
+                if self.degradation_reason is not ResultDegradationReason.NORMALIZATION_LIMITED:
+                    raise ValueError(
+                        "limited materialized results must expose normalization_limited "
+                        "degradation_reason"
+                    )
+            elif self.degradation_reason is not None:
+                raise ValueError(
+                    "record-derivable materialized results must not include "
+                    "degradation_reason"
+                )
             return self
 
         if self.failure is None:
             raise ValueError("failed hot-set results must include failure details")
+        if self.failure_stage is not self.failure.stage:
+            raise ValueError("failed hot-set results must expose matching failure_stage")
         if self.normalization_status is not None or self.limitations:
             raise ValueError(
                 "failed hot-set results must not include normalization status or limitations"
             )
+        if self.degradation_reason is not None:
+            raise ValueError("failed hot-set results must not include degradation_reason")
         if self.freshness is None:
             if self.local_snapshot_exists:
                 raise ValueError(
                     "failed hot-set results without freshness must not claim a snapshot"
+                )
+            if self.data_origin is not None or self.freshness_status is not None:
+                raise ValueError(
+                    "failed hot-set results without freshness must not include "
+                    "data_origin or freshness_status"
                 )
             return self
 
@@ -127,10 +164,14 @@ class HotSetDatasetMaterializationResult(BaseModel):
             raise ValueError("freshness.dataset_id must match dataset_id")
         if self.freshness.source != self.source:
             raise ValueError("freshness.source must match source")
+        if self.freshness_status is not self.freshness.status:
+            raise ValueError("failed hot-set results must expose matching freshness_status")
         if self.freshness.artifact_present != self.local_snapshot_exists:
             raise ValueError(
                 "failed hot-set results must keep freshness evidence consistent"
             )
+        if self.data_origin is not None:
+            raise ValueError("failed hot-set results must not include data_origin")
         return self
 
     @classmethod
@@ -147,9 +188,16 @@ class HotSetDatasetMaterializationResult(BaseModel):
             tier=tier,
             status=HotSetMaterializationStatus.MATERIALIZED,
             source=descriptor.source,
+            data_origin=ResultDataOrigin.LIVE_REFRESH,
             local_snapshot_exists=True,
+            freshness_status=freshness.status,
             freshness=freshness,
             normalization_status=normalization_result.status,
+            degradation_reason=(
+                ResultDegradationReason.NORMALIZATION_LIMITED
+                if normalization_result.status is NormalizationPipelineStatus.LIMITED
+                else None
+            ),
             limitations=_collect_limitations(normalization_result),
         )
 
@@ -172,7 +220,9 @@ class HotSetDatasetMaterializationResult(BaseModel):
             local_snapshot_exists=(
                 freshness.artifact_present if freshness is not None else False
             ),
+            freshness_status=freshness.status if freshness is not None else None,
             freshness=freshness,
+            failure_stage=stage,
             failure=HotSetMaterializationFailure(
                 stage=stage,
                 error_type=type(error).__name__,

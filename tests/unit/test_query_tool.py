@@ -26,6 +26,10 @@ from saudi_open_data_mcp.tools.query import (
     DatasetQueryTool,
     QueryFailureStage,
 )
+from saudi_open_data_mcp.tools.result_metadata import (
+    ResultDataOrigin,
+    ResultDegradationReason,
+)
 
 
 def _descriptor(dataset_id: str = "sama-money-supply") -> DatasetDescriptor:
@@ -836,7 +840,10 @@ def test_query_dataset_returns_explicit_limited_result_for_unsupported_json_shap
 
     assert result.status is DatasetQueryStatus.LIMITED
     assert result.source == "sama"
+    assert result.data_origin is ResultDataOrigin.LOCAL_SNAPSHOT
     assert result.total_records_before_filter is None
+    assert result.failure_stage is None
+    assert result.degradation_reason is ResultDegradationReason.NORMALIZATION_LIMITED
     assert result.matched_records == ()
     assert result.limitations == (
         "json_body_requires_supported_object_list_shape_for_record_normalization",
@@ -885,7 +892,10 @@ def test_query_dataset_returns_explicit_failed_result_for_failed_normalization(
 
     assert result.status is DatasetQueryStatus.FAILED
     assert result.source == "sama"
+    assert result.data_origin is ResultDataOrigin.LOCAL_SNAPSHOT
     assert result.matched_records == ()
+    assert result.failure_stage is QueryFailureStage.NORMALIZATION
+    assert result.degradation_reason is None
     assert result.failure is not None
     assert result.failure.stage is QueryFailureStage.NORMALIZATION
     assert result.failure.error_type == "ValueError"

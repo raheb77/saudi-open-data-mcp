@@ -32,6 +32,7 @@ from saudi_open_data_mcp.tools.preview import (
     PreviewResolutionOutcome,
     PreviewStatus,
 )
+from saudi_open_data_mcp.tools.result_metadata import ResultDegradationReason
 
 DATASET_ID = "sama-money-supply"
 REPORT_LOCATOR = "report.aspx?cid=55"
@@ -711,6 +712,11 @@ async def test_stale_snapshot_failed_refresh_falls_back_to_stale_snapshot(
     assert result.resolution_outcome is PreviewResolutionOutcome.SERVE_STALE_WITH_NOTICE
     assert result.data_origin is PreviewDataOrigin.STALE_SNAPSHOT
     assert result.freshness_status is SnapshotFreshnessStatus.STALE
+    assert result.failure_stage is PreviewFailureStage.FETCH
+    assert (
+        result.degradation_reason
+        is ResultDegradationReason.STALE_FALLBACK_AFTER_REFRESH_FAILURE
+    )
     assert result.snapshot_modified_at == stale_time
     assert result.resolution_notice == STALE_FALLBACK_NOTICE
     assert result.records[0].fields == {"period": "2025-12", "value": 1}
@@ -760,6 +766,7 @@ async def test_missing_snapshot_failed_refresh_fails_closed(tmp_path: Path) -> N
     assert result.resolution_outcome is PreviewResolutionOutcome.FAIL_CLOSED
     assert result.data_origin is None
     assert result.freshness_status is SnapshotFreshnessStatus.MISSING
+    assert result.failure_stage is PreviewFailureStage.FETCH
     assert result.snapshot_modified_at is None
     assert result.failure is not None
     assert result.failure.stage is PreviewFailureStage.FETCH
@@ -789,6 +796,7 @@ async def test_missing_snapshot_write_failure_after_successful_fetch_is_distingu
     assert result.resolution_outcome is PreviewResolutionOutcome.FAIL_CLOSED
     assert result.data_origin is None
     assert result.freshness_status is SnapshotFreshnessStatus.MISSING
+    assert result.failure_stage is PreviewFailureStage.SNAPSHOT
     assert result.failure is not None
     assert result.failure.stage is PreviewFailureStage.SNAPSHOT
     assert result.failure.error_type == "OSError"

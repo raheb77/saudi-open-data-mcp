@@ -39,6 +39,10 @@ from saudi_open_data_mcp.storage.freshness import (
     has_defined_freshness_window,
 )
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
+from saudi_open_data_mcp.tools.result_metadata import (
+    ResultDataOrigin,
+    ResultDegradationReason,
+)
 
 LOGGER = get_logger(__name__)
 LOCAL_PREVIEW_MISS_NOTICE = "local preview artifact was unavailable; refreshed live instead"
@@ -72,12 +76,7 @@ class PreviewResolutionOutcome(StrEnum):
     FAIL_CLOSED = "fail_closed"
 
 
-class PreviewDataOrigin(StrEnum):
-    """Operator-facing preview data origin."""
-
-    LOCAL_SNAPSHOT = "local_snapshot"
-    LIVE_REFRESH = "live_refresh"
-    STALE_SNAPSHOT = "stale_snapshot"
+PreviewDataOrigin = ResultDataOrigin
 
 
 class PreviewFailure(BaseModel):
@@ -180,6 +179,8 @@ class DatasetPreviewResult(BaseModel):
     resolution_outcome: PreviewResolutionOutcome | None = None
     data_origin: PreviewDataOrigin | None = None
     freshness_status: SnapshotFreshnessStatus | None = None
+    failure_stage: PreviewFailureStage | None = None
+    degradation_reason: ResultDegradationReason | None = None
     snapshot_modified_at: datetime | None = None
     resolution_notice: str | None = None
     records: tuple[CanonicalRecord, ...] = Field(default_factory=tuple)
@@ -196,6 +197,8 @@ class DatasetPreviewResult(BaseModel):
                 or self.resolution_outcome is not None
                 or self.data_origin is not None
                 or self.freshness_status is not None
+                or self.failure_stage is not None
+                or self.degradation_reason is not None
                 or self.snapshot_modified_at is not None
                 or self.resolution_notice is not None
             ):
@@ -205,9 +208,12 @@ class DatasetPreviewResult(BaseModel):
         if self.resolution_outcome is None:
             if self.failure is None or self.failure.stage is not PreviewFailureStage.LOOKUP:
                 raise ValueError("non-missing preview results must declare resolution outcome")
+            if self.failure_stage is not PreviewFailureStage.LOOKUP:
+                raise ValueError("lookup failures must expose matching failure_stage")
             if (
                 self.data_origin is not None
                 or self.freshness_status is not None
+                or self.degradation_reason is not None
                 or self.snapshot_modified_at is not None
                 or self.resolution_notice is not None
             ):
@@ -254,19 +260,52 @@ class DatasetPreviewResult(BaseModel):
         if self.status is PreviewStatus.FAILED:
             if self.failure is None:
                 raise ValueError("failure details must be present when preview status is failed")
+            if self.failure_stage is not self.failure.stage:
+                raise ValueError("failed preview results must expose matching failure_stage")
             if self.records or self.limitations:
                 raise ValueError("failed preview results must not include records or limitations")
+            if self.degradation_reason is not None:
+                raise ValueError("failed preview results must not include degradation_reason")
             return self
 
         if self.failure is not None:
             raise ValueError("failure details must be absent for successful preview results")
+        if self.failure_stage is not None and (
+            self.resolution_outcome is not PreviewResolutionOutcome.SERVE_STALE_WITH_NOTICE
+            or self.degradation_reason
+            is not ResultDegradationReason.STALE_FALLBACK_AFTER_REFRESH_FAILURE
+        ):
+            raise ValueError(
+                "successful preview results may only expose failure_stage for stale "
+                "fallback after refresh failure"
+            )
         if self.status is PreviewStatus.LIMITED:
             if self.records:
                 raise ValueError("limited preview results must not include records")
             if not self.limitations:
                 raise ValueError("limited preview results must include explicit limitations")
+            if self.degradation_reason not in {
+                ResultDegradationReason.NORMALIZATION_LIMITED,
+                ResultDegradationReason.STALE_FALLBACK_AFTER_REFRESH_FAILURE,
+            }:
+                raise ValueError(
+                    "limited preview results must expose normalization_limited or "
+                    "stale_fallback_after_refresh_failure degradation_reason"
+                )
             return self
 
+        if (
+            self.degradation_reason is not None
+            and not (
+                self.resolution_outcome is PreviewResolutionOutcome.SERVE_STALE_WITH_NOTICE
+                and self.degradation_reason
+                is ResultDegradationReason.STALE_FALLBACK_AFTER_REFRESH_FAILURE
+            )
+        ):
+            raise ValueError(
+                "record-derivable preview results must not include degradation_reason "
+                "unless they represent stale fallback after refresh failure"
+            )
         if self.limitations:
             raise ValueError("record-derivable preview results must not include limitations")
         for record in self.records:
@@ -471,6 +510,10 @@ class DatasetPreviewTool:
                 resolution_outcome=PreviewResolutionOutcome.SERVE_STALE_WITH_NOTICE,
                 data_origin=PreviewDataOrigin.STALE_SNAPSHOT,
                 resolution_notice=STALE_FALLBACK_NOTICE,
+                failure_stage=refresh_failure_stage,
+                degradation_reason=(
+                    ResultDegradationReason.STALE_FALLBACK_AFTER_REFRESH_FAILURE
+                ),
             )
             if stale_result is not None:
                 return stale_result
@@ -490,6 +533,8 @@ class DatasetPreviewTool:
         resolution_outcome: PreviewResolutionOutcome,
         data_origin: PreviewDataOrigin,
         resolution_notice: str | None = None,
+        failure_stage: PreviewFailureStage | None = None,
+        degradation_reason: ResultDegradationReason | None = None,
     ) -> DatasetPreviewResult | None:
         try:
             raw_payload = self._snapshot_store.read_snapshot(
@@ -506,6 +551,8 @@ class DatasetPreviewTool:
             resolution_outcome=resolution_outcome,
             data_origin=data_origin,
             resolution_notice=resolution_notice,
+            failure_stage=failure_stage,
+            degradation_reason=degradation_reason,
         )
 
     def _result_from_payload(
@@ -517,6 +564,8 @@ class DatasetPreviewTool:
         resolution_outcome: PreviewResolutionOutcome,
         data_origin: PreviewDataOrigin,
         resolution_notice: str | None = None,
+        failure_stage: PreviewFailureStage | None = None,
+        degradation_reason: ResultDegradationReason | None = None,
     ) -> DatasetPreviewResult:
         normalization_result = _bind_canonical_dataset_id(
             descriptor=descriptor,
@@ -533,6 +582,7 @@ class DatasetPreviewTool:
                 resolution_outcome=resolution_outcome,
                 data_origin=data_origin,
                 freshness_status=freshness.status,
+                failure_stage=PreviewFailureStage.NORMALIZATION,
                 snapshot_modified_at=freshness.snapshot_modified_at,
                 resolution_notice=resolution_notice,
                 failure=PreviewFailure(
@@ -556,6 +606,14 @@ class DatasetPreviewTool:
             resolution_outcome=resolution_outcome,
             data_origin=data_origin,
             freshness_status=freshness.status,
+            failure_stage=failure_stage,
+            degradation_reason=(
+                degradation_reason
+                if degradation_reason is not None
+                else ResultDegradationReason.NORMALIZATION_LIMITED
+                if normalization_result.status is NormalizationPipelineStatus.LIMITED
+                else None
+            ),
             snapshot_modified_at=freshness.snapshot_modified_at,
             resolution_notice=resolution_notice,
             records=normalization_result.records,
@@ -586,6 +644,7 @@ class DatasetPreviewTool:
         return DatasetPreviewResult(
             dataset_id=dataset_id,
             status=PreviewStatus.FAILED,
+            failure_stage=PreviewFailureStage.LOOKUP,
             failure=PreviewFailure(
                 stage=PreviewFailureStage.LOOKUP,
                 error_type=type(error).__name__,
@@ -606,6 +665,7 @@ class DatasetPreviewTool:
             status=PreviewStatus.FAILED,
             resolution_outcome=PreviewResolutionOutcome.FAIL_CLOSED,
             freshness_status=freshness.status,
+            failure_stage=stage,
             snapshot_modified_at=freshness.snapshot_modified_at,
             failure=PreviewFailure(
                 stage=stage,
@@ -656,6 +716,14 @@ class DatasetPreviewTool:
             "freshness_status": (
                 result.freshness_status.value if result.freshness_status is not None else None
             ),
+            "failure_stage": (
+                result.failure_stage.value if result.failure_stage is not None else None
+            ),
+            "degradation_reason": (
+                result.degradation_reason.value
+                if result.degradation_reason is not None
+                else None
+            ),
         }
 
         if result.status is PreviewStatus.FAILED:
@@ -691,7 +759,11 @@ class DatasetPreviewTool:
                     else None
                 ),
                 snapshot_modified_at=result.snapshot_modified_at,
-                failure_stage=result.failure.stage.value,
+                failure_stage=(
+                    result.failure_stage.value
+                    if result.failure_stage is not None
+                    else None
+                ),
             )
             return
 
@@ -722,6 +794,16 @@ class DatasetPreviewTool:
             freshness_status=(
                 result.freshness_status.value
                 if result.freshness_status is not None
+                else None
+            ),
+            failure_stage=(
+                result.failure_stage.value
+                if result.failure_stage is not None
+                else None
+            ),
+            degradation_reason=(
+                result.degradation_reason.value
+                if result.degradation_reason is not None
                 else None
             ),
             snapshot_modified_at=result.snapshot_modified_at,

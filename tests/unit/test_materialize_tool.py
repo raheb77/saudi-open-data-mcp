@@ -36,6 +36,10 @@ from saudi_open_data_mcp.tools.materialize import (
     HotSetTier,
     TierABackgroundRefreshService,
 )
+from saudi_open_data_mcp.tools.result_metadata import (
+    ResultDataOrigin,
+    ResultDegradationReason,
+)
 
 
 def _pos_weekly_html() -> str:
@@ -222,6 +226,10 @@ async def test_materialize_hot_set_persists_wave_one_tier_a_snapshots(tmp_path: 
         results_by_id["sama-pos-weekly"].normalization_status
         is NormalizationPipelineStatus.RECORD_DERIVABLE
     )
+    assert results_by_id["sama-pos-weekly"].data_origin is ResultDataOrigin.LIVE_REFRESH
+    assert results_by_id["sama-pos-weekly"].freshness_status is SnapshotFreshnessStatus.FRESH
+    assert results_by_id["sama-pos-weekly"].failure_stage is None
+    assert results_by_id["sama-pos-weekly"].degradation_reason is None
     assert results_by_id["sama-pos-weekly"].limitations == ()
     assert (
         results_by_id["sama-deposits-core"].normalization_status
@@ -297,10 +305,19 @@ async def test_materialize_hot_set_can_include_optional_pos_by_city_without_refe
     )
     assert results_by_id["sama-money-supply-weekly"].limitations == ()
     assert results_by_id["sama-pos-by-city"].tier is HotSetTier.TIER_B_OPTIONAL
+    assert results_by_id["sama-pos-by-city"].data_origin is ResultDataOrigin.LIVE_REFRESH
     assert results_by_id["sama-pos-by-city"].local_snapshot_exists is True
+    assert (
+        results_by_id["sama-pos-by-city"].freshness_status
+        is SnapshotFreshnessStatus.FRESH
+    )
     assert (
         results_by_id["sama-pos-by-city"].normalization_status
         is NormalizationPipelineStatus.LIMITED
+    )
+    assert (
+        results_by_id["sama-pos-by-city"].degradation_reason
+        is ResultDegradationReason.NORMALIZATION_LIMITED
     )
     assert results_by_id["sama-pos-by-city"].limitations == (TEXT_HTML_LIMITATION,)
 
@@ -362,6 +379,16 @@ async def test_materialize_hot_set_keeps_partial_success_when_one_locator_fails(
     assert result.materialized_count == len(WAVE_1_HOT_SET_TIER_A_DATASET_IDS) - 1
     assert result.failed_count == 1
     assert results_by_id["sama-deposits-core"].status is HotSetMaterializationStatus.FAILED
+    assert results_by_id["sama-deposits-core"].data_origin is None
+    assert (
+        results_by_id["sama-deposits-core"].freshness_status
+        is SnapshotFreshnessStatus.MISSING
+    )
+    assert (
+        results_by_id["sama-deposits-core"].failure_stage
+        is HotSetMaterializationFailureStage.FETCH
+    )
+    assert results_by_id["sama-deposits-core"].degradation_reason is None
     assert (
         results_by_id["sama-deposits-core"].failure.stage
         is HotSetMaterializationFailureStage.FETCH

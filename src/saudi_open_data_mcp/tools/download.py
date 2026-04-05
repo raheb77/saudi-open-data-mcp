@@ -19,6 +19,7 @@ from saudi_open_data_mcp.storage.freshness import (
     evaluate_snapshot_freshness,
 )
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
+from saudi_open_data_mcp.tools.result_metadata import ResultDataOrigin
 
 
 class DatasetDownloadStatus(StrEnum):
@@ -47,6 +48,8 @@ class DatasetDownloadResult(BaseModel):
     reason: DatasetDownloadReason
     local_snapshot_exists: bool
     source: NonEmptyText | None = None
+    data_origin: ResultDataOrigin | None = None
+    freshness_status: SnapshotFreshnessStatus | None = None
     freshness: SnapshotFreshnessResult | None = None
 
     @model_validator(mode="after")
@@ -56,17 +59,30 @@ class DatasetDownloadResult(BaseModel):
                 raise ValueError("missing results require dataset_not_in_registry")
             if self.local_snapshot_exists:
                 raise ValueError("missing results must not claim a local snapshot")
-            if self.source is not None or self.freshness is not None:
-                raise ValueError("missing results must not include source or freshness")
+            if (
+                self.source is not None
+                or self.data_origin is not None
+                or self.freshness_status is not None
+                or self.freshness is not None
+            ):
+                raise ValueError(
+                    "missing results must not include source, data_origin, freshness_status, "
+                    "or freshness"
+                )
             return self
 
-        if self.source is None or self.freshness is None:
-            raise ValueError("known dataset download results must include source and freshness")
+        if self.source is None or self.freshness is None or self.freshness_status is None:
+            raise ValueError(
+                "known dataset download results must include source, freshness_status, "
+                "and freshness"
+            )
 
         if self.freshness.dataset_id != self.dataset_id:
             raise ValueError("freshness.dataset_id must match dataset_id")
         if self.freshness.source != self.source:
             raise ValueError("freshness.source must match source")
+        if self.freshness_status is not self.freshness.status:
+            raise ValueError("freshness_status must match freshness.status")
         if self.freshness.artifact_present != self.local_snapshot_exists:
             raise ValueError("freshness.artifact_present must match local_snapshot_exists")
 
@@ -75,6 +91,8 @@ class DatasetDownloadResult(BaseModel):
                 raise ValueError("artifact_missing results require no_local_snapshot reason")
             if self.local_snapshot_exists:
                 raise ValueError("artifact_missing results must not claim a local snapshot")
+            if self.data_origin is not None:
+                raise ValueError("artifact_missing results must not include data_origin")
             if self.freshness.status is not SnapshotFreshnessStatus.MISSING:
                 raise ValueError("artifact_missing results require missing freshness evidence")
             if self.freshness.artifact_present:
@@ -87,6 +105,8 @@ class DatasetDownloadResult(BaseModel):
             raise ValueError("available results require local_snapshot_available reason")
         if not self.local_snapshot_exists:
             raise ValueError("available results must claim a local snapshot")
+        if self.data_origin is not ResultDataOrigin.LOCAL_SNAPSHOT:
+            raise ValueError("available results must expose local_snapshot data_origin")
         if self.freshness.status is SnapshotFreshnessStatus.MISSING:
             raise ValueError("available results must not carry missing freshness evidence")
         if not self.freshness.artifact_present:
@@ -118,6 +138,7 @@ class DatasetDownloadResult(BaseModel):
             reason=DatasetDownloadReason.NO_LOCAL_SNAPSHOT,
             local_snapshot_exists=False,
             source=descriptor.source,
+            freshness_status=freshness.status,
             freshness=freshness,
         )
 
@@ -135,6 +156,8 @@ class DatasetDownloadResult(BaseModel):
             reason=DatasetDownloadReason.LOCAL_SNAPSHOT_AVAILABLE,
             local_snapshot_exists=True,
             source=descriptor.source,
+            data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
+            freshness_status=freshness.status,
             freshness=freshness,
         )
 
@@ -209,11 +232,16 @@ def _audit_download_result(result: DatasetDownloadResult) -> None:
         result_status=result.status.value,
         dataset_id=result.dataset_id,
         source=result.source,
+        data_origin=(
+            result.data_origin.value
+            if result.data_origin is not None
+            else None
+        ),
         reason=result.reason.value,
         local_snapshot_exists=result.local_snapshot_exists,
         freshness_status=(
-            result.freshness.status.value
-            if result.freshness is not None
+            result.freshness_status.value
+            if result.freshness_status is not None
             else None
         ),
     )
