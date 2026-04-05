@@ -11,7 +11,7 @@ The project is not just an MCP wrapper around upstream websites. Its value is in
 
 Current implementation starts with SAMA plus one narrow data.gov.sa pilot dataset. The current baseline is an internal, container-first MCP service with stdio still available for local development and command-based host integration.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, [docs/ADR/ADR-001-start-with-sama.md](docs/ADR/ADR-001-start-with-sama.md) for the initial source decision, and [docs/OPERATIONS.md](docs/OPERATIONS.md) for current internal runtime and durability guidance.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, [docs/ADR/ADR-001-start-with-sama.md](docs/ADR/ADR-001-start-with-sama.md) for the initial source decision, [docs/GOVERNANCE.md](docs/GOVERNANCE.md) for the current core auth/audit/data-access model, and [docs/OPERATIONS.md](docs/OPERATIONS.md) for runtime and durability guidance.
 
 ## Current Architecture
 
