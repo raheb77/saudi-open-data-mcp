@@ -63,6 +63,29 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         ),
     ),
     DatasetDescriptor(
+        dataset_id="stats-gov-sa-cpi-headline-monthly",
+        source="stats-gov-sa",
+        source_locator="/en/news?q=inflation&delta=20&start=0",
+        title="CPI Headline Inflation Monthly",
+        description=(
+            "Registry entry for headline CPI monthly release cards on the official "
+            "stats.gov.sa inflation news surface."
+        ),
+        schema_version="0.1.0",
+        update_frequency=UpdateFrequency.MONTHLY,
+        health_status=DatasetHealthStatus.UNKNOWN,
+        caveats=(
+            "This first non-SAMA macro entry normalizes supported headline CPI release "
+            "cards from the official stats.gov.sa inflation-filtered news page.",
+        ),
+        known_issues=(
+            "Only supported release cards with explicit observation month, annual "
+            "headline rate, monthly headline rate, and release link are normalized. "
+            "This does not yet cover CPI index values, category tables, regional cuts, "
+            "or the GASTAT statistical database.",
+        ),
+    ),
+    DatasetDescriptor(
         dataset_id="sama-exchange-rates-current",
         source="sama",
         source_locator="/en-US/FinExc/Pages/Currency.aspx",

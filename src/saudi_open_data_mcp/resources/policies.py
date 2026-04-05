@@ -5,7 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 
 from saudi_open_data_mcp.normalization.contracts import (
-    SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_DATASET_IDS,
+    QUERY_PRIMARY_CANONICAL_DATASET_IDS,
 )
 
 
@@ -45,7 +45,7 @@ class PoliciesResource:
                 "materially useful for the enriched SAMA high-frequency core, so "
                 "stable tool semantics remain unchanged."
             ),
-            query_primary_dataset_ids=SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_DATASET_IDS,
+            query_primary_dataset_ids=QUERY_PRIMARY_CANONICAL_DATASET_IDS,
             tool_policies=(
                 ToolPolicySummary(
                     tool_name="query_dataset",

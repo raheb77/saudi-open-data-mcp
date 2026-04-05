@@ -8,6 +8,7 @@ from .base import Connector
 from .data_gov_sa import DataGovSaConnector
 from .errors import UnknownSourceError
 from .sama import SAMAConnector
+from .stats_gov_sa import StatsGovSaConnector
 
 
 class SourceConnectorResolver:
@@ -36,6 +37,7 @@ def build_default_connector_resolver(
     *,
     sama_base_url: str,
     data_gov_sa_base_url: str,
+    stats_gov_sa_base_url: str,
 ) -> SourceConnectorResolver:
     """Build the current source-to-connector resolver for live preview access."""
 
@@ -43,5 +45,6 @@ def build_default_connector_resolver(
         {
             "sama": SAMAConnector(base_url=sama_base_url),
             "data-gov-sa": DataGovSaConnector(base_url=data_gov_sa_base_url),
+            "stats-gov-sa": StatsGovSaConnector(base_url=stats_gov_sa_base_url),
         }
     )

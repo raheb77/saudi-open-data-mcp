@@ -9,6 +9,7 @@ from .errors import (
 )
 from .resolver import SourceConnectorResolver, build_default_connector_resolver
 from .sama import SAMAConnector
+from .stats_gov_sa import StatsGovSaConnector
 
 __all__ = [
     "Connector",
@@ -18,6 +19,7 @@ __all__ = [
     "RawPayload",
     "SAMAConnector",
     "SourceConnectorResolver",
+    "StatsGovSaConnector",
     "UnknownSourceError",
     "build_default_connector_resolver",
 ]

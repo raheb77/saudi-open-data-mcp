@@ -164,6 +164,72 @@ def _reverse_repo_rate_html() -> str:
     """
 
 
+def _stats_gov_sa_cpi_headline_monthly_html() -> str:
+    return """
+        <html><body>
+          <div class="card card-box media-card mb-0">
+            <div class="card-body">
+              <h3 class="card-title fw-700 max-lines-2">
+                GASTAT holds a workshop on developing the Consumer Price Index (CPI)
+              </h3>
+              <p class="card-date my-3">01-04-2026</p>
+              <div class="card-text max-lines-3 mt-2">
+                <p>The workshop reviewed the developmental journey of the CPI.</p>
+              </div>
+            </div>
+            <div class="card-footer-link m-4">
+              <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/176">
+                Read More
+              </a>
+            </div>
+          </div>
+          <div class="card card-box media-card mb-0">
+            <div class="card-body">
+              <h3 class="card-title fw-700 max-lines-2">
+                GASTAT: Saudi Arabia’s inflation rate records 2.1% in December 2025
+              </h3>
+              <p class="card-date my-3">15-01-2026</p>
+              <div class="card-text max-lines-3 mt-2">
+                <p>
+                  The annual inflation rate in Saudi Arabia reached 2.1% in December 2025,
+                  compared to December 2024, while it recorded a monthly increase of 0.1%
+                  compared to November 2025. It is worth noting that the Consumer Price
+                  Index (CPI) reflects changes in prices paid by consumers.
+                </p>
+              </div>
+            </div>
+            <div class="card-footer-link m-4">
+              <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/155">
+                Read More
+              </a>
+            </div>
+          </div>
+          <div class="card card-box media-card mb-0">
+            <div class="card-body">
+              <h3 class="card-title fw-700 max-lines-2">
+                GASTAT: Inflation in Saudi Arabia reaches 1.9% in November 2025
+              </h3>
+              <p class="card-date my-3">15-12-2025</p>
+              <div class="card-text max-lines-3 mt-2">
+                <p>
+                  The annual inflation rate of the Consumer Price Index (CPI) in Saudi
+                  Arabia reached 1.9% in November 2025, compared with November 2024,
+                  recording relative stability on a monthly basis at 0.1% compared with
+                  October 2025. It is noteworthy that CPI reflects changes in the prices
+                  paid by consumers.
+                </p>
+              </div>
+            </div>
+            <div class="card-footer-link m-4">
+              <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/136">
+                Read More
+              </a>
+            </div>
+          </div>
+        </body></html>
+    """
+
+
 def test_query_dataset_returns_explicit_missing_result_for_unknown_dataset(
     tmp_path: Path,
 ) -> None:
@@ -460,6 +526,80 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_deposits_cor
         "source_url": "https://www.sama.gov.sa/en-US/EconomicReports/Pages/report.aspx?cid=55",
         "source_series_name": "Time and Savings Deposits",
         "source_observation_month_text": "2026-03",
+    }
+
+
+def test_query_dataset_returns_queryable_canonical_records_for_stats_gov_sa_cpi_headline_monthly(
+    tmp_path: Path,
+) -> None:
+    repository = RegistryRepository(tmp_path / "registry.sqlite")
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    descriptor = DatasetDescriptor(
+        dataset_id="stats-gov-sa-cpi-headline-monthly",
+        source="stats-gov-sa",
+        source_locator="/en/news?q=inflation&delta=20&start=0",
+        title="CPI Headline Inflation Monthly",
+        description="Official headline CPI release cards published by stats.gov.sa.",
+        schema_version="0.1.0",
+        update_frequency=UpdateFrequency.MONTHLY,
+        health_status=DatasetHealthStatus.UNKNOWN,
+        caveats=(
+            "Current canonical extraction covers supported official headline "
+            "CPI release cards only.",
+        ),
+        known_issues=("Category tables and index values remain outside this first contract.",),
+    )
+    tool = DatasetQueryTool(repository, snapshot_store)
+
+    repository.upsert_dataset(descriptor)
+    snapshot_store.write_snapshot(
+        RawPayload(
+            source="stats-gov-sa",
+            dataset_id=descriptor.source_locator,
+            content={
+                "url": "https://www.stats.gov.sa/en/news?q=inflation&delta=20&start=0",
+                "status_code": 200,
+                "content_type": "text/html",
+                "body": _stats_gov_sa_cpi_headline_monthly_html(),
+            },
+        )
+    )
+
+    result = tool.query_dataset(
+        descriptor.dataset_id,
+        filters={
+            "observation_month": "2025-11",
+            "inflation_series_code": "headline_cpi_all_items",
+        },
+    )
+
+    assert result.status is DatasetQueryStatus.SUCCESS
+    assert result.source == "stats-gov-sa"
+    assert result.total_records_before_filter == 2
+    assert result.applied_filters == {
+        "observation_month": "2025-11",
+        "inflation_series_code": "headline_cpi_all_items",
+    }
+    assert len(result.matched_records) == 1
+    assert result.matched_records[0].fields == {
+        "observation_month": "2025-11",
+        "inflation_series_code": "headline_cpi_all_items",
+        "inflation_series_name": "Headline CPI",
+        "release_date": "2025-12-15",
+        "yoy_rate_percent": 1.9,
+        "mom_rate_percent": 0.1,
+        "source_locator": "/en/news?q=inflation&delta=20&start=0",
+        "source_url": "https://www.stats.gov.sa/en/news?q=inflation&delta=20&start=0",
+        "source_release_url": "https://www.stats.gov.sa/en/w/news/136",
+        "source_release_title": "GASTAT: Inflation in Saudi Arabia reaches 1.9% in November 2025",
+        "source_release_date_text": "15-12-2025",
+        "source_summary_text": (
+            "The annual inflation rate of the Consumer Price Index (CPI) in Saudi "
+            "Arabia reached 1.9% in November 2025, compared with November 2024, "
+            "recording relative stability on a monthly basis at 0.1% compared with "
+            "October 2025. It is noteworthy that CPI reflects changes in the prices "
+            "paid by consumers."
+        ),
     }
 
 

@@ -303,6 +303,58 @@ def test_sama_deposits_core_json_produces_queryable_monthly_bundle_records() -> 
     assert result.records[0].fields["amount_sar"] == 123400.5
 
 
+def test_stats_gov_sa_cpi_headline_monthly_html_produces_queryable_monthly_records() -> None:
+    raw_payload = RawPayload(
+        source="stats-gov-sa",
+        dataset_id="/en/news?q=inflation&delta=20&start=0",
+        content={
+            "url": "https://www.stats.gov.sa/en/news?q=inflation&delta=20&start=0",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": """
+                <html><body>
+                  <div class="card card-box media-card mb-0">
+                    <div class="card-body">
+                      <h3 class="card-title fw-700 max-lines-2">
+                        GASTAT: Saudi Arabia’s inflation rate records 2.1% in December 2025
+                      </h3>
+                      <p class="card-date my-3">15-01-2026</p>
+                      <div class="card-text max-lines-3 mt-2">
+                        <p>
+                          The annual inflation rate in Saudi Arabia reached 2.1% in December 2025,
+                          compared to December 2024, while it recorded a monthly increase of 0.1%
+                          compared to November 2025. It is worth noting that the Consumer Price
+                          Index (CPI) reflects changes in prices paid by consumers.
+                        </p>
+                      </div>
+                    </div>
+                    <div class="card-footer-link m-4">
+                      <a class="dl-btn dl-btn-default" href="https://www.stats.gov.sa/en/w/news/155">
+                        Read More
+                      </a>
+                    </div>
+                  </div>
+                </body></html>
+            """,
+        },
+    )
+
+    result = NormalizationPipeline().normalize(
+        raw_payload,
+        canonical_dataset_id="stats-gov-sa-cpi-headline-monthly",
+    )
+
+    assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
+    assert result.failure is None
+    assert len(result.records) == 1
+    assert result.records[0].dataset_id == "/en/news?q=inflation&delta=20&start=0"
+    assert result.records[0].fields["observation_month"] == "2025-12"
+    assert result.records[0].fields["inflation_series_code"] == "headline_cpi_all_items"
+    assert result.records[0].fields["release_date"] == "2026-01-15"
+    assert result.records[0].fields["yoy_rate_percent"] == 2.1
+    assert result.records[0].fields["mom_rate_percent"] == 0.1
+
+
 def test_data_gov_sa_json_raw_payload_produces_record_derivable_pipeline_result() -> None:
     raw_payload = RawPayload(
         source="data-gov-sa",
