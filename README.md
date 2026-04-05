@@ -160,7 +160,8 @@ HTTP_AUTH_TOKEN=dev-internal-token python src/saudi_open_data_mcp/cli.py run-htt
 
 The same source-tree CLI also provides a thin non-interactive local façade over
 the current core operations. These commands emit structured JSON by default and
-support `--output` for file writes:
+support `--output` for file writes. `--format` is currently limited to `json`,
+and `--quiet` only applies when `--output` is set:
 
 ```bash
 python src/saudi_open_data_mcp/cli.py list

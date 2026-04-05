@@ -28,7 +28,13 @@ JSON_FORMAT = "json"
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI parser."""
 
-    parser = argparse.ArgumentParser(prog="python src/saudi_open_data_mcp/cli.py")
+    parser = argparse.ArgumentParser(
+        prog="python src/saudi_open_data_mcp/cli.py",
+        description=(
+            "Thin non-interactive CLI over the current MCP core. Data commands emit "
+            "JSON to stdout by default."
+        ),
+    )
     subparsers = parser.add_subparsers(dest="command")
 
     parser.add_argument(
@@ -157,6 +163,22 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.command in {
+        "config",
+        "list",
+        "query",
+        "export",
+        "preview",
+        "health",
+        "refresh",
+    }:
+        _validate_output_arguments_or_exit(
+            parser,
+            output_format=args.format,
+            output_path=args.output,
+            quiet=args.quiet,
+        )
 
     if args.check_startup or args.command in {None, "check-startup"}:
         config = _load_config_or_exit(parser)
@@ -344,8 +366,8 @@ def _add_output_arguments(subparser: argparse.ArgumentParser) -> None:
 
     subparser.add_argument(
         "--format",
-        choices=(JSON_FORMAT,),
         default=JSON_FORMAT,
+        metavar="FORMAT",
         help="Output format. Only json is currently supported.",
     )
     subparser.add_argument(
@@ -357,8 +379,26 @@ def _add_output_arguments(subparser: argparse.ArgumentParser) -> None:
     subparser.add_argument(
         "--quiet",
         action="store_true",
-        help="Suppress the confirmation line when writing to --output.",
+        help="Suppress the confirmation line after a successful --output write.",
     )
+
+
+def _validate_output_arguments_or_exit(
+    parser: argparse.ArgumentParser,
+    *,
+    output_format: str,
+    output_path: Path | None,
+    quiet: bool,
+) -> None:
+    """Validate the shared output arguments for local JSON-emitting commands."""
+
+    if output_format != JSON_FORMAT:
+        parser.error(
+            f"unsupported --format '{output_format}'; only {JSON_FORMAT} is currently supported"
+        )
+
+    if quiet and output_path is None:
+        parser.error("--quiet requires --output")
 
 
 def _parse_filter_arguments_or_exit(
@@ -450,7 +490,10 @@ def _write_payload_or_exit(
 ) -> None:
     """Render one JSON payload and write it to stdout or a file."""
 
-    rendered = _render_payload(payload, output_format=output_format)
+    try:
+        rendered = _render_payload(payload, output_format=output_format)
+    except ValueError as exc:
+        parser.error(str(exc))
 
     if output_path is None:
         print(rendered)
@@ -473,7 +516,9 @@ def _render_payload(
     """Render one command payload using the currently supported output format."""
 
     if output_format != JSON_FORMAT:
-        raise ValueError(f"unsupported output format: {output_format}")
+        raise ValueError(
+            f"unsupported --format '{output_format}'; only {JSON_FORMAT} is currently supported"
+        )
     return json.dumps(payload, indent=2, sort_keys=True)
 
 

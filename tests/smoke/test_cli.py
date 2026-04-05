@@ -389,6 +389,26 @@ def test_cli_config_redacts_http_auth_token(
     assert "internal-test-token" not in captured.out
 
 
+def test_cli_rejects_unsupported_output_format(capsys) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        cli_module.main(["config", "--format", "yaml"])
+
+    assert excinfo.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "unsupported --format 'yaml'; only json is currently supported" in captured.err
+
+
+def test_cli_rejects_quiet_without_output(capsys) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        cli_module.main(["config", "--quiet"])
+
+    assert excinfo.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "--quiet requires --output" in captured.err
+
+
 def test_cli_check_startup_reports_runtime_configuration_errors(monkeypatch, capsys) -> None:
     monkeypatch.setattr(cli_module, "load_config", lambda: RuntimeConfig())
 
