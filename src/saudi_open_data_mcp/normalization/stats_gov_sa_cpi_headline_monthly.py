@@ -40,20 +40,37 @@ _SUMMARY_OBSERVATION_PATTERNS = (
     ),
 )
 _MONTHLY_RATE_PATTERNS = (
-    re.compile(
-        r"\bmonthly increase of\s+([0-9]+(?:\.[0-9]+)?)%\s+compared\s+to\s+"
-        r"[A-Za-z]+\s+\d{4}",
-        flags=re.IGNORECASE,
+    (
+        re.compile(
+            r"\bmonthly increase of\s+([0-9]+(?:\.[0-9]+)?)%\s+compared\s+to\s+"
+            r"[A-Za-z]+\s+\d{4}",
+            flags=re.IGNORECASE,
+        ),
+        1.0,
     ),
-    re.compile(
-        r"\bmonthly basis at\s+([0-9]+(?:\.[0-9]+)?)%\s+compared\s+with\s+"
-        r"[A-Za-z]+\s+\d{4}",
-        flags=re.IGNORECASE,
+    (
+        re.compile(
+            r"\bmonthly (?:decrease|decline) of\s+([0-9]+(?:\.[0-9]+)?)%\s+"
+            r"compared\s+to\s+[A-Za-z]+\s+\d{4}",
+            flags=re.IGNORECASE,
+        ),
+        -1.0,
     ),
-    re.compile(
-        r"\bmonthly inflation rate recorded\s+([0-9]+(?:\.[0-9]+)?)%\s+"
-        r"compared\s+to\s+[A-Za-z]+\s+\d{4}",
-        flags=re.IGNORECASE,
+    (
+        re.compile(
+            r"\bmonthly basis at\s+([0-9]+(?:\.[0-9]+)?)%\s+compared\s+with\s+"
+            r"[A-Za-z]+\s+\d{4}",
+            flags=re.IGNORECASE,
+        ),
+        1.0,
+    ),
+    (
+        re.compile(
+            r"\bmonthly inflation rate recorded\s+([0-9]+(?:\.[0-9]+)?)%\s+"
+            r"compared\s+to\s+[A-Za-z]+\s+\d{4}",
+            flags=re.IGNORECASE,
+        ),
+        1.0,
     ),
 )
 _TITLE_NORMALIZATION_PATTERN = re.compile(r"\s+")
@@ -210,10 +227,13 @@ def _extract_record(
     if not _looks_like_headline_cpi_release(title, summary_text):
         return None
 
-    observation_month, yoy_rate_percent = _extract_observation_month_and_yoy_rate(
-        title=title,
-        summary_text=summary_text,
-    )
+    try:
+        observation_month, yoy_rate_percent = _extract_observation_month_and_yoy_rate(
+            title=title,
+            summary_text=summary_text,
+        )
+    except ValueError:
+        return None
     try:
         mom_rate_percent = _extract_monthly_rate_percent(summary_text)
     except ValueError:
@@ -278,10 +298,10 @@ def _extract_observation_month_and_yoy_rate(
 
 
 def _extract_monthly_rate_percent(summary_text: str) -> float:
-    for pattern in _MONTHLY_RATE_PATTERNS:
+    for pattern, multiplier in _MONTHLY_RATE_PATTERNS:
         match = pattern.search(summary_text)
         if match is not None:
-            return float(match.group(1))
+            return float(match.group(1)) * multiplier
 
     raise ValueError("supported inflation release card must include monthly inflation rate")
 
