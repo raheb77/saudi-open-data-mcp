@@ -328,6 +328,24 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
 )
 
 
+def _group_descriptors_by_source(
+    descriptors: tuple[DatasetDescriptor, ...],
+) -> dict[str, tuple[DatasetDescriptor, ...]]:
+    grouped: dict[str, list[DatasetDescriptor]] = {}
+    for descriptor in descriptors:
+        grouped.setdefault(descriptor.source, []).append(descriptor)
+
+    return {
+        source: tuple(source_descriptors)
+        for source, source_descriptors in grouped.items()
+    }
+
+
+INITIAL_DATASET_DESCRIPTORS_BY_SOURCE: dict[str, tuple[DatasetDescriptor, ...]] = (
+    _group_descriptors_by_source(INITIAL_DATASET_DESCRIPTORS)
+)
+
+
 def bootstrap_registry(repository: RegistryRepository) -> list[DatasetDescriptor]:
     """Seed the registry with the current MVP descriptor set."""
 

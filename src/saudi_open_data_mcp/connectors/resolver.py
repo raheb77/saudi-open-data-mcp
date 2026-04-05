@@ -3,13 +3,52 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 
+from ..config import SourceConfig
 from .base import Connector
 from .data_gov_sa import DataGovSaConnector
 from .errors import UnknownSourceError
 from .mof import MoFConnector
 from .sama import SAMAConnector
 from .stats_gov_sa import StatsGovSaConnector
+
+
+@dataclass(frozen=True)
+class _DefaultConnectorRegistration:
+    """Static default connector registration for one current source family."""
+
+    source: str
+    base_url_field: str
+    connector_type: type[Connector]
+
+
+_DEFAULT_CONNECTOR_REGISTRATIONS: tuple[_DefaultConnectorRegistration, ...] = (
+    _DefaultConnectorRegistration(
+        source="sama",
+        base_url_field="sama_base_url",
+        connector_type=SAMAConnector,
+    ),
+    _DefaultConnectorRegistration(
+        source="data-gov-sa",
+        base_url_field="data_gov_sa_base_url",
+        connector_type=DataGovSaConnector,
+    ),
+    _DefaultConnectorRegistration(
+        source="stats-gov-sa",
+        base_url_field="stats_gov_sa_base_url",
+        connector_type=StatsGovSaConnector,
+    ),
+    _DefaultConnectorRegistration(
+        source="mof",
+        base_url_field="mof_base_url",
+        connector_type=MoFConnector,
+    ),
+)
+
+DEFAULT_CONNECTOR_SOURCE_IDS: tuple[str, ...] = tuple(
+    registration.source for registration in _DEFAULT_CONNECTOR_REGISTRATIONS
+)
 
 
 class SourceConnectorResolver:
@@ -36,18 +75,15 @@ class SourceConnectorResolver:
 
 def build_default_connector_resolver(
     *,
-    sama_base_url: str,
-    data_gov_sa_base_url: str,
-    stats_gov_sa_base_url: str,
-    mof_base_url: str,
+    source_config: SourceConfig,
 ) -> SourceConnectorResolver:
     """Build the current source-to-connector resolver for live preview access."""
 
     return SourceConnectorResolver(
         {
-            "sama": SAMAConnector(base_url=sama_base_url),
-            "data-gov-sa": DataGovSaConnector(base_url=data_gov_sa_base_url),
-            "stats-gov-sa": StatsGovSaConnector(base_url=stats_gov_sa_base_url),
-            "mof": MoFConnector(base_url=mof_base_url),
+            registration.source: registration.connector_type(
+                base_url=getattr(source_config, registration.base_url_field)
+            )
+            for registration in _DEFAULT_CONNECTOR_REGISTRATIONS
         }
     )

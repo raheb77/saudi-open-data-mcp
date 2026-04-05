@@ -676,15 +676,9 @@ async def test_server_wires_preview_through_connector_resolver(
 
     def _resolver_factory(
         *,
-        sama_base_url: str,
-        data_gov_sa_base_url: str,
-        stats_gov_sa_base_url: str,
-        mof_base_url: str,
+        source_config,
     ):
-        captured["sama_base_url"] = sama_base_url
-        captured["data_gov_sa_base_url"] = data_gov_sa_base_url
-        captured["stats_gov_sa_base_url"] = stats_gov_sa_base_url
-        captured["mof_base_url"] = mof_base_url
+        captured["source_config"] = source_config
         return resolver_sentinel
 
     class PreviewToolSpy:
@@ -717,10 +711,10 @@ async def test_server_wires_preview_through_connector_resolver(
 
     assert preview_result.structured_content["status"] == "missing"
     assert captured["connector_resolver"] is resolver_sentinel
-    assert captured["sama_base_url"] == "https://www.sama.gov.sa"
-    assert captured["data_gov_sa_base_url"] == "https://open.data.gov.sa"
-    assert captured["stats_gov_sa_base_url"] == "https://www.stats.gov.sa"
-    assert captured["mof_base_url"] == "https://www.mof.gov.sa"
+    assert captured["source_config"].sama_base_url == "https://www.sama.gov.sa"
+    assert captured["source_config"].data_gov_sa_base_url == "https://open.data.gov.sa"
+    assert captured["source_config"].stats_gov_sa_base_url == "https://www.stats.gov.sa"
+    assert captured["source_config"].mof_base_url == "https://www.mof.gov.sa"
 
 
 def _write_snapshot_with_mtime(

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from saudi_open_data_mcp.connectors.resolver import DEFAULT_CONNECTOR_SOURCE_IDS
 from saudi_open_data_mcp.registry.bootstrap import (
     INITIAL_DATASET_DESCRIPTORS,
+    INITIAL_DATASET_DESCRIPTORS_BY_SOURCE,
     SAMA_SHARED_SOURCE_LOCATOR_GROUPS,
     WAVE_1_HOT_SET_OPTIONAL_DATASET_IDS,
     WAVE_1_HOT_SET_TIER_A_DATASET_IDS,
@@ -29,6 +31,20 @@ def test_bootstrap_inserts_expected_initial_descriptors(tmp_path: Path) -> None:
     assert all(isinstance(item, DatasetDescriptor) for item in bootstrapped_descriptors)
     descriptors_by_id = {
         descriptor.dataset_id: descriptor for descriptor in bootstrapped_descriptors
+    }
+    assert set(INITIAL_DATASET_DESCRIPTORS_BY_SOURCE) == set(DEFAULT_CONNECTOR_SOURCE_IDS)
+    assert {
+        descriptor.dataset_id
+        for descriptor in INITIAL_DATASET_DESCRIPTORS_BY_SOURCE["stats-gov-sa"]
+    } == {
+        "stats-gov-sa-cpi-headline-monthly",
+        "stats-gov-sa-unemployment-rate-total-quarterly",
+        "stats-gov-sa-real-gdp-growth-quarterly",
+    }
+    assert {
+        descriptor.dataset_id for descriptor in INITIAL_DATASET_DESCRIPTORS_BY_SOURCE["mof"]
+    } == {
+        "mof-budget-balance-quarterly",
     }
 
     assert set(WAVE_1_HOT_SET_TIER_A_DATASET_IDS).issubset(descriptors_by_id)
