@@ -168,8 +168,10 @@ other command-based MCP hosts.
 `run-http` starts the same app over streamable HTTP. Treat that path as
 MCP-aware and session-aware only. It is suitable for MCP inspectors and MCP
 clients, not generic browser probing. It now requires
-`Authorization: Bearer <token>` using `HTTP_AUTH_TOKEN`, plus capability checks
-from `HTTP_AUTH_CAPABILITIES`.
+`Authorization: Bearer <token>` using `HTTP_AUTH_TOKEN`, plus an explicit HTTP
+role from `HTTP_AUTH_ROLE`. The configured role resolves to the allowed
+capability bundle, and `HTTP_AUTH_CAPABILITIES` may be left implicit or set to
+the same role bundle explicitly.
 
 By default, local registry and snapshot state resolve under the repo's
 `.local/` directory; set `REGISTRY_PATH` or `SNAPSHOT_DIR` to override them
@@ -216,6 +218,7 @@ The image sets container-specific runtime defaults:
 - `HTTP_HOST=0.0.0.0`
 - `HTTP_PORT=8000`
 - `HTTP_AUTH_TOKEN` must be provided by the operator
+- `HTTP_AUTH_ROLE=operator`
 - `HTTP_AUTH_CAPABILITIES=read,refresh,materialize`
 - `TIER_A_REFRESH_ENABLED=false`
 - `TIER_A_REFRESH_INTERVAL_SECONDS=3600`
@@ -269,14 +272,18 @@ Container/runtime expectations:
 - per-dataset refresh failures remain explicit in the materialization result and do not abort the whole refresh loop
 - no external scheduler or distributed refresh system is added in this phase
 - minimal bearer-token auth is enforced on the HTTP path only
-- HTTP capability checks are enforced on the HTTP path only:
+- HTTP roles are enforced on the HTTP path only:
+  - `viewer` for read/query/preview/metadata/health/policies/observability
+  - `operator` for `viewer` access plus `materialize_hot_set`
+  - `admin` as the highest current role with the same operational bundle as `operator`
+- the current role bundles remain capability-based under the hood:
   - `read` for resources and local read/query/search tools
   - `refresh` for `preview_dataset`
   - `materialize` for `materialize_hot_set`
 - no public-internet deployment hardening is claimed in this phase
 - persistent storage is expected if you want registry and snapshot state to
   survive container replacement
-- `HTTP_AUTH_TOKEN`, `HTTP_AUTH_CAPABILITIES`, `TIER_A_REFRESH_ENABLED`, `TIER_A_REFRESH_INTERVAL_SECONDS`,
+- `HTTP_AUTH_TOKEN`, `HTTP_AUTH_ROLE`, `HTTP_AUTH_CAPABILITIES`, `TIER_A_REFRESH_ENABLED`, `TIER_A_REFRESH_INTERVAL_SECONDS`,
   `SAMA_BASE_URL`, `DATA_GOV_SA_BASE_URL`, and `LOG_LEVEL` are the main
   operator-facing overrides
   These base-URL overrides remain explicitly source-specific in the current
@@ -294,7 +301,7 @@ Startup/readiness contract:
   - core FastMCP app wiring completed
 - HTTP requests without a valid `Authorization: Bearer <token>` header are
   rejected with `401 Unauthorized`
-- HTTP requests with a valid token but insufficient capability are rejected
+- HTTP requests with a valid token but insufficient role/capability are rejected
   with `403 Forbidden`
 - `/readyz` does not claim:
   - upstream source reachability

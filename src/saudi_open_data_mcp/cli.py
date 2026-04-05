@@ -101,6 +101,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             ) + build_http_auth_middleware(
                 config.transport.http_auth_token,
                 config.transport.http_auth_capabilities,
+                config.transport.http_auth_role,
             )
         except ValueError as exc:
             parser.error(str(exc))

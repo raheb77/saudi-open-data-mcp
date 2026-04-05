@@ -23,6 +23,7 @@ from saudi_open_data_mcp.registry.bootstrap import bootstrap_registry
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.security.http_auth import (
     HTTPAuthCapability,
+    HTTPAuthRole,
     HTTPBearerAuthMiddleware,
 )
 from saudi_open_data_mcp.security.http_readiness import (
@@ -80,6 +81,7 @@ def test_cli_run_http_dispatches_to_server(monkeypatch) -> None:
     assert middleware[1].cls is HTTPBearerAuthMiddleware
     assert "internal-test-token" not in repr(middleware[1])
     assert middleware[1].kwargs["bearer_token"].get_secret_value() == "internal-test-token"
+    assert middleware[1].kwargs["role"] is HTTPAuthRole.OPERATOR
     assert middleware[1].kwargs["capabilities"] == frozenset(HTTPAuthCapability)
 
 
@@ -115,6 +117,7 @@ def test_cli_run_http_uses_loopback_default_host(monkeypatch) -> None:
     assert middleware[1].cls is HTTPBearerAuthMiddleware
     assert "internal-test-token" not in repr(middleware[1])
     assert middleware[1].kwargs["bearer_token"].get_secret_value() == "internal-test-token"
+    assert middleware[1].kwargs["role"] is HTTPAuthRole.OPERATOR
     assert middleware[1].kwargs["capabilities"] == frozenset(HTTPAuthCapability)
     assert HTTP_READINESS_PATH == "/readyz"
 

@@ -33,7 +33,26 @@ class HTTPAuthCapability(StrEnum):
     MATERIALIZE = "materialize"
 
 
+class HTTPAuthRole(StrEnum):
+    """Minimal internal HTTP role model layered onto capabilities."""
+
+    VIEWER = "viewer"
+    OPERATOR = "operator"
+    ADMIN = "admin"
+
+
 ALL_HTTP_AUTH_CAPABILITIES = frozenset(HTTPAuthCapability)
+DEFAULT_HTTP_AUTH_ROLE = HTTPAuthRole.OPERATOR
+HTTP_AUTH_ROLE_CAPABILITIES = {
+    HTTPAuthRole.VIEWER: frozenset(
+        {
+            HTTPAuthCapability.READ,
+            HTTPAuthCapability.REFRESH,
+        }
+    ),
+    HTTPAuthRole.OPERATOR: ALL_HTTP_AUTH_CAPABILITIES,
+    HTTPAuthRole.ADMIN: ALL_HTTP_AUTH_CAPABILITIES,
+}
 READ_RESOURCE_URIS = frozenset(
     {
         "resource://catalog",
@@ -80,10 +99,12 @@ class HTTPBearerAuthMiddleware:
         *,
         bearer_token: SecretStr | str,
         capabilities: CapabilityCollection,
+        role: HTTPAuthRole | str | None = None,
     ) -> None:
         self.app = app
         self._bearer_token = require_http_bearer_token(bearer_token)
         self._capabilities = require_http_auth_capabilities(capabilities)
+        self._role = require_http_auth_role(role)
 
     def __repr__(self) -> str:
         """Return a masked middleware repr without exposing the bearer token."""
@@ -91,6 +112,7 @@ class HTTPBearerAuthMiddleware:
         return (
             f"{type(self).__name__}("
             f"bearer_token={self._bearer_token!r}, "
+            f"role={self._role.value!r}, "
             f"capabilities={sorted(capability.value for capability in self._capabilities)!r}"
             f")"
         )
@@ -141,6 +163,7 @@ class HTTPBearerAuthMiddleware:
         with audit_context(
             transport="http",
             actor_type="http_bearer_token",
+            actor_role=self._role.value,
             actor_token_fingerprint=build_token_fingerprint(presented_token),
             actor_capabilities=tuple(
                 sorted(capability.value for capability in self._capabilities)
@@ -166,6 +189,7 @@ class HTTPBearerAuthMiddleware:
                     path=scope.get("path"),
                     mcp_method=authz_decision.mcp_method,
                     target=authz_decision.target,
+                    role=self._role.value,
                     required_capability=authz_decision.required_capability.value,
                     granted_capabilities=granted_capabilities,
                 )
@@ -175,6 +199,7 @@ class HTTPBearerAuthMiddleware:
                     level=logging.WARNING,
                     mcp_method=authz_decision.mcp_method,
                     target=authz_decision.target,
+                    role=self._role.value,
                     required_capability=authz_decision.required_capability.value,
                     granted_capabilities=tuple(granted_capabilities),
                 )
@@ -191,6 +216,7 @@ class HTTPBearerAuthMiddleware:
                     path=scope.get("path"),
                     mcp_method=authz_decision.mcp_method,
                     target=authz_decision.target,
+                    role=self._role.value,
                     message=authz_decision.coverage_error,
                 )
                 log_audit_event(
@@ -199,6 +225,7 @@ class HTTPBearerAuthMiddleware:
                     level=logging.ERROR,
                     mcp_method=authz_decision.mcp_method,
                     target=authz_decision.target,
+                    role=self._role.value,
                     message=authz_decision.coverage_error,
                 )
                 await _internal_error_response(authz_decision.coverage_error)(
@@ -219,6 +246,7 @@ def build_http_auth_middleware(
         | tuple[HTTPAuthCapability, ...]
         | None
     ) = None,
+    role: HTTPAuthRole | str | None = DEFAULT_HTTP_AUTH_ROLE,
 ) -> list[ASGIMiddleware]:
     """Build the HTTP auth middleware list for the official serving path."""
 
@@ -231,6 +259,7 @@ def build_http_auth_middleware(
                 if capabilities is not None
                 else ALL_HTTP_AUTH_CAPABILITIES
             ),
+            role=require_http_auth_role(role),
         )
     ]
 
@@ -270,6 +299,25 @@ def require_http_auth_capabilities(
     if not resolved:
         raise ValueError("run-http requires at least one HTTP auth capability")
     return resolved
+
+
+def require_http_auth_role(
+    role: HTTPAuthRole | str | None,
+) -> HTTPAuthRole:
+    """Return the configured HTTP role or fail clearly."""
+
+    if role is None:
+        raise ValueError("run-http requires a supported HTTP auth role")
+    return HTTPAuthRole(role)
+
+
+def capabilities_for_http_auth_role(
+    role: HTTPAuthRole | str,
+) -> frozenset[HTTPAuthCapability]:
+    """Return the explicit capability bundle for a supported role."""
+
+    resolved_role = require_http_auth_role(role)
+    return HTTP_AUTH_ROLE_CAPABILITIES[resolved_role]
 
 
 def _extract_bearer_token(authorization_header: str | None) -> str | None:

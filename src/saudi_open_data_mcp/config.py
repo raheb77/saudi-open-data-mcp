@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field, SecretStr, ValidationError, field_validat
 from saudi_open_data_mcp.security.http_auth import (
     ALL_HTTP_AUTH_CAPABILITIES,
     HTTPAuthCapability,
+    HTTPAuthRole,
+    capabilities_for_http_auth_role,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -48,6 +50,7 @@ class TransportConfig(BaseModel):
     http_host: str = Field(default="127.0.0.1", min_length=1)
     http_port: int = Field(default=8000, ge=1, le=65535)
     http_auth_token: SecretStr | None = None
+    http_auth_role: HTTPAuthRole = HTTPAuthRole.OPERATOR
     http_auth_capabilities: frozenset[HTTPAuthCapability] = Field(
         default_factory=lambda: ALL_HTTP_AUTH_CAPABILITIES
     )
@@ -69,6 +72,19 @@ class TransportConfig(BaseModel):
         if not value:
             raise ValueError("HTTP_AUTH_CAPABILITIES must include at least one capability")
         return value
+
+    @model_validator(mode="after")
+    def _validate_http_auth_role_bundle(self) -> Self:
+        expected_capabilities = capabilities_for_http_auth_role(self.http_auth_role)
+        if self.http_auth_capabilities != expected_capabilities:
+            expected_values = ",".join(
+                capability.value for capability in sorted(expected_capabilities)
+            )
+            raise ValueError(
+                "HTTP_AUTH_CAPABILITIES must match the configured HTTP_AUTH_ROLE "
+                f"bundle for {self.http_auth_role.value}: {expected_values}"
+            )
+        return self
 
 
 class TierARefreshConfig(BaseModel):
@@ -179,6 +195,21 @@ def _capabilities_from_env(
         ) from exc
 
 
+def _role_from_env(name: str, default: HTTPAuthRole) -> HTTPAuthRole:
+    """Return a deterministic HTTP auth role override."""
+
+    configured = getenv(name)
+    if configured is None:
+        return default
+
+    try:
+        return HTTPAuthRole(configured.strip().lower())
+    except ValueError as exc:
+        raise RuntimeConfigurationError(
+            f"{name} must be one of: " + ", ".join(role.value for role in HTTPAuthRole)
+        ) from exc
+
+
 def prepare_runtime_storage(config: RuntimeConfig) -> None:
     """Prepare and validate the configured runtime storage paths."""
 
@@ -190,6 +221,7 @@ def prepare_runtime_storage(config: RuntimeConfig) -> None:
 def load_config() -> RuntimeConfig:
     """Load deterministic runtime settings from the environment."""
 
+    http_auth_role = _role_from_env("HTTP_AUTH_ROLE", HTTPAuthRole.OPERATOR)
     try:
         return RuntimeConfig(
             source=SourceConfig(
@@ -213,9 +245,10 @@ def load_config() -> RuntimeConfig:
                 http_auth_token=(
                     SecretStr(token) if (token := getenv("HTTP_AUTH_TOKEN")) else None
                 ),
+                http_auth_role=http_auth_role,
                 http_auth_capabilities=_capabilities_from_env(
                     "HTTP_AUTH_CAPABILITIES",
-                    ALL_HTTP_AUTH_CAPABILITIES,
+                    capabilities_for_http_auth_role(http_auth_role),
                 ),
             ),
             tier_a_refresh=TierARefreshConfig(

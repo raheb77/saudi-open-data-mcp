@@ -19,6 +19,7 @@ def test_compose_defaults_keep_internal_runtime_contract_explicit() -> None:
     compose = (_repo_root() / "docker-compose.yml").read_text(encoding="utf-8")
 
     assert "init: true" in compose
+    assert "HTTP_AUTH_ROLE: ${HTTP_AUTH_ROLE:-operator}" in compose
     assert (
         "HTTP_AUTH_CAPABILITIES: ${HTTP_AUTH_CAPABILITIES:-read,refresh,materialize}"
         in compose

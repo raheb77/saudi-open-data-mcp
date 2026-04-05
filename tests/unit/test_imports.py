@@ -22,7 +22,7 @@ from saudi_open_data_mcp.resources.policies import (
     PoliciesResource,
     ToolPolicySummary,
 )
-from saudi_open_data_mcp.security.http_auth import HTTPAuthCapability
+from saudi_open_data_mcp.security.http_auth import HTTPAuthCapability, HTTPAuthRole
 
 
 def test_load_config_defaults() -> None:
@@ -35,6 +35,7 @@ def test_load_config_defaults() -> None:
     assert config.transport.http_host == "127.0.0.1"
     assert config.transport.http_port == 8000
     assert config.transport.http_auth_token is None
+    assert config.transport.http_auth_role is HTTPAuthRole.OPERATOR
     assert config.transport.http_auth_capabilities == frozenset(HTTPAuthCapability)
     assert config.tier_a_refresh.enabled is False
     assert config.tier_a_refresh.interval_seconds == 3600
@@ -76,7 +77,8 @@ def test_load_config_respects_http_transport_overrides(
     monkeypatch.setenv("HTTP_HOST", "0.0.0.0")
     monkeypatch.setenv("HTTP_PORT", "8080")
     monkeypatch.setenv("HTTP_AUTH_TOKEN", "internal-test-token")
-    monkeypatch.setenv("HTTP_AUTH_CAPABILITIES", "read,materialize")
+    monkeypatch.setenv("HTTP_AUTH_ROLE", "viewer")
+    monkeypatch.setenv("HTTP_AUTH_CAPABILITIES", "read,refresh")
     monkeypatch.setenv("TIER_A_REFRESH_ENABLED", "true")
     monkeypatch.setenv("TIER_A_REFRESH_INTERVAL_SECONDS", "900")
 
@@ -86,10 +88,11 @@ def test_load_config_respects_http_transport_overrides(
     assert config.transport.http_port == 8080
     assert config.transport.http_auth_token is not None
     assert config.transport.http_auth_token.get_secret_value() == "internal-test-token"
+    assert config.transport.http_auth_role is HTTPAuthRole.VIEWER
     assert config.transport.http_auth_capabilities == frozenset(
         {
             HTTPAuthCapability.READ,
-            HTTPAuthCapability.MATERIALIZE,
+            HTTPAuthCapability.REFRESH,
         }
     )
     assert config.tier_a_refresh.enabled is True
@@ -111,6 +114,28 @@ def test_load_config_rejects_empty_http_auth_capability_entry(
     monkeypatch.setenv("HTTP_AUTH_CAPABILITIES", "read,,refresh")
 
     with pytest.raises(RuntimeConfigurationError, match="HTTP_AUTH_CAPABILITIES"):
+        load_config()
+
+
+def test_load_config_rejects_invalid_http_auth_role(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HTTP_AUTH_ROLE", "superuser")
+
+    with pytest.raises(RuntimeConfigurationError, match="HTTP_AUTH_ROLE"):
+        load_config()
+
+
+def test_load_config_rejects_mismatched_role_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HTTP_AUTH_ROLE", "viewer")
+    monkeypatch.setenv("HTTP_AUTH_CAPABILITIES", "read,refresh,materialize")
+
+    with pytest.raises(
+        RuntimeConfigurationError,
+        match="HTTP_AUTH_CAPABILITIES must match the configured HTTP_AUTH_ROLE bundle",
+    ):
         load_config()
 
 

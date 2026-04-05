@@ -5,6 +5,7 @@ services:
     init: true
     environment:
       HTTP_AUTH_TOKEN: ${HTTP_AUTH_TOKEN:?set HTTP_AUTH_TOKEN for internal bearer auth}
+      HTTP_AUTH_ROLE: ${HTTP_AUTH_ROLE:-operator}
       HTTP_AUTH_CAPABILITIES: ${HTTP_AUTH_CAPABILITIES:-read,refresh,materialize}
       TIER_A_REFRESH_ENABLED: ${TIER_A_REFRESH_ENABLED:-false}
       TIER_A_REFRESH_INTERVAL_SECONDS: ${TIER_A_REFRESH_INTERVAL_SECONDS:-3600}

@@ -24,6 +24,7 @@ class AuditContext:
 
     transport: str | None = None
     actor_type: str | None = None
+    actor_role: str | None = None
     actor_token_fingerprint: str | None = None
     actor_capabilities: tuple[str, ...] = ()
     request_id: str | None = None
@@ -38,6 +39,8 @@ class AuditContext:
             fields["transport"] = self.transport
         if self.actor_type is not None:
             fields["actor_type"] = self.actor_type
+        if self.actor_role is not None:
+            fields["actor_role"] = self.actor_role
         if self.actor_token_fingerprint is not None:
             fields["actor_token_fingerprint"] = self.actor_token_fingerprint
         if self.actor_capabilities:
@@ -63,6 +66,7 @@ def audit_context(
     *,
     transport: str | None = None,
     actor_type: str | None = None,
+    actor_role: str | None = None,
     actor_token_fingerprint: str | None = None,
     actor_capabilities: tuple[str, ...] = (),
     request_id: str | None = None,
@@ -75,6 +79,7 @@ def audit_context(
         AuditContext(
             transport=transport,
             actor_type=actor_type,
+            actor_role=actor_role,
             actor_token_fingerprint=actor_token_fingerprint,
             actor_capabilities=actor_capabilities,
             request_id=request_id,
