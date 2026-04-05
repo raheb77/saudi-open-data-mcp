@@ -31,6 +31,7 @@ READ_RESOURCE_URIS = frozenset(
     {
         "resource://catalog",
         "resource://observability",
+        "resource://policies",
     }
 )
 READ_TOOL_NAMES = frozenset(

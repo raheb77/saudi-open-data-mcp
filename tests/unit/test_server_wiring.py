@@ -85,7 +85,11 @@ async def test_server_registers_current_mcp_surface(
     resources = await app.get_resources()
     tools = await app.get_tools()
 
-    assert set(resources) == {"resource://catalog", "resource://observability"}
+    assert set(resources) == {
+        "resource://catalog",
+        "resource://observability",
+        "resource://policies",
+    }
     assert set(tools) == {
         "download_dataset",
         "dataset_health",
@@ -98,6 +102,7 @@ async def test_server_registers_current_mcp_surface(
 
     catalog_payload = json.loads(await resources["resource://catalog"].read())
     observability_payload = json.loads(await resources["resource://observability"].read())
+    policies_payload = json.loads(await resources["resource://policies"].read())
     assert catalog_payload["dataset_count"] == len(expected_datasets)
     assert catalog_payload["datasets"][0]["dataset_id"] == expected_datasets[0].dataset_id
     assert observability_payload["process_local"] is True
@@ -116,6 +121,21 @@ async def test_server_registers_current_mcp_surface(
     assert observability_payload["raw_counters"]["server.startup.attempts"] == 1
     assert observability_payload["raw_counters"]["server.startup.ready"] == 1
     assert "process restart" in observability_payload["notes"][0]
+    assert policies_payload["decision"] == "keep_current_surface"
+    assert policies_payload["query_primary_dataset_ids"] == [
+        "sama-pos-weekly",
+        "sama-money-supply-weekly",
+        "sama-deposits-core",
+        "sama-exchange-rates-current",
+        "sama-repo-rate",
+        "sama-reverse-repo-rate",
+    ]
+    assert [policy["tool_name"] for policy in policies_payload["tool_policies"]] == [
+        "query_dataset",
+        "preview_dataset",
+        "download_dataset",
+        "materialize_hot_set",
+    ]
 
     metadata_result = await tools["dataset_metadata"].run(
         {"dataset_id": "sama-money-supply"}

@@ -17,6 +17,11 @@ from saudi_open_data_mcp.resources.catalog import (
     CatalogResource,
     CatalogSummary,
 )
+from saudi_open_data_mcp.resources.policies import (
+    DataSurfacePolicySummary,
+    PoliciesResource,
+    ToolPolicySummary,
+)
 from saudi_open_data_mcp.security.http_auth import HTTPAuthCapability
 
 
@@ -178,6 +183,12 @@ def test_catalog_resource_types_import_cleanly() -> None:
     assert CatalogDatasetSummary.__name__ == "CatalogDatasetSummary"
     assert CatalogSummary.__name__ == "CatalogSummary"
     assert CatalogResource.__name__ == "CatalogResource"
+
+
+def test_policies_resource_types_import_cleanly() -> None:
+    assert ToolPolicySummary.__name__ == "ToolPolicySummary"
+    assert DataSurfacePolicySummary.__name__ == "DataSurfacePolicySummary"
+    assert PoliciesResource.__name__ == "PoliciesResource"
 
 
 def test_storage_and_connector_modules_import_cleanly_in_fresh_interpreter() -> None:

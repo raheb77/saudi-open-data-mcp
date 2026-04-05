@@ -13,6 +13,7 @@ from .registry.bootstrap import bootstrap_registry
 from .registry.repository import RegistryRepository
 from .resources.catalog import CatalogResource
 from .resources.observability import ObservabilityResource
+from .resources.policies import PoliciesResource
 from .storage.snapshots import SnapshotStore
 from .tools.download import DatasetDownloadTool
 from .tools.health import DatasetHealthTool
@@ -81,6 +82,7 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
 
         catalog_resource = CatalogResource(repository)
         observability_resource = ObservabilityResource()
+        policies_resource = PoliciesResource()
         health_tool = DatasetHealthTool(
             repository,
             snapshot_store,
@@ -134,6 +136,17 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
         )
         def observability() -> str:
             return observability_resource.read().model_dump_json(indent=2)
+
+        @app.resource(
+            "resource://policies",
+            name="policies",
+            description=(
+                "Read-only summary of current data-facing MCP semantics, including "
+                "the decision to keep query local/deterministic and preview hybrid."
+            ),
+        )
+        def policies() -> str:
+            return policies_resource.read().model_dump_json(indent=2)
 
         @app.tool(
             name="dataset_metadata",

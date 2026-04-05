@@ -43,6 +43,7 @@ The current exposed MCP surface is intentionally small:
 
 - `resource://catalog`
 - `resource://observability`
+- `resource://policies`
 - `dataset_metadata`
 - `dataset_health`
 - `download_dataset`
@@ -55,6 +56,7 @@ What each one does now:
 
 - `resource://catalog`: read-only summary of the bootstrapped registry catalog
 - `resource://observability`: read-only grouped summary of current process-local counters, plus the raw counter snapshot for internal operators
+- `resource://policies`: read-only summary of current data-facing semantics, including why `query_dataset` remains the primary analytical surface and `preview_dataset` remains hybrid
 - `dataset_metadata`: exact lookup of registry-backed dataset metadata by `dataset_id`
 - `dataset_health`: exact lookup of registry-backed health metadata by `dataset_id`, with local snapshot freshness evidence when available
 - `download_dataset`: local-only raw snapshot availability lookup by `dataset_id`
@@ -68,6 +70,7 @@ Concise example of the current surface:
 ```text
 resource://catalog
 resource://observability
+resource://policies
 dataset_metadata({"dataset_id": "sama-money-supply"})
 dataset_health({"dataset_id": "sama-money-supply"})
 download_dataset({"dataset_id": "sama-money-supply"})
