@@ -1441,6 +1441,50 @@ def test_field_mapping_dispatches_by_source(monkeypatch: pytest.MonkeyPatch) -> 
     assert seen_sources == ["source-2"]
 
 
+def test_field_mapping_dispatches_structured_extractors_by_registry_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="dataset-1",
+        content={
+            "url": "https://example.com/dataset-1",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": "<html>dataset-1</html>",
+        },
+    )
+    seen_calls: list[tuple[str, str, str]] = []
+
+    def _structured_extractor(raw_body: object, source_locator: str, source_url: str):
+        assert isinstance(raw_body, str)
+        seen_calls.append((raw_body, source_locator, source_url))
+        return [{"record_id": 1}]
+
+    monkeypatch.setitem(
+        field_mapping_module._STRUCTURED_EXTRACTOR_REGISTRY,
+        ("sama", "dataset-structured", MappingBodyKind.HTML),
+        field_mapping_module._StructuredExtractorRegistration(
+            extractor=_structured_extractor,
+            accepted_body_types=(str,),
+            limitations=(
+                "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+                "dataset_specific_html_requires_supported_structure",
+            ),
+        ),
+    )
+
+    result = get_field_mapping(raw_payload, canonical_dataset_id="dataset-structured")
+
+    assert seen_calls == [
+        ("<html>dataset-1</html>", "dataset-1", "https://example.com/dataset-1")
+    ]
+    assert result.can_derive_records is True
+    assert result.record_extraction_shape is RecordExtractionShape.ROWS_OBJECT_LIST
+    assert result.limitations == ()
+    assert result.canonical_fields["structured_body"] == {"rows": [{"record_id": 1}]}
+
+
 def test_field_mapping_fails_explicitly_for_unsupported_source() -> None:
     raw_payload = RawPayload(
         source="other-source",

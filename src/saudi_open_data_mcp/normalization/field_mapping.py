@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from enum import StrEnum
+from functools import partial
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -103,6 +105,23 @@ class FieldMappingResult(BaseModel):
     limitations: tuple[str, ...] = Field(default_factory=tuple)
 
 
+ExtractedRows = list[dict[str, Any]]
+StructuredExtractor = Callable[[Any, str, str], ExtractedRows | None]
+StructuredExtractorKey = tuple[str, str, MappingBodyKind]
+
+
+@dataclass(frozen=True)
+class _StructuredExtractorRegistration:
+    """Static extractor registration keyed by source, dataset id, and body kind."""
+
+    extractor: StructuredExtractor
+    accepted_body_types: tuple[type[Any], ...]
+    limitations: tuple[str, ...]
+
+    def accepts_raw_body(self, raw_body: Any) -> bool:
+        return isinstance(raw_body, self.accepted_body_types)
+
+
 def get_field_mapping(
     raw_payload: RawPayload,
     *,
@@ -118,6 +137,285 @@ def get_field_mapping(
     return mapper(raw_payload, canonical_dataset_id)
 
 
+def _run_html_rows_extractor(
+    raw_body: str,
+    source_locator: str,
+    source_url: str,
+    *,
+    extractor: Callable[..., ExtractedRows | None],
+) -> ExtractedRows | None:
+    return extractor(
+        html=raw_body,
+        source_locator=source_locator,
+        source_url=source_url,
+    )
+
+
+def _run_json_body_rows_extractor(
+    raw_body: dict[str, Any],
+    source_locator: str,
+    source_url: str,
+    *,
+    extractor: Callable[..., ExtractedRows | None],
+) -> ExtractedRows | None:
+    return extractor(
+        body=raw_body,
+        source_locator=source_locator,
+        source_url=source_url,
+    )
+
+
+def _run_json_raw_rows_extractor(
+    raw_body: dict[str, Any] | list[Any],
+    source_locator: str,
+    source_url: str,
+    *,
+    extractor: Callable[..., ExtractedRows | None],
+) -> ExtractedRows | None:
+    return extractor(
+        raw_json=raw_body,
+        source_locator=source_locator,
+        source_url=source_url,
+    )
+
+
+def _run_policy_rate_rows_extractor(
+    raw_body: str,
+    source_locator: str,
+    source_url: str,
+    *,
+    policy_rate_code: str,
+    policy_rate_name: str,
+) -> ExtractedRows | None:
+    return extract_sama_policy_rate_rows_from_html(
+        html=raw_body,
+        source_locator=source_locator,
+        source_url=source_url,
+        policy_rate_code=policy_rate_code,
+        policy_rate_name=policy_rate_name,
+    )
+
+
+_STRUCTURED_EXTRACTOR_REGISTRY: dict[
+    StructuredExtractorKey,
+    _StructuredExtractorRegistration,
+] = {
+    (
+        "stats-gov-sa",
+        "stats-gov-sa-cpi-headline-monthly",
+        MappingBodyKind.HTML,
+    ): _StructuredExtractorRegistration(
+        extractor=partial(
+            _run_html_rows_extractor,
+            extractor=extract_stats_gov_sa_cpi_headline_monthly_rows_from_html,
+        ),
+        accepted_body_types=(str,),
+        limitations=(
+            TEXT_HTML_EXTRACTION_LIMITATION,
+            STATS_GOV_SA_CPI_HEADLINE_MONTHLY_HTML_LIMITATION,
+        ),
+    ),
+    (
+        "stats-gov-sa",
+        "stats-gov-sa-unemployment-rate-total-quarterly",
+        MappingBodyKind.HTML,
+    ): _StructuredExtractorRegistration(
+        extractor=partial(
+            _run_html_rows_extractor,
+            extractor=extract_stats_gov_sa_unemployment_rate_total_quarterly_rows_from_html,
+        ),
+        accepted_body_types=(str,),
+        limitations=(
+            TEXT_HTML_EXTRACTION_LIMITATION,
+            STATS_GOV_SA_UNEMPLOYMENT_RATE_TOTAL_QUARTERLY_HTML_LIMITATION,
+        ),
+    ),
+    (
+        "stats-gov-sa",
+        "stats-gov-sa-real-gdp-growth-quarterly",
+        MappingBodyKind.HTML,
+    ): _StructuredExtractorRegistration(
+        extractor=partial(
+            _run_html_rows_extractor,
+            extractor=extract_stats_gov_sa_real_gdp_growth_quarterly_rows_from_html,
+        ),
+        accepted_body_types=(str,),
+        limitations=(
+            TEXT_HTML_EXTRACTION_LIMITATION,
+            STATS_GOV_SA_REAL_GDP_GROWTH_QUARTERLY_HTML_LIMITATION,
+        ),
+    ),
+    (
+        "mof",
+        "mof-budget-balance-quarterly",
+        MappingBodyKind.JSON,
+    ): _StructuredExtractorRegistration(
+        extractor=partial(
+            _run_json_body_rows_extractor,
+            extractor=extract_mof_budget_balance_quarterly_rows_from_json,
+        ),
+        accepted_body_types=(dict,),
+        limitations=(
+            JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
+            MOF_BUDGET_BALANCE_QUARTERLY_JSON_LIMITATION,
+        ),
+    ),
+    (
+        "sama",
+        "sama-pos-weekly",
+        MappingBodyKind.HTML,
+    ): _StructuredExtractorRegistration(
+        extractor=partial(
+            _run_html_rows_extractor,
+            extractor=extract_sama_pos_weekly_rows_from_html,
+        ),
+        accepted_body_types=(str,),
+        limitations=(
+            TEXT_HTML_EXTRACTION_LIMITATION,
+            SAMA_POS_WEEKLY_HTML_TABLE_LIMITATION,
+        ),
+    ),
+    (
+        "sama",
+        "sama-repo-rate",
+        MappingBodyKind.HTML,
+    ): _StructuredExtractorRegistration(
+        extractor=partial(
+            _run_policy_rate_rows_extractor,
+            policy_rate_code="repo_rate",
+            policy_rate_name="Official Repo Rate",
+        ),
+        accepted_body_types=(str,),
+        limitations=(
+            TEXT_HTML_EXTRACTION_LIMITATION,
+            SAMA_POLICY_RATE_HTML_LIMITATION,
+        ),
+    ),
+    (
+        "sama",
+        "sama-reverse-repo-rate",
+        MappingBodyKind.HTML,
+    ): _StructuredExtractorRegistration(
+        extractor=partial(
+            _run_policy_rate_rows_extractor,
+            policy_rate_code="reverse_repo_rate",
+            policy_rate_name="Reverse Repo Rate",
+        ),
+        accepted_body_types=(str,),
+        limitations=(
+            TEXT_HTML_EXTRACTION_LIMITATION,
+            SAMA_POLICY_RATE_HTML_LIMITATION,
+        ),
+    ),
+    (
+        "sama",
+        "sama-exchange-rates-current",
+        MappingBodyKind.HTML,
+    ): _StructuredExtractorRegistration(
+        extractor=partial(
+            _run_html_rows_extractor,
+            extractor=extract_sama_exchange_rates_current_rows_from_html,
+        ),
+        accepted_body_types=(str,),
+        limitations=(
+            TEXT_HTML_EXTRACTION_LIMITATION,
+            SAMA_EXCHANGE_RATES_CURRENT_HTML_TABLE_LIMITATION,
+        ),
+    ),
+    (
+        "sama",
+        "sama-deposits-core",
+        MappingBodyKind.JSON,
+    ): _StructuredExtractorRegistration(
+        extractor=partial(
+            _run_json_raw_rows_extractor,
+            extractor=extract_sama_deposits_core_rows_from_json,
+        ),
+        accepted_body_types=(dict, list),
+        limitations=(
+            JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
+            SAMA_DEPOSITS_CORE_JSON_ROWS_LIMITATION,
+        ),
+    ),
+    (
+        "sama",
+        "sama-money-supply-weekly",
+        MappingBodyKind.HTML,
+    ): _StructuredExtractorRegistration(
+        extractor=partial(
+            _run_html_rows_extractor,
+            extractor=extract_sama_money_supply_weekly_rows_from_html,
+        ),
+        accepted_body_types=(str,),
+        limitations=(
+            TEXT_HTML_EXTRACTION_LIMITATION,
+            SAMA_MONEY_SUPPLY_WEEKLY_HTML_TABLE_LIMITATION,
+        ),
+    ),
+}
+
+
+def _resolve_structured_extractor(
+    *,
+    source: str,
+    canonical_dataset_id: str | None,
+    body_kind: MappingBodyKind,
+) -> _StructuredExtractorRegistration | None:
+    if canonical_dataset_id is None:
+        return None
+
+    return _STRUCTURED_EXTRACTOR_REGISTRY.get(
+        (source, canonical_dataset_id, body_kind)
+    )
+
+
+def _build_rows_field_mapping_result(
+    *,
+    raw_payload: RawPayload,
+    response_metadata: RawResponseMetadata,
+    body_kind: MappingBodyKind,
+    raw_body: dict[str, Any] | list[Any] | str,
+    base_canonical_fields: dict[str, Any],
+    extracted_rows: ExtractedRows,
+) -> FieldMappingResult:
+    return FieldMappingResult(
+        source=raw_payload.source,
+        dataset_locator=raw_payload.dataset_id,
+        response_metadata=response_metadata,
+        body_kind=body_kind,
+        raw_body=raw_body,
+        canonical_fields={
+            **base_canonical_fields,
+            "structured_body": {"rows": extracted_rows},
+        },
+        record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
+        can_derive_records=True,
+        limitations=(),
+    )
+
+
+def _build_limited_extractor_field_mapping_result(
+    *,
+    raw_payload: RawPayload,
+    response_metadata: RawResponseMetadata,
+    body_kind: MappingBodyKind,
+    raw_body: dict[str, Any] | list[Any] | str,
+    base_canonical_fields: dict[str, Any],
+    limitations: tuple[str, ...],
+) -> FieldMappingResult:
+    return FieldMappingResult(
+        source=raw_payload.source,
+        dataset_locator=raw_payload.dataset_id,
+        response_metadata=response_metadata,
+        body_kind=body_kind,
+        raw_body=raw_body,
+        canonical_fields=base_canonical_fields,
+        record_extraction_shape=RecordExtractionShape.NONE,
+        can_derive_records=False,
+        limitations=limitations,
+    )
+
+
 def _map_tabular_source_payload(
     raw_payload: RawPayload,
     canonical_dataset_id: str | None = None,
@@ -128,6 +426,7 @@ def _map_tabular_source_payload(
     - connector response metadata
     - raw response body
     - canonical fields that later validation and pipeline steps can inspect
+    - explicit structured extractor dispatch keyed by source, dataset id, and body kind
     """
 
     response_metadata = _build_response_metadata(raw_payload)
@@ -140,396 +439,34 @@ def _map_tabular_source_payload(
         "response_content_type": response_metadata.content_type,
     }
 
-    if (
-        raw_payload.source == "stats-gov-sa"
-        and canonical_dataset_id == "stats-gov-sa-cpi-headline-monthly"
-        and body_kind is MappingBodyKind.HTML
-        and isinstance(raw_body, str)
-    ):
-        extracted_rows = extract_stats_gov_sa_cpi_headline_monthly_rows_from_html(
-            html=raw_body,
-            source_locator=raw_payload.dataset_id,
-            source_url=response_metadata.url,
+    structured_extractor = _resolve_structured_extractor(
+        source=raw_payload.source,
+        canonical_dataset_id=canonical_dataset_id,
+        body_kind=body_kind,
+    )
+    if structured_extractor is not None and structured_extractor.accepts_raw_body(raw_body):
+        extracted_rows = structured_extractor.extractor(
+            raw_body,
+            raw_payload.dataset_id,
+            response_metadata.url,
         )
         if extracted_rows:
-            return FieldMappingResult(
-                source=raw_payload.source,
-                dataset_locator=raw_payload.dataset_id,
+            return _build_rows_field_mapping_result(
+                raw_payload=raw_payload,
                 response_metadata=response_metadata,
                 body_kind=body_kind,
                 raw_body=raw_body,
-                canonical_fields={
-                    **base_canonical_fields,
-                    "structured_body": {"rows": extracted_rows},
-                },
-                record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
-                can_derive_records=True,
-                limitations=(),
+                base_canonical_fields=base_canonical_fields,
+                extracted_rows=extracted_rows,
             )
 
-        return FieldMappingResult(
-            source=raw_payload.source,
-            dataset_locator=raw_payload.dataset_id,
+        return _build_limited_extractor_field_mapping_result(
+            raw_payload=raw_payload,
             response_metadata=response_metadata,
             body_kind=body_kind,
             raw_body=raw_body,
-            canonical_fields=base_canonical_fields,
-            record_extraction_shape=RecordExtractionShape.NONE,
-            can_derive_records=False,
-            limitations=(
-                TEXT_HTML_EXTRACTION_LIMITATION,
-                STATS_GOV_SA_CPI_HEADLINE_MONTHLY_HTML_LIMITATION,
-            ),
-        )
-
-    if (
-        raw_payload.source == "stats-gov-sa"
-        and canonical_dataset_id == "stats-gov-sa-unemployment-rate-total-quarterly"
-        and body_kind is MappingBodyKind.HTML
-        and isinstance(raw_body, str)
-    ):
-        extracted_rows = (
-            extract_stats_gov_sa_unemployment_rate_total_quarterly_rows_from_html(
-                html=raw_body,
-                source_locator=raw_payload.dataset_id,
-                source_url=response_metadata.url,
-            )
-        )
-        if extracted_rows:
-            return FieldMappingResult(
-                source=raw_payload.source,
-                dataset_locator=raw_payload.dataset_id,
-                response_metadata=response_metadata,
-                body_kind=body_kind,
-                raw_body=raw_body,
-                canonical_fields={
-                    **base_canonical_fields,
-                    "structured_body": {"rows": extracted_rows},
-                },
-                record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
-                can_derive_records=True,
-                limitations=(),
-            )
-
-        return FieldMappingResult(
-            source=raw_payload.source,
-            dataset_locator=raw_payload.dataset_id,
-            response_metadata=response_metadata,
-            body_kind=body_kind,
-            raw_body=raw_body,
-            canonical_fields=base_canonical_fields,
-            record_extraction_shape=RecordExtractionShape.NONE,
-            can_derive_records=False,
-            limitations=(
-                TEXT_HTML_EXTRACTION_LIMITATION,
-                STATS_GOV_SA_UNEMPLOYMENT_RATE_TOTAL_QUARTERLY_HTML_LIMITATION,
-            ),
-        )
-
-    if (
-        raw_payload.source == "stats-gov-sa"
-        and canonical_dataset_id == "stats-gov-sa-real-gdp-growth-quarterly"
-        and body_kind is MappingBodyKind.HTML
-        and isinstance(raw_body, str)
-    ):
-        extracted_rows = extract_stats_gov_sa_real_gdp_growth_quarterly_rows_from_html(
-            html=raw_body,
-            source_locator=raw_payload.dataset_id,
-            source_url=response_metadata.url,
-        )
-        if extracted_rows:
-            return FieldMappingResult(
-                source=raw_payload.source,
-                dataset_locator=raw_payload.dataset_id,
-                response_metadata=response_metadata,
-                body_kind=body_kind,
-                raw_body=raw_body,
-                canonical_fields={
-                    **base_canonical_fields,
-                    "structured_body": {"rows": extracted_rows},
-                },
-                record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
-                can_derive_records=True,
-                limitations=(),
-            )
-
-        return FieldMappingResult(
-            source=raw_payload.source,
-            dataset_locator=raw_payload.dataset_id,
-            response_metadata=response_metadata,
-            body_kind=body_kind,
-            raw_body=raw_body,
-            canonical_fields=base_canonical_fields,
-            record_extraction_shape=RecordExtractionShape.NONE,
-            can_derive_records=False,
-            limitations=(
-                TEXT_HTML_EXTRACTION_LIMITATION,
-                STATS_GOV_SA_REAL_GDP_GROWTH_QUARTERLY_HTML_LIMITATION,
-            ),
-        )
-
-    if (
-        raw_payload.source == "mof"
-        and canonical_dataset_id == "mof-budget-balance-quarterly"
-        and body_kind is MappingBodyKind.JSON
-        and isinstance(raw_body, dict)
-    ):
-        extracted_rows = extract_mof_budget_balance_quarterly_rows_from_json(
-            body=raw_body,
-            source_locator=raw_payload.dataset_id,
-            source_url=response_metadata.url,
-        )
-        if extracted_rows:
-            return FieldMappingResult(
-                source=raw_payload.source,
-                dataset_locator=raw_payload.dataset_id,
-                response_metadata=response_metadata,
-                body_kind=body_kind,
-                raw_body=raw_body,
-                canonical_fields={
-                    **base_canonical_fields,
-                    "structured_body": {"rows": extracted_rows},
-                },
-                record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
-                can_derive_records=True,
-                limitations=(),
-            )
-
-        return FieldMappingResult(
-            source=raw_payload.source,
-            dataset_locator=raw_payload.dataset_id,
-            response_metadata=response_metadata,
-            body_kind=body_kind,
-            raw_body=raw_body,
-            canonical_fields=base_canonical_fields,
-            record_extraction_shape=RecordExtractionShape.NONE,
-            can_derive_records=False,
-            limitations=(
-                JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
-                MOF_BUDGET_BALANCE_QUARTERLY_JSON_LIMITATION,
-            ),
-        )
-
-    if (
-        raw_payload.source == "sama"
-        and canonical_dataset_id == "sama-pos-weekly"
-        and body_kind is MappingBodyKind.HTML
-        and isinstance(raw_body, str)
-    ):
-        extracted_rows = extract_sama_pos_weekly_rows_from_html(
-            html=raw_body,
-            source_locator=raw_payload.dataset_id,
-            source_url=response_metadata.url,
-        )
-        if extracted_rows:
-            return FieldMappingResult(
-                source=raw_payload.source,
-                dataset_locator=raw_payload.dataset_id,
-                response_metadata=response_metadata,
-                body_kind=body_kind,
-                raw_body=raw_body,
-                canonical_fields={
-                    **base_canonical_fields,
-                    "structured_body": {"rows": extracted_rows},
-                },
-                record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
-                can_derive_records=True,
-                limitations=(),
-            )
-
-        return FieldMappingResult(
-            source=raw_payload.source,
-            dataset_locator=raw_payload.dataset_id,
-            response_metadata=response_metadata,
-            body_kind=body_kind,
-            raw_body=raw_body,
-            canonical_fields=base_canonical_fields,
-            record_extraction_shape=RecordExtractionShape.NONE,
-            can_derive_records=False,
-            limitations=(
-                TEXT_HTML_EXTRACTION_LIMITATION,
-                SAMA_POS_WEEKLY_HTML_TABLE_LIMITATION,
-            ),
-        )
-
-    if (
-        raw_payload.source == "sama"
-        and canonical_dataset_id in {"sama-repo-rate", "sama-reverse-repo-rate"}
-        and body_kind is MappingBodyKind.HTML
-        and isinstance(raw_body, str)
-    ):
-        policy_rate_code = (
-            "repo_rate"
-            if canonical_dataset_id == "sama-repo-rate"
-            else "reverse_repo_rate"
-        )
-        policy_rate_name = (
-            "Official Repo Rate"
-            if canonical_dataset_id == "sama-repo-rate"
-            else "Reverse Repo Rate"
-        )
-        extracted_rows = extract_sama_policy_rate_rows_from_html(
-            html=raw_body,
-            source_locator=raw_payload.dataset_id,
-            source_url=response_metadata.url,
-            policy_rate_code=policy_rate_code,
-            policy_rate_name=policy_rate_name,
-        )
-        if extracted_rows:
-            return FieldMappingResult(
-                source=raw_payload.source,
-                dataset_locator=raw_payload.dataset_id,
-                response_metadata=response_metadata,
-                body_kind=body_kind,
-                raw_body=raw_body,
-                canonical_fields={
-                    **base_canonical_fields,
-                    "structured_body": {"rows": extracted_rows},
-                },
-                record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
-                can_derive_records=True,
-                limitations=(),
-            )
-
-        return FieldMappingResult(
-            source=raw_payload.source,
-            dataset_locator=raw_payload.dataset_id,
-            response_metadata=response_metadata,
-            body_kind=body_kind,
-            raw_body=raw_body,
-            canonical_fields=base_canonical_fields,
-            record_extraction_shape=RecordExtractionShape.NONE,
-            can_derive_records=False,
-            limitations=(
-                TEXT_HTML_EXTRACTION_LIMITATION,
-                SAMA_POLICY_RATE_HTML_LIMITATION,
-            ),
-        )
-
-    if (
-        raw_payload.source == "sama"
-        and canonical_dataset_id == "sama-exchange-rates-current"
-        and body_kind is MappingBodyKind.HTML
-        and isinstance(raw_body, str)
-    ):
-        extracted_rows = extract_sama_exchange_rates_current_rows_from_html(
-            html=raw_body,
-            source_locator=raw_payload.dataset_id,
-            source_url=response_metadata.url,
-        )
-        if extracted_rows:
-            return FieldMappingResult(
-                source=raw_payload.source,
-                dataset_locator=raw_payload.dataset_id,
-                response_metadata=response_metadata,
-                body_kind=body_kind,
-                raw_body=raw_body,
-                canonical_fields={
-                    **base_canonical_fields,
-                    "structured_body": {"rows": extracted_rows},
-                },
-                record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
-                can_derive_records=True,
-                limitations=(),
-            )
-
-        return FieldMappingResult(
-            source=raw_payload.source,
-            dataset_locator=raw_payload.dataset_id,
-            response_metadata=response_metadata,
-            body_kind=body_kind,
-            raw_body=raw_body,
-            canonical_fields=base_canonical_fields,
-            record_extraction_shape=RecordExtractionShape.NONE,
-            can_derive_records=False,
-            limitations=(
-                TEXT_HTML_EXTRACTION_LIMITATION,
-                SAMA_EXCHANGE_RATES_CURRENT_HTML_TABLE_LIMITATION,
-            ),
-        )
-
-    if (
-        raw_payload.source == "sama"
-        and canonical_dataset_id == "sama-deposits-core"
-        and body_kind is MappingBodyKind.JSON
-        and isinstance(raw_body, dict | list)
-    ):
-        extracted_rows = extract_sama_deposits_core_rows_from_json(
-            raw_json=raw_body,
-            source_locator=raw_payload.dataset_id,
-            source_url=response_metadata.url,
-        )
-        if extracted_rows:
-            return FieldMappingResult(
-                source=raw_payload.source,
-                dataset_locator=raw_payload.dataset_id,
-                response_metadata=response_metadata,
-                body_kind=body_kind,
-                raw_body=raw_body,
-                canonical_fields={
-                    **base_canonical_fields,
-                    "structured_body": {"rows": extracted_rows},
-                },
-                record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
-                can_derive_records=True,
-                limitations=(),
-            )
-
-        return FieldMappingResult(
-            source=raw_payload.source,
-            dataset_locator=raw_payload.dataset_id,
-            response_metadata=response_metadata,
-            body_kind=body_kind,
-            raw_body=raw_body,
-            canonical_fields=base_canonical_fields,
-            record_extraction_shape=RecordExtractionShape.NONE,
-            can_derive_records=False,
-            limitations=(
-                JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
-                SAMA_DEPOSITS_CORE_JSON_ROWS_LIMITATION,
-            ),
-        )
-
-    if (
-        raw_payload.source == "sama"
-        and canonical_dataset_id == "sama-money-supply-weekly"
-        and body_kind is MappingBodyKind.HTML
-        and isinstance(raw_body, str)
-    ):
-        extracted_rows = extract_sama_money_supply_weekly_rows_from_html(
-            html=raw_body,
-            source_locator=raw_payload.dataset_id,
-            source_url=response_metadata.url,
-        )
-        if extracted_rows:
-            return FieldMappingResult(
-                source=raw_payload.source,
-                dataset_locator=raw_payload.dataset_id,
-                response_metadata=response_metadata,
-                body_kind=body_kind,
-                raw_body=raw_body,
-                canonical_fields={
-                    **base_canonical_fields,
-                    "structured_body": {"rows": extracted_rows},
-                },
-                record_extraction_shape=RecordExtractionShape.ROWS_OBJECT_LIST,
-                can_derive_records=True,
-                limitations=(),
-            )
-
-        return FieldMappingResult(
-            source=raw_payload.source,
-            dataset_locator=raw_payload.dataset_id,
-            response_metadata=response_metadata,
-            body_kind=body_kind,
-            raw_body=raw_body,
-            canonical_fields=base_canonical_fields,
-            record_extraction_shape=RecordExtractionShape.NONE,
-            can_derive_records=False,
-            limitations=(
-                TEXT_HTML_EXTRACTION_LIMITATION,
-                SAMA_MONEY_SUPPLY_WEEKLY_HTML_TABLE_LIMITATION,
-            ),
+            base_canonical_fields=base_canonical_fields,
+            limitations=structured_extractor.limitations,
         )
 
     if body_kind is MappingBodyKind.JSON:
