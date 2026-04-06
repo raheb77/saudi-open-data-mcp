@@ -12,3 +12,11 @@ wheels/
 .env
 
 .local/
+
+# frontend
+/dashboard/node_modules/
+/dashboard/dist/
+/dashboard/.vite/
+/dashboard/*.tsbuildinfo
+
+/.claude/worktrees/
