@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    direction: rtl;
+  }
+
+  body {
+    @apply bg-ink-50 text-ink-900 font-sans antialiased;
+    font-feature-settings: "kern", "liga";
+  }
+
+  /* Latin numerals are kept everywhere in data-heavy displays.
+     This font-feature toggles tabular figures so columns of numbers
+     line up cleanly inside the result tables. */
+  .num-latn {
+    font-variant-numeric: tabular-nums;
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+
+  .id-mono {
+    @apply font-mono text-[0.85em] text-ink-700;
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+}
