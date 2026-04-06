@@ -88,4 +88,27 @@ describe("MetadataStrip", () => {
 
     expect(screen.getByTestId("metadata-strip")).toHaveTextContent("degraded");
   });
+
+  it("supports a flat embedded variant without changing metadata content", () => {
+    render(
+      <MetadataStrip
+        dataset_id="mof-budget-balance-quarterly"
+        source="mof"
+        variant="flat"
+        status_kind="health"
+        status="healthy"
+        data_origin="local_snapshot"
+        freshness_status="fresh"
+        schema_version="1.0.0"
+      />,
+    );
+
+    const strip = screen.getByTestId("metadata-strip");
+    expect(strip.className).toContain("border-0");
+    expect(strip.className).toContain("bg-transparent");
+    expect(strip.className).toContain("shadow-none");
+    expect(strip).toHaveTextContent("mof-budget-balance-quarterly");
+    expect(strip).toHaveTextContent("healthy");
+    expect(strip).toHaveTextContent("local_snapshot");
+  });
 });

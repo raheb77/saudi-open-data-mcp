@@ -60,6 +60,7 @@ export function DatasetCard({ catalog, preview, health }: DatasetCardProps) {
       <MetadataStrip
         dataset_id={catalog.dataset_id}
         source={catalog.source}
+        variant="flat"
         status_kind="preview"
         status={preview.status}
         data_origin={preview.data_origin}

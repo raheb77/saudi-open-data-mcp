@@ -35,6 +35,7 @@ type BaseMetadataStripProps = {
   degradation_reason?: ResultDegradationReason | null;
   schema_version?: string | null;
   snapshot_age_label?: string | null;
+  variant?: "default" | "flat";
 };
 
 type QueryMetadataStripProps = BaseMetadataStripProps & {
@@ -63,13 +64,22 @@ const DEGRADATION_LABEL: Record<ResultDegradationReason, string> = {
 };
 
 export function MetadataStrip(props: MetadataStripProps) {
+  const isFlat = props.variant === "flat";
   return (
     <div
       data-testid="metadata-strip"
-      className="rounded-lg border border-ink-300 bg-white px-4 py-3 shadow-sm"
+      className={
+        isFlat
+          ? "rounded-md border-0 bg-transparent px-0 py-0 shadow-none"
+          : "rounded-lg border border-ink-300 bg-white px-4 py-3 shadow-sm"
+      }
     >
       <h3 className="text-xs font-semibold text-ink-500">{ar.meta.title}</h3>
-      <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+      <dl
+        className={`grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3 ${
+          isFlat ? "mt-1" : "mt-2"
+        }`}
+      >
         <Row label={ar.meta.datasetId}>
           <span className="id-mono">{props.dataset_id}</span>
         </Row>
