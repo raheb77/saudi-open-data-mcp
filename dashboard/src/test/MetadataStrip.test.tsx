@@ -8,6 +8,7 @@ describe("MetadataStrip", () => {
       <MetadataStrip
         dataset_id="sama-pos-weekly"
         source="sama"
+        status_kind="query"
         status="success"
         data_origin="local_snapshot"
         freshness_status="fresh"
@@ -30,6 +31,7 @@ describe("MetadataStrip", () => {
       <MetadataStrip
         dataset_id="stats-gov-sa-cpi-headline-monthly"
         source="stats-gov-sa"
+        status_kind="query"
         status="missing"
         data_origin={null}
       />,
@@ -48,6 +50,7 @@ describe("MetadataStrip", () => {
       <MetadataStrip
         dataset_id="stats-gov-sa-cpi-headline-monthly"
         source="stats-gov-sa"
+        status_kind="query"
         status="limited"
         data_origin="local_snapshot"
         degradation_reason="normalization_limited"
@@ -56,5 +59,33 @@ describe("MetadataStrip", () => {
 
     const strip = screen.getByTestId("metadata-strip");
     expect(strip).toHaveTextContent("normalization_limited");
+  });
+
+  it("renders preview and health status families explicitly", () => {
+    const { rerender } = render(
+      <MetadataStrip
+        dataset_id="sama-pos-weekly"
+        source="sama"
+        status_kind="preview"
+        status="record_derivable"
+        data_origin="local_snapshot"
+      />,
+    );
+
+    expect(screen.getByTestId("metadata-strip")).toHaveTextContent(
+      "record_derivable",
+    );
+
+    rerender(
+      <MetadataStrip
+        dataset_id="stats-gov-sa-cpi-headline-monthly"
+        source="stats-gov-sa"
+        status_kind="health"
+        status="degraded"
+        data_origin={null}
+      />,
+    );
+
+    expect(screen.getByTestId("metadata-strip")).toHaveTextContent("degraded");
   });
 });

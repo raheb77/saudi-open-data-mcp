@@ -55,7 +55,8 @@ export function HealthCard({ health }: HealthCardProps) {
       <MetadataStrip
         dataset_id={health.dataset_id}
         source={health.source}
-        status="success"
+        status_kind="health"
+        status={health.health_status ?? "unknown"}
         data_origin={freshness?.artifact_present ? "local_snapshot" : null}
         freshness_status={freshness?.status ?? null}
         schema_version={health.schema_version}

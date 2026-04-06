@@ -164,6 +164,7 @@ export function QueryPage({ role }: QueryPageProps) {
           <MetadataStrip
             dataset_id={result.dataset_id}
             source={result.source}
+            status_kind="query"
             status={result.status}
             data_origin={result.data_origin}
             freshness_status={freshness?.status ?? null}

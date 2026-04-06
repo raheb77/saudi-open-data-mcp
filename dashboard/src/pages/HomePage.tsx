@@ -3,6 +3,7 @@ import { DatasetCard } from "../components/DatasetCard";
 import { ar } from "../i18n/ar";
 import { MOCK_DATASETS } from "../mocks/datasets";
 import { findHealthById } from "../mocks/health";
+import { findPreviewById } from "../mocks/previews";
 
 export function HomePage() {
   return (
@@ -31,13 +32,18 @@ export function HomePage() {
       </section>
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {MOCK_DATASETS.map((catalog) => (
-          <DatasetCard
-            key={catalog.dataset_id}
-            catalog={catalog}
-            health={findHealthById(catalog.dataset_id)}
-          />
-        ))}
+        {MOCK_DATASETS.map((catalog) => {
+          const preview = findPreviewById(catalog.dataset_id);
+          if (!preview) return null;
+          return (
+            <DatasetCard
+              key={catalog.dataset_id}
+              catalog={catalog}
+              preview={preview}
+              health={findHealthById(catalog.dataset_id)}
+            />
+          );
+        })}
       </section>
     </div>
   );

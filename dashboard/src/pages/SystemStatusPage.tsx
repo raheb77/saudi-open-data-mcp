@@ -2,11 +2,11 @@ import { HealthCard } from "../components/HealthCard";
 import { ar } from "../i18n/ar";
 import { formatDateTime, formatNumber } from "../lib/format";
 import {
-  MOCK_HEALTH,
-  MOCK_MATERIALIZATION_SUMMARY,
-  MOCK_READINESS,
+  getHealthEntries,
+  getMaterializationSummary,
+  getReadinessReport,
 } from "../mocks/health";
-import { MOCK_OBSERVABILITY } from "../mocks/observability";
+import { getObservabilitySummary } from "../mocks/status";
 
 export function SystemStatusPage() {
   return (
@@ -29,7 +29,7 @@ export function SystemStatusPage() {
 }
 
 function ReadinessPanel() {
-  const report = MOCK_READINESS;
+  const report = getReadinessReport();
   return (
     <section
       className="rounded-xl border border-ink-300 bg-white p-4 shadow-sm"
@@ -88,7 +88,7 @@ function ReadinessPanel() {
 }
 
 function MaterializationPanel() {
-  const summary = MOCK_MATERIALIZATION_SUMMARY;
+  const summary = getMaterializationSummary();
   return (
     <section
       className="rounded-xl border border-ink-300 bg-white p-4 shadow-sm"
@@ -127,6 +127,7 @@ function MaterializationPanel() {
 }
 
 function SourcesPanel() {
+  const healthEntries = getHealthEntries();
   return (
     <section
       className="flex flex-col gap-3"
@@ -139,7 +140,7 @@ function SourcesPanel() {
         <p className="text-xs text-ink-500">{ar.status.sources.summary}</p>
       </header>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {MOCK_HEALTH.map((entry) => (
+        {healthEntries.map((entry) => (
           <HealthCard key={entry.dataset_id} health={entry} />
         ))}
       </div>
@@ -148,6 +149,7 @@ function SourcesPanel() {
 }
 
 function CountersPanel() {
+  const observability = getObservabilitySummary();
   return (
     <section
       className="flex flex-col gap-3"
@@ -160,7 +162,7 @@ function CountersPanel() {
         <p className="text-xs text-ink-500">{ar.status.counters.note}</p>
       </header>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {MOCK_OBSERVABILITY.groups.map((group) => (
+        {observability.groups.map((group) => (
           <article
             key={group.name}
             className="rounded-xl border border-ink-300 bg-white p-4 shadow-sm"
@@ -208,9 +210,9 @@ function CountersPanel() {
           </article>
         ))}
       </div>
-      {MOCK_OBSERVABILITY.notes.length > 0 && (
+      {observability.notes.length > 0 && (
         <ul className="list-disc space-y-1 ps-5 text-xs text-ink-500">
-          {MOCK_OBSERVABILITY.notes.map((note) => (
+          {observability.notes.map((note) => (
             <li key={note}>{note}</li>
           ))}
         </ul>

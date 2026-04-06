@@ -8,6 +8,10 @@ export const ar = {
   app: {
     title: "لوحة البيانات السعودية المفتوحة",
     subtitle: "واجهة عرض رقيقة فوق نواة MCP الحالية",
+    renderError: {
+      title: "تعذّر عرض الصفحة",
+      body: "حدث خطأ غير متوقع أثناء بناء هذا العرض. بقيت الواجهة في وضع آمن بدل شاشة فارغة.",
+    },
     nav: {
       home: "الرئيسية",
       query: "الاستعلام",
@@ -29,7 +33,7 @@ export const ar = {
     viewStatus: "افتح صفحة حالة النظام",
     cardLabels: {
       source: "المصدر",
-      status: "الحالة الصحية",
+      status: "حالة العرض",
       freshness: "الحداثة",
       origin: "أصل البيانات",
       lastUpdated: "آخر تحديث",
@@ -126,6 +130,7 @@ export const ar = {
     failed: "فشل",
     missing: "غير موجود",
     snapshotMissing: "لا توجد لقطة محلية",
+    recordDerivable: "قابل للاشتقاق",
     unauthorized: "غير مخوّل",
     healthy: "سليم",
     degraded: "متدهور",

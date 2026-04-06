@@ -1,6 +1,8 @@
 import { ar } from "../i18n/ar";
 import { SOURCE_LABELS } from "../mocks/datasets";
 import type {
+  DatasetHealthStatus,
+  PreviewStatus,
   DatasetQueryStatus,
   ResultDataOrigin,
   ResultDegradationReason,
@@ -10,6 +12,8 @@ import type {
 import {
   DataOriginBadge,
   FreshnessBadge,
+  HealthStatusBadge,
+  PreviewStatusBadge,
   QueryStatusBadge,
 } from "./StatusBadge";
 
@@ -23,16 +27,35 @@ import {
 // Fields that are not present in the underlying result are simply not
 // rendered. The component never fabricates a freshness or origin.
 
-export interface MetadataStripProps {
+type BaseMetadataStripProps = {
   dataset_id: string;
   source: SourceName | null;
-  status: DatasetQueryStatus;
   data_origin: ResultDataOrigin | null;
   freshness_status?: SnapshotFreshnessStatus | null;
   degradation_reason?: ResultDegradationReason | null;
   schema_version?: string | null;
   snapshot_age_label?: string | null;
-}
+};
+
+type QueryMetadataStripProps = BaseMetadataStripProps & {
+  status_kind: "query";
+  status: DatasetQueryStatus;
+};
+
+type PreviewMetadataStripProps = BaseMetadataStripProps & {
+  status_kind: "preview";
+  status: PreviewStatus;
+};
+
+type HealthMetadataStripProps = BaseMetadataStripProps & {
+  status_kind: "health";
+  status: DatasetHealthStatus;
+};
+
+export type MetadataStripProps =
+  | QueryMetadataStripProps
+  | PreviewMetadataStripProps
+  | HealthMetadataStripProps;
 
 const DEGRADATION_LABEL: Record<ResultDegradationReason, string> = {
   normalization_limited: ar.state.normalizationLimited,
@@ -63,7 +86,7 @@ export function MetadataStrip(props: MetadataStripProps) {
         </Row>
 
         <Row label={ar.meta.status}>
-          <QueryStatusBadge status={props.status} />
+          <StatusCell props={props} />
         </Row>
 
         <Row label={ar.meta.dataOrigin}>
@@ -103,6 +126,18 @@ export function MetadataStrip(props: MetadataStripProps) {
       </dl>
     </div>
   );
+}
+
+function StatusCell({ props }: { props: MetadataStripProps }) {
+  switch (props.status_kind) {
+    case "preview":
+      return <PreviewStatusBadge status={props.status} />;
+    case "health":
+      return <HealthStatusBadge status={props.status} />;
+    case "query":
+    default:
+      return <QueryStatusBadge status={props.status} />;
+  }
 }
 
 function Row({
