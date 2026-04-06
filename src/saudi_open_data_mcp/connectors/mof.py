@@ -13,23 +13,29 @@ from pypdf import PdfReader
 from .base import Connector, RawPayload, RawPayloadSnapshotWriter, RequestPolicy
 from .errors import InvalidSourceResponseError, SourceAccessPolicyViolationError
 
+_APPROVED_REPORTS_YEAR = "2025"
 _REPORT_LINK_PATTERN = re.compile(
-    r'href="(?P<href>/en/financialreport/2025/Documents/[^"]+\.pdf)"',
+    fr'href="(?P<href>/en/financialreport/{_APPROVED_REPORTS_YEAR}/Documents/[^"]+\.pdf)"',
     flags=re.IGNORECASE,
 )
 _REPORT_BASENAME_PATTERN = re.compile(
-    r"^Q(?P<quarter>[1-4])(?:E)?[\s_-]*2025.*\.pdf$",
+    fr"^Q(?P<quarter>[1-4])(?:E)?[\s_-]*{_APPROVED_REPORTS_YEAR}.*\.pdf$",
     flags=re.IGNORECASE,
 )
 
 
 class MoFConnector(Connector):
-    """Connector for the current narrow official Ministry of Finance fiscal surface."""
+    """Connector for the current narrow Ministry of Finance fiscal surface.
+
+    This connector is intentionally pinned to the currently approved 2025
+    quarterly budget-performance page and linked quarterly report PDFs.
+    Future annual rollover is expected to be explicit rather than automatic.
+    """
 
     source_name = "mof"
     approved_base_url = "https://www.mof.gov.sa"
-    approved_reports_page_path = "/en/financialreport/2025/Pages/default.aspx"
-    approved_documents_prefix = "/en/financialreport/2025/Documents/"
+    approved_reports_page_path = f"/en/financialreport/{_APPROVED_REPORTS_YEAR}/Pages/default.aspx"
+    approved_documents_prefix = f"/en/financialreport/{_APPROVED_REPORTS_YEAR}/Documents/"
 
     def __init__(
         self,
@@ -119,8 +125,9 @@ class MoFConnector(Connector):
             raise SourceAccessPolicyViolationError(
                 source_name=self.source_name,
                 message=(
-                    "Ministry of Finance connector only fetches the approved quarterly "
-                    "budget performance page"
+                    "Ministry of Finance connector only fetches the current approved "
+                    f"{_APPROVED_REPORTS_YEAR} quarterly budget performance page; "
+                    "future annual rollover must be explicit"
                 ),
                 dataset_id=dataset_locator,
             )
@@ -155,8 +162,8 @@ class MoFConnector(Connector):
                 source_name=self.source_name,
                 dataset_id=dataset_locator,
                 message=(
-                    "Ministry of Finance reports page did not expose approved quarterly "
-                    "report PDF links"
+                    "Ministry of Finance reports page did not expose approved "
+                    f"{_APPROVED_REPORTS_YEAR} quarterly report PDF links"
                 ),
             )
 

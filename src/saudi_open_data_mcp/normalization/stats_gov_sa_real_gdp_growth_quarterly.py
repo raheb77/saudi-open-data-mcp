@@ -16,16 +16,22 @@ STATS_GOV_SA_REAL_GDP_GROWTH_QUARTERLY_HTML_LIMITATION = (
 )
 
 _TITLE_VALUE_PATTERNS = (
-    re.compile(
-        r"\b(?:GASTAT\s+)?Real GDP grows by\s+([0-9]+(?:\.[0-9]+)?)%\s+"
-        r"in\s+Q([1-4])(?:\s+of|/)?\s*(\d{4})",
-        flags=re.IGNORECASE,
+    (
+        re.compile(
+            r"\b(?:GASTAT\s+)?Real GDP grows by\s+([0-9]+(?:\.[0-9]+)?)%\s+"
+            r"in\s+Q([1-4])(?:\s+of|/)?\s*(\d{4})",
+            flags=re.IGNORECASE,
+        ),
+        1.0,
     ),
-    re.compile(
-        r"\b(?:GASTAT\s+)?Real GDP (?:decreases|decreased|declines|declined|"
-        r"falls|fell|contracts|contracted) by\s+([0-9]+(?:\.[0-9]+)?)%\s+"
-        r"in\s+Q([1-4])(?:\s+of|/)?\s*(\d{4})",
-        flags=re.IGNORECASE,
+    (
+        re.compile(
+            r"\b(?:GASTAT\s+)?Real GDP (?:decreases|decreased|declines|declined|"
+            r"falls|fell|contracts|contracted) by\s+([0-9]+(?:\.[0-9]+)?)%\s+"
+            r"in\s+Q([1-4])(?:\s+of|/)?\s*(\d{4})",
+            flags=re.IGNORECASE,
+        ),
+        -1.0,
     ),
 )
 _QUARTER_PATTERNS = (
@@ -162,12 +168,14 @@ def _extract_observation_quarter_and_value_percent(
     title: str,
     summary_text: str,
 ) -> tuple[str, float]:
-    for index, pattern in enumerate(_TITLE_VALUE_PATTERNS):
+    for pattern, multiplier in _TITLE_VALUE_PATTERNS:
         match = pattern.search(title)
         if match is None:
             continue
-        multiplier = -1.0 if index == 1 else 1.0
-        return (_format_quarter(match.group(3), match.group(2)), multiplier * float(match.group(1)))
+        return (
+            _format_quarter(match.group(3), match.group(2)),
+            multiplier * float(match.group(1)),
+        )
 
     return (
         _extract_observation_quarter(title, summary_text),

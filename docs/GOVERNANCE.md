@@ -77,6 +77,18 @@ It does not claim full IAM, compliance controls, or public-internet maturity.
   - Ministry of Finance quarterly budget performance reports
   - existing `data.gov.sa` pilot paths already in the registry
 
+## Input / Request Boundaries
+
+- Current tool inputs are sanitized before core lookup and query paths run.
+  - This currently covers dataset ids, search queries, query filter keys, and
+    string filter values.
+  - The goal is narrow boundary enforcement against malformed control-heavy
+    input, not a broader policy engine.
+- `preview_dataset` uses a process-local in-memory rate limiter on live refresh
+  attempts.
+  - This is a narrow operational boundary for the hybrid preview path, not a
+    tenant quota or distributed traffic-control system.
+
 ## Retention / Deletion Basics
 
 - Persistent local state:

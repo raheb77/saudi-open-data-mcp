@@ -103,6 +103,10 @@ def test_bootstrap_inserts_expected_initial_descriptors(tmp_path: Path) -> None:
         descriptors_by_id["mof-budget-balance-quarterly"].source_locator
         == "/en/financialreport/2025/Pages/default.aspx"
     )
+    assert any(
+        "requires explicit rollover" in known_issue
+        for known_issue in descriptors_by_id["mof-budget-balance-quarterly"].known_issues
+    )
     assert any(descriptor.source == "mof" for descriptor in bootstrapped_descriptors)
 
 

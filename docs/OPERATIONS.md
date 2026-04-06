@@ -8,6 +8,8 @@ Internal-only runtime and durability guidance for the current container-first ph
 - `SNAPSHOT_DIR` stores raw connector payload snapshots. Treat it as persistent state.
 - `CACHE_DIR` is recreatable scratch state. It may be wiped and rebuilt.
 - `resource://observability` counters, in-memory rate limits, and Tier A refresh loop state are process-local. They reset on process restart.
+- Core tool inputs such as dataset ids, search queries, and query filter keys/string values are sanitized before lookup/query execution.
+- `preview_dataset` live refresh attempts are bounded by a process-local in-memory rate limiter. It is an internal protective boundary, not a distributed quota system.
 
 ## Startup
 

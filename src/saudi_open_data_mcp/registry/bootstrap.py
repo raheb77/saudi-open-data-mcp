@@ -63,6 +63,9 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
             "Only the top-line quarterly budget-balance series is normalized. This "
             "does not yet cover total revenue, total expenditure, financing tables, "
             "public debt, or broader fiscal statement coverage.",
+            "This connector path is intentionally pinned to the official 2025 budget "
+            "performance page and requires explicit rollover when the Ministry of "
+            "Finance publishes the next annual reports page.",
         ),
     ),
     DatasetDescriptor(
