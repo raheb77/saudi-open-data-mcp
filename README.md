@@ -53,6 +53,31 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, [docs/ADR
 | Dashboard | Arabic RTL UI package under `dashboard/` | optional prototype, mock-driven in this branch |
 | Exports | Institutional artifacts over governed query results | CLI-governed path today |
 
+## Deployment Fit Today
+
+The current deployment fit is intentionally narrow and practical:
+
+- internal or evaluator-controlled deployment
+- self-hosted or sovereign-hosting-friendly environments that can run one Python service or container and manage local persistent storage
+- operator-controlled auth token, role bundle, registry path, and snapshot path
+- outbound access only to the approved official source surfaces already implemented in the connectors
+- MCP-aware clients or inspectors on `/mcp`, plus CLI/stdio for local host integration
+
+In current-state terms, "self-hostable" or "sovereign-hosting-friendly" means:
+
+- there is no required vendor-managed control plane
+- there is no required hosted search/index layer
+- there is no required hosted database beyond the local SQLite registry
+- persistent runtime state can remain on operator-controlled disk or volume storage
+
+What this repository does not claim today:
+
+- managed SaaS operation
+- public-internet hardened service posture
+- multi-node or highly available clustered runtime
+- full enterprise IAM or per-user authorization
+- compliance certification or sovereign-cloud accreditation
+
 ## Supported Scope
 
 ### Supported Sources

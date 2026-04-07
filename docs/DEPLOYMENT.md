@@ -60,6 +60,51 @@ Important current-state note:
 - the dashboard's export actions are prototype-local because the dashboard is still mock-driven here
 - the CLI export path is the governed institutional export path today
 
+## Supported Deployment Posture Today
+
+The current deployment posture is suitable for:
+
+- internal evaluation
+- operator-managed self-hosting
+- sovereign-hosting-friendly environments that want the runtime and persistent
+  state under direct institutional control
+
+What that means in current-state terms:
+
+- one backend process or container is the supported runtime shape
+- persistent state stays in operator-controlled local paths or mounted volumes
+- the backend can run without any required external managed control plane
+- the only live external dependency is outbound access to the approved official
+  source surfaces already implemented in the connectors
+- CLI and stdio remain valid local operator/engineer access paths alongside
+  `/mcp`
+
+This is intentionally not positioned as:
+
+- a managed SaaS platform
+- a multi-node deployment model
+- a public-internet reference architecture
+- a zero-trust or enterprise service-mesh design
+
+## Self-Hostable / Sovereign-Hosting-Friendly Meaning
+
+The repository can reasonably be described that way today only in this narrow
+sense:
+
+- the governed core can run entirely in institution-controlled infrastructure
+- persistent backend state can remain on institution-controlled storage
+- auth configuration is operator-owned
+- no hosted AI service, external vector store, or vendor-managed metadata plane
+  is required for the core path
+
+The repository does not claim:
+
+- sovereign-cloud certification
+- residency/legal compliance guarantees by itself
+- secret-management, HSM, or KMS integration beyond whatever the deployment
+  environment provides
+- full offline operation when live source refresh is required
+
 ## Local Development
 
 ### Backend/Core
@@ -179,6 +224,18 @@ Role/capability rule:
 - upstream sources are reachable
 - all datasets are fresh
 - every source connector is healthy
+
+## Institutional Reader Summary
+
+For an evaluator or institutional operator, the short current-state reading is:
+
+- the backend/core is the deployable system
+- the CLI is a thin local/operator façade over that same system
+- exports are governed outputs of current query results
+- the dashboard remains optional and prototype-only in this branch
+- governance/security boundaries are real but intentionally narrow
+- deployment expectations are clear, but broad enterprise platform claims are
+  intentionally out of scope
 
 ## Frontend / Backend Expectations
 

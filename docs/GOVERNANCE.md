@@ -5,6 +5,20 @@ Short governance and operations summary for the current internal MCP core.
 This document is intentionally narrow. It describes what the system does today.
 It does not claim full IAM, compliance controls, or public-internet maturity.
 
+## Current Governance / Security Map
+
+| Area | Current control or boundary | Explicit non-claim |
+| --- | --- | --- |
+| Access control | internal bearer token on HTTP plus explicit role/capability bundle | no per-user IAM, SSO, or dataset-level permission matrix |
+| Audit / traceability | structured `audit.*` logs with best-effort request context on the HTTP path | no audit database, retention service, or tamper-evident audit store |
+| Source governance | approved official source families only through explicit connectors | no arbitrary outbound crawling or general web-ingestion surface |
+| Data-path control | `query_dataset` and `download_dataset` are local-only; `preview_dataset` is the only hybrid path; `materialize_hot_set` is explicit | no hidden live query path or broad autonomous ingestion framework |
+| Runtime boundary | bearer-protected `/mcp`, narrow `/readyz`, input sanitization, and process-local preview rate limiting | no distributed quota system, zero-trust control plane, or public edge-hardening claim |
+| Persistence boundary | explicit persistent registry/snapshot paths plus recreatable cache and process-local state | no automated backup/restore, snapshot-retention engine, or DR automation claim |
+
+This is the current institutional control posture of the core. It is real, but
+deliberately smaller than a full enterprise governance platform.
+
 ## Auth / Authz Model
 
 - HTTP serving uses one internal bearer token from `HTTP_AUTH_TOKEN`.
@@ -107,6 +121,16 @@ It does not claim full IAM, compliance controls, or public-internet maturity.
   - automated backup/restore orchestration
   - snapshot-retention pruning policy
   - per-user deletion or access review workflow
+
+## What This Document Does Not Claim
+
+- no compliance certification
+- no public-sector accreditation by itself
+- no full enterprise IAM
+- no managed SOC or SIEM integration layer
+- no formal disaster-recovery program
+- no guarantee that every institutional deployment requirement is satisfied out
+  of the box
 
 Use [docs/OPERATIONS.md](docs/OPERATIONS.md) for startup, shutdown, readiness,
 backup, and restore details, and [docs/PERSISTENCE.md](docs/PERSISTENCE.md) for
