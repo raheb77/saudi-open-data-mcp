@@ -238,45 +238,55 @@ def _build_pdf_lines(
 
     lines = [
         "Saudi Open Data MCP Query Export",
+        "=" * 32,
         "",
+        "Dataset & Source",
         f"Dataset ID: {context.dataset_id}",
-        f"Source: {_display_value(context.source)}",
-        f"Exported At: {context.exported_at}",
-        f"Query Status: {context.query_status}",
-        f"Freshness: {_display_value(context.freshness_status)}",
-        f"Origin: {_display_value(context.data_origin)}",
+        f"Source: {_source_display_label(context.source)}",
+        "",
+        "Result Context",
+        f"Exported At (UTC): {context.exported_at}",
+        f"Result Status: {context.query_status}",
+        f"Freshness Status: {_display_value(context.freshness_status)}",
+        f"Data Origin: {_display_value(context.data_origin)}",
         f"Matched Records: {context.matched_record_count}",
-        (
-            "Total Records Before Filter: "
-            f"{_display_value(context.total_records_before_filter)}"
-        ),
+        f"Total Before Filter: {_display_value(context.total_records_before_filter)}",
         f"Limit: {_display_value(context.limit)}",
-        f"Applied Filters JSON: {context.applied_filters_json}",
+        f"Applied Filters: {_applied_filters_display(context.applied_filters_json)}",
     ]
 
     if context.degradation_reason is not None:
-        lines.append(f"Degradation Reason: {context.degradation_reason}")
+        lines.extend(["", "Degraded Context", f"Degradation Reason: {context.degradation_reason}"])
 
-    if context.failure_stage is not None:
-        lines.append(f"Failure Stage: {context.failure_stage}")
-    if context.failure_type is not None:
-        lines.append(f"Failure Type: {context.failure_type}")
-    if context.failure_message is not None:
-        lines.append(f"Failure Message: {context.failure_message}")
+    if any(
+        item is not None
+        for item in (context.failure_stage, context.failure_type, context.failure_message)
+    ):
+        lines.append("")
+        lines.append("Failure Details")
+        if context.failure_stage is not None:
+            lines.append(f"Failure Stage: {context.failure_stage}")
+        if context.failure_type is not None:
+            lines.append(f"Failure Type: {context.failure_type}")
+        if context.failure_message is not None:
+            lines.append(f"Failure Message: {context.failure_message}")
 
     if context.notes:
-        lines.extend(["", "Notes / Limitations:"])
+        lines.extend(["", "Notes / Limitations"])
         lines.extend(f"- {note}" for note in context.notes)
 
     if result.matched_records:
         columns = _collect_record_columns(result)
-        lines.extend(["", f"Records ({len(result.matched_records)}):"])
-        for record in result.matched_records:
-            lines.append(f"Record {record.record_index}")
+        total_records = len(result.matched_records)
+        lines.extend(["", f"Records ({total_records})"])
+        for display_index, record in enumerate(result.matched_records, start=1):
+            lines.append(f"{display_index}. Record {display_index} of {total_records}")
             for column in columns:
                 if column in record.fields:
                     lines.append(
-                        f"  {column}: {_display_value(record.fields.get(column))}"
+                        "   - "
+                        f"{_record_field_label(column)}: "
+                        f"{_display_value(record.fields.get(column))}"
                     )
             lines.append("")
 
@@ -395,6 +405,54 @@ def _display_value(value: Any) -> str:
     if isinstance(value, (int, float)):
         return str(value)
     return str(value)
+
+
+def _applied_filters_display(applied_filters_json: str) -> str:
+    """Render applied filters more cleanly when the query used no filters."""
+
+    if applied_filters_json == "{}":
+        return "none"
+    return applied_filters_json
+
+
+def _source_display_label(source: str | None) -> str:
+    """Render an institutional source label without losing source identity."""
+
+    if source == "sama":
+        return "Saudi Central Bank (SAMA) [sama]"
+    if source == "stats-gov-sa":
+        return "General Authority for Statistics (GASTAT) [stats-gov-sa]"
+    if source == "mof":
+        return "Ministry of Finance (MoF) [mof]"
+    if source == "data-gov-sa":
+        return "Saudi Open Data Platform [data-gov-sa]"
+    return _display_value(source)
+
+
+def _record_field_label(field_name: str) -> str:
+    """Render a readable field label while preserving the governed field identity."""
+
+    field_labels = {
+        "observation_quarter": "Observation Quarter [observation_quarter]",
+        "observation_month": "Observation Month [observation_month]",
+        "fiscal_series_code": "Fiscal Series Code [fiscal_series_code]",
+        "fiscal_series_name": "Fiscal Series Name [fiscal_series_name]",
+        "gdp_series_code": "GDP Series Code [gdp_series_code]",
+        "gdp_series_name": "GDP Series Name [gdp_series_name]",
+        "labor_series_code": "Labor Series Code [labor_series_code]",
+        "labor_series_name": "Labor Series Name [labor_series_name]",
+        "value_sar_bn": "Value (SAR bn) [value_sar_bn]",
+        "value_percent": "Value (%) [value_percent]",
+        "release_date": "Release Date [release_date]",
+        "week_start_date": "Week Start Date [week_start_date]",
+        "week_end_date": "Week End Date [week_end_date]",
+        "transaction_count": "Transaction Count [transaction_count]",
+        "transaction_value_sar": "Transaction Value (SAR) [transaction_value_sar]",
+        "average_ticket_sar": "Average Ticket (SAR) [average_ticket_sar]",
+    }
+    if field_name in field_labels:
+        return field_labels[field_name]
+    return f"{field_name.replace('_', ' ').title()} [{field_name}]"
 
 
 def _escape_xml(value: str) -> str:

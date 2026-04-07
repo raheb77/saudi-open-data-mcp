@@ -309,45 +309,55 @@ function buildPdfLines(
 ): string[] {
   const lines = [
     "Saudi Open Data MCP Query Export",
+    "=".repeat(32),
     "",
+    "Dataset & Source",
     `Dataset ID: ${context.datasetId}`,
-    `Source: ${displayValue(context.source)}`,
-    `Exported At: ${context.exportedAt}`,
-    `Query Status: ${context.queryStatus}`,
-    `Freshness: ${displayValue(context.freshnessStatus)}`,
-    `Origin: ${displayValue(context.dataOrigin)}`,
+    `Source: ${sourceDisplayLabel(context.source)}`,
+    "",
+    "Result Context",
+    `Exported At (UTC): ${context.exportedAt}`,
+    `Result Status: ${context.queryStatus}`,
+    `Freshness Status: ${displayValue(context.freshnessStatus)}`,
+    `Data Origin: ${displayValue(context.dataOrigin)}`,
     `Matched Records: ${context.matchedRecordCount}`,
-    `Total Records Before Filter: ${displayValue(context.totalRecordsBeforeFilter)}`,
+    `Total Before Filter: ${displayValue(context.totalRecordsBeforeFilter)}`,
     `Limit: ${displayValue(context.limit)}`,
-    `Applied Filters JSON: ${context.appliedFiltersJson}`,
+    `Applied Filters: ${appliedFiltersDisplay(context.appliedFiltersJson)}`,
   ];
 
   if (context.degradationReason) {
-    lines.push(`Degradation Reason: ${context.degradationReason}`);
+    lines.push("", "Degraded Context", `Degradation Reason: ${context.degradationReason}`);
   }
-  if (context.failureStage) {
-    lines.push(`Failure Stage: ${context.failureStage}`);
-  }
-  if (context.failureType) {
-    lines.push(`Failure Type: ${context.failureType}`);
-  }
-  if (context.failureMessage) {
-    lines.push(`Failure Message: ${context.failureMessage}`);
+  if (context.failureStage || context.failureType || context.failureMessage) {
+    lines.push("", "Failure Details");
+    if (context.failureStage) {
+      lines.push(`Failure Stage: ${context.failureStage}`);
+    }
+    if (context.failureType) {
+      lines.push(`Failure Type: ${context.failureType}`);
+    }
+    if (context.failureMessage) {
+      lines.push(`Failure Message: ${context.failureMessage}`);
+    }
   }
   if (context.notes.length > 0) {
-    lines.push("", "Notes / Limitations:");
+    lines.push("", "Notes / Limitations");
     context.notes.forEach((note) => {
       lines.push(`- ${note}`);
     });
   }
   if (result.matched_records.length > 0) {
     const columns = collectRecordColumns(result.matched_records);
-    lines.push("", `Records (${result.matched_records.length}):`);
-    result.matched_records.forEach((record) => {
-      lines.push(`Record ${record.record_index}`);
+    const totalRecords = result.matched_records.length;
+    lines.push("", `Records (${totalRecords})`);
+    result.matched_records.forEach((record, index) => {
+      lines.push(`${index + 1}. Record ${index + 1} of ${totalRecords}`);
       columns.forEach((column) => {
         if (column in record.fields) {
-          lines.push(`  ${column}: ${displayValue(record.fields[column] ?? null)}`);
+          lines.push(
+            `   - ${recordFieldLabel(column)}: ${displayValue(record.fields[column] ?? null)}`,
+          );
         }
       });
       lines.push("");
@@ -413,6 +423,46 @@ function displayValue(value: string | number | boolean | null): string {
   if (value === null) return "—";
   if (typeof value === "boolean") return value ? "true" : "false";
   return String(value);
+}
+
+function appliedFiltersDisplay(appliedFiltersJson: string): string {
+  if (appliedFiltersJson === "{}") return "none";
+  return appliedFiltersJson;
+}
+
+function sourceDisplayLabel(source: string | null): string {
+  if (source === "sama") return "Saudi Central Bank (SAMA) [sama]";
+  if (source === "stats-gov-sa") {
+    return "General Authority for Statistics (GASTAT) [stats-gov-sa]";
+  }
+  if (source === "mof") return "Ministry of Finance (MoF) [mof]";
+  if (source === "data-gov-sa") return "Saudi Open Data Platform [data-gov-sa]";
+  return displayValue(source);
+}
+
+function recordFieldLabel(fieldName: string): string {
+  const fieldLabels: Record<string, string> = {
+    observation_quarter: "Observation Quarter [observation_quarter]",
+    observation_month: "Observation Month [observation_month]",
+    fiscal_series_code: "Fiscal Series Code [fiscal_series_code]",
+    fiscal_series_name: "Fiscal Series Name [fiscal_series_name]",
+    gdp_series_code: "GDP Series Code [gdp_series_code]",
+    gdp_series_name: "GDP Series Name [gdp_series_name]",
+    labor_series_code: "Labor Series Code [labor_series_code]",
+    labor_series_name: "Labor Series Name [labor_series_name]",
+    value_sar_bn: "Value (SAR bn) [value_sar_bn]",
+    value_percent: "Value (%) [value_percent]",
+    release_date: "Release Date [release_date]",
+    week_start_date: "Week Start Date [week_start_date]",
+    week_end_date: "Week End Date [week_end_date]",
+    transaction_count: "Transaction Count [transaction_count]",
+    transaction_value_sar: "Transaction Value (SAR) [transaction_value_sar]",
+    average_ticket_sar: "Average Ticket (SAR) [average_ticket_sar]",
+  };
+  return (
+    fieldLabels[fieldName] ??
+    `${fieldName.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase())} [${fieldName}]`
+  );
 }
 
 function escapeXml(value: string): string {

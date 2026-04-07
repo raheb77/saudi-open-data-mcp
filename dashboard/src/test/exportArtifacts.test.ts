@@ -36,9 +36,14 @@ describe("buildQueryExportArtifact", () => {
     expect(artifact.filename).toContain(".pdf");
     expect(artifact.mimeType).toBe("application/pdf");
     expect(pdf.startsWith("%PDF-1.4")).toBe(true);
+    expect(pdf).toContain("Dataset & Source");
     expect(pdf).toContain("Dataset ID: stats-gov-sa-cpi-headline-monthly");
-    expect(pdf).toContain("Query Status: limited");
-    expect(pdf).toContain("Freshness: stale");
-    expect(pdf).toContain("Notes / Limitations:");
+    expect(pdf).toContain("Source: General Authority for Statistics");
+    expect(pdf).toContain("GASTAT");
+    expect(pdf).toContain("stats-gov-sa");
+    expect(pdf).toContain("Result Status: limited");
+    expect(pdf).toContain("Freshness Status: stale");
+    expect(pdf).toContain("Applied Filters: none");
+    expect(pdf).toContain("Notes / Limitations");
   });
 });

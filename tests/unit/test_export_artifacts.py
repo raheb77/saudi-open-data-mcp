@@ -86,7 +86,12 @@ def test_render_query_result_pdf_artifact_keeps_degraded_status_visible() -> Non
     rendered = artifact.decode("latin-1")
 
     assert rendered.startswith("%PDF-1.4")
+    assert "Dataset & Source" in rendered
     assert "Dataset ID: stats-gov-sa-cpi-headline-monthly" in rendered
-    assert "Query Status: limited" in rendered
-    assert "Freshness: stale" in rendered
-    assert "Notes / Limitations:" in rendered
+    assert "Source: General Authority for Statistics" in rendered
+    assert "GASTAT" in rendered
+    assert "stats-gov-sa" in rendered
+    assert "Result Status: limited" in rendered
+    assert "Freshness Status: stale" in rendered
+    assert "Applied Filters: none" in rendered
+    assert "Notes / Limitations" in rendered
