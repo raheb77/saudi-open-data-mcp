@@ -1,6 +1,6 @@
 import { ar } from "../i18n/ar";
 import { formatCellValue } from "../lib/format";
-import { FIELD_LABELS } from "../mocks/queryResults";
+import { FIELD_LABELS } from "../lib/fieldLabels";
 import type { CanonicalRecord } from "../types/core";
 
 interface ResultTableProps {
