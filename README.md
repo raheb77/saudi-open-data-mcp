@@ -9,9 +9,13 @@ The project is not just an MCP wrapper around upstream websites. Its value is in
 - registry-backed dataset metadata and health metadata
 - deterministic AI-facing resource and tool interfaces
 
-Current implementation starts with SAMA plus one narrow data.gov.sa pilot dataset. The current baseline is an internal, container-first MCP service with stdio still available for local development and command-based host integration.
+Current implementation now includes curated official-source coverage across SAMA, `stats.gov.sa`, Ministry of Finance, and one narrow `data.gov.sa` pilot dataset. The current baseline is an internal, container-first MCP service with stdio still available for local development and command-based host integration.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, [docs/ADR/ADR-001-start-with-sama.md](docs/ADR/ADR-001-start-with-sama.md) for the initial source decision, [docs/GOVERNANCE.md](docs/GOVERNANCE.md) for the current core auth/audit/data-access model, and [docs/OPERATIONS.md](docs/OPERATIONS.md) for runtime and durability guidance.
+The repository also includes an Arabic RTL dashboard package under `dashboard/`.
+In the current branch that package remains an optional prototype surface, not a
+required runtime dependency for the governed backend/core.
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, [docs/ADR/ADR-001-start-with-sama.md](docs/ADR/ADR-001-start-with-sama.md) for the initial source decision, [docs/GOVERNANCE.md](docs/GOVERNANCE.md) for the current core auth/audit/data-access model, [docs/OPERATIONS.md](docs/OPERATIONS.md) for runtime and durability guidance, and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the current local/container/runtime topology.
 
 ## Current Architecture
 
@@ -19,7 +23,7 @@ The current codebase is organized around three layers.
 
 ### Data Access Layer
 
-- `connectors/` defines the typed connector contract and the current source-specific connectors for SAMA plus one narrow `data.gov.sa` pilot dataset.
+- `connectors/` defines the typed connector contract and the current source-specific connectors for SAMA, `stats.gov.sa`, Ministry of Finance, and one narrow `data.gov.sa` pilot dataset.
 - `storage/` provides raw snapshot persistence for connector payloads.
 - `httpx` is the only HTTP client in the core path.
 
@@ -83,7 +87,7 @@ preview_dataset({"dataset_id": "sama-money-supply"})
 ## What Works Now
 
 - Architecture documents and ADRs are in place and aligned with the codebase.
-- The connector contract is typed and implemented for SAMA plus one narrow `data.gov.sa` pilot dataset.
+- The connector contract is typed and implemented for SAMA, `stats.gov.sa`, Ministry of Finance, and one narrow `data.gov.sa` pilot dataset.
 - Raw payload snapshots can be written and read locally.
 - Local snapshot freshness is evaluated deterministically from filesystem evidence only.
 - Registry models, SQLite repository behavior, and deterministic bootstrap data are implemented.
@@ -103,7 +107,7 @@ preview_dataset({"dataset_id": "sama-money-supply"})
 
 ## What Is Intentionally Not Implemented Yet
 
-- no broad second-source coverage beyond one narrow data.gov.sa pilot dataset
+- no broad source-family coverage beyond the current narrow curated official datasets
 - no semantic search
 - no LLM in the core path
 - no connector-backed catalog discovery

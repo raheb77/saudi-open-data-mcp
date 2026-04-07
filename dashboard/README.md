@@ -7,6 +7,10 @@ like `DatasetQueryResult`, `DatasetHealthLookupResult`,
 `SnapshotFreshnessResult`, `ReadinessReport`, and `ObservabilitySummary` from
 the current Python core.
 
+This package is optional. The governed backend/core can run without the
+dashboard, and the dashboard does not currently require `/mcp` or `/readyz`
+because it is still mock-driven in this branch.
+
 ## Scope
 
 - Three pages: Home, Query, System Status
@@ -26,6 +30,17 @@ npm run typecheck   # tsc -b --noEmit
 npm run test        # vitest run
 npm run build       # type-check + vite build
 ```
+
+## Runtime Expectations
+
+- local dashboard dev server: `127.0.0.1:5173`
+- separate package from the Python backend
+- no required reverse proxy in the current branch
+- no live MCP session handling in the current branch
+- export actions are prototype-local because the page data is still mock-driven
+
+For the current repository-wide deployment/runtime story, see
+[docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md).
 
 ## Mock-to-core mapping
 
