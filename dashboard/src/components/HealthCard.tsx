@@ -1,6 +1,6 @@
 import { ar } from "../i18n/ar";
 import { formatAge, formatDateTime } from "../lib/format";
-import { SOURCE_LABELS } from "../mocks/datasets";
+import { SOURCE_LABELS } from "../lib/catalogPresentation";
 import type { DatasetHealthLookupResult } from "../types/core";
 import { MetadataStrip } from "./MetadataStrip";
 import { FreshnessBadge, HealthStatusBadge } from "./StatusBadge";

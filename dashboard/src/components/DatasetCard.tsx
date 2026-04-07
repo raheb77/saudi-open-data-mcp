@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { ar } from "../i18n/ar";
 import { formatAge, formatDateTime } from "../lib/format";
-import { SOURCE_LABELS } from "../mocks/datasets";
+import { SOURCE_LABELS } from "../lib/catalogPresentation";
 import type {
   DatasetCatalogEntry,
   DatasetPreviewResult,

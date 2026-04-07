@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  parseDatasetCatalogSummary,
   parseDatasetHealthLookupResult,
   parseDatasetPreviewResult,
   parseDatasetQueryResult,
+  parseReadinessReport,
 } from "../lib/runtimeValidation";
 
 describe("runtimeValidation", () => {
@@ -39,7 +41,6 @@ describe("runtimeValidation", () => {
       parseDatasetHealthLookupResult({
         dataset_id: "stats-gov-sa-cpi-headline-monthly",
         status: "found",
-        source: "stats-gov-sa",
         health_status: "healthy",
         schema_version: "1.0.0",
         caveats: [],
@@ -52,10 +53,74 @@ describe("runtimeValidation", () => {
           artifact_present: "yes",
           reference_time: "2026-04-05T08:00:00Z",
           snapshot_modified_at: null,
-          snapshot_age_seconds: null,
+          snapshot_age: null,
           update_frequency: "monthly",
         },
-      }),
+      }, { sourceFallback: "stats-gov-sa" }),
     ).toThrow(/Invalid SnapshotFreshnessResult\.artifact_present payload/);
+  });
+
+  it("accepts a live health payload without a top-level source", () => {
+    const result = parseDatasetHealthLookupResult(
+      {
+        dataset_id: "sama-pos-weekly",
+        status: "found",
+        health_status: "unknown",
+        schema_version: "0.1.0",
+        caveats: [],
+        known_issues: [],
+        freshness: {
+          source: "sama",
+          dataset_id: "sama-pos-weekly",
+          status: "stale",
+          reason: "exceeded_expected_window",
+          artifact_present: true,
+          reference_time: "2026-04-07T10:00:00Z",
+          snapshot_modified_at: "2026-04-01T10:00:00Z",
+          snapshot_age: "P6DT2H",
+          update_frequency: "weekly",
+        },
+      },
+      { sourceFallback: "sama" },
+    );
+
+    expect(result.source).toBe("sama");
+    expect(result.freshness?.snapshot_age_seconds).toBe(525600);
+  });
+
+  it("accepts the live readiness payload shape", () => {
+    const report = parseReadinessReport({
+      status: "ready",
+      ready: true,
+      scope: "internal_runtime_readiness",
+      app_name: "saudi-open-data-mcp",
+      checks: {
+        process_running: true,
+        startup_validated: true,
+        runtime_storage_prepared: true,
+        app_wiring_completed: true,
+      },
+    });
+
+    expect(report.status).toBe("ready");
+    expect(report.checks.process_running).toBe(true);
+  });
+
+  it("accepts a live catalog summary payload", () => {
+    const catalog = parseDatasetCatalogSummary({
+      dataset_count: 1,
+      datasets: [
+        {
+          dataset_id: "mof-budget-balance-quarterly",
+          source: "mof",
+          title: "Budget Balance Quarterly",
+          update_frequency: "quarterly",
+          health_status: "unknown",
+        },
+      ],
+    });
+
+    expect(catalog.dataset_count).toBe(1);
+    expect(catalog.datasets[0].dataset_id).toBe("mof-budget-balance-quarterly");
   });
 });

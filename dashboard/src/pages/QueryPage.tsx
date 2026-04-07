@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DatasetSelector } from "../components/DatasetSelector";
 import {
@@ -20,85 +20,183 @@ import {
 } from "../components/StateBlocks";
 import { ar } from "../i18n/ar";
 import { formatAge, formatNumber } from "../lib/format";
-import { MOCK_DATASETS } from "../mocks/datasets";
-import { findHealthById } from "../mocks/health";
 import {
-  buildMockQueryResult,
-  type QueryScenarioName,
-} from "../mocks/queryResults";
+  getDatasetHealthResult,
+  getDatasetQueryResult,
+  listDatasets,
+} from "../lib/liveData";
+import { DashboardApiError, asDashboardApiError } from "../lib/mcpClient";
+import type {
+  DashboardRole,
+  DatasetCatalogEntry,
+  DatasetHealthLookupResult,
+  DatasetQueryResult,
+  QueryFilterValue,
+} from "../types/core";
 
 interface QueryPageProps {
-  role: "viewer" | "operator" | "admin";
+  role: DashboardRole | null;
 }
 
-const SCENARIOS: ReadonlyArray<{
-  value: QueryScenarioName;
-  labelKey: keyof typeof ar.query.scenarios;
-}> = [
-  { value: "success", labelKey: "success" },
-  { value: "limited", labelKey: "limited" },
-  { value: "stale", labelKey: "stale" },
-  { value: "failed", labelKey: "failed" },
-  { value: "missing", labelKey: "missing" },
-  { value: "snapshot_missing", labelKey: "snapshotMissing" },
-  { value: "unauthorized", labelKey: "unauthorized" },
-  { value: "loading", labelKey: "loading" },
-];
+type CatalogState =
+  | { kind: "loading" }
+  | { kind: "failed"; error: DashboardApiError }
+  | { kind: "ready"; datasets: DatasetCatalogEntry[] };
+
+type QueryState =
+  | { kind: "loading" }
+  | { kind: "failed"; error: DashboardApiError }
+  | { kind: "ready"; result: DatasetQueryResult };
 
 export function QueryPage({ role }: QueryPageProps) {
   const [searchParams] = useSearchParams();
-  const initialDataset =
-    searchParams.get("dataset") ?? MOCK_DATASETS[0].dataset_id;
-
-  const [datasetId, setDatasetId] = useState<string>(initialDataset);
+  const [catalogState, setCatalogState] = useState<CatalogState>({
+    kind: "loading",
+  });
+  const [datasetId, setDatasetId] = useState("");
   const [filters, setFilters] = useState<FilterRow[]>([]);
-  const [limit, setLimit] = useState<string>("100");
-  const [scenario, setScenario] = useState<QueryScenarioName>("success");
-  const [appliedSignal, setAppliedSignal] = useState(0);
+  const [limit, setLimit] = useState("100");
+  const [appliedFilters, setAppliedFilters] = useState<
+    Record<string, QueryFilterValue>
+  >({});
+  const [appliedLimit, setAppliedLimit] = useState<number | null>(100);
+  const [queryState, setQueryState] = useState<QueryState>({ kind: "loading" });
+  const [health, setHealth] = useState<DatasetHealthLookupResult | null>(null);
+  const [catalogReloadToken, setCatalogReloadToken] = useState(0);
 
   useEffect(() => {
-    const fromUrl = searchParams.get("dataset");
-    if (fromUrl && fromUrl !== datasetId) {
-      setDatasetId(fromUrl);
+    const controller = new AbortController();
+    setCatalogState({ kind: "loading" });
+
+    void (async () => {
+      try {
+        const datasets = await listDatasets(controller.signal);
+        if (controller.signal.aborted) {
+          return;
+        }
+        setCatalogState({ kind: "ready", datasets });
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setCatalogState({
+            kind: "failed",
+            error: asDashboardApiError(
+              error,
+              "query_catalog",
+              "تعذّر تحميل قائمة المجموعات الحية.",
+            ),
+          });
+        }
+      }
+    })();
+
+    return () => controller.abort();
+  }, [catalogReloadToken]);
+
+  const datasets =
+    catalogState.kind === "ready" ? catalogState.datasets : ([] as DatasetCatalogEntry[]);
+  const selectedCatalogEntry = datasets.find(
+    (entry) => entry.dataset_id === datasetId,
+  );
+
+  useEffect(() => {
+    if (catalogState.kind !== "ready" || catalogState.datasets.length === 0) {
+      return;
     }
-    // We intentionally only react to url changes, not to local edits.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+    const fromUrl = searchParams.get("dataset");
+    const preferredDatasetId =
+      fromUrl &&
+      catalogState.datasets.some((entry) => entry.dataset_id === fromUrl)
+        ? fromUrl
+        : catalogState.datasets[0].dataset_id;
 
-  const result = useMemo(() => {
-    const parsedLimit = Number(limit);
-    const effectiveLimit =
-      Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : null;
-    return buildMockQueryResult(
-      datasetId,
-      scenario,
-      filterRowsToFilters(filters),
-      effectiveLimit,
-    );
-    // appliedSignal forces recomputation on "Apply" so that edits stay
-    // local until the user presses the button — matching the CLI feel.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [datasetId, scenario, appliedSignal]);
+    if (datasetId !== preferredDatasetId) {
+      setDatasetId(preferredDatasetId);
+    }
+  }, [catalogState, datasetId, searchParams]);
 
-  const health = findHealthById(datasetId);
-  const freshness = health?.freshness ?? null;
+  useEffect(() => {
+    if (!datasetId || !selectedCatalogEntry) {
+      setHealth(null);
+      return;
+    }
 
-  const isUnauthorized = scenario === "unauthorized";
-  const isLoading = scenario === "loading";
+    const controller = new AbortController();
+    setHealth(null);
+    void (async () => {
+      try {
+        const nextHealth = await getDatasetHealthResult(
+          datasetId,
+          selectedCatalogEntry.source,
+          controller.signal,
+        );
+        if (!controller.signal.aborted) {
+          setHealth(nextHealth);
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setHealth(null);
+        }
+      }
+    })();
+
+    return () => controller.abort();
+  }, [datasetId, selectedCatalogEntry]);
+
+  useEffect(() => {
+    if (!datasetId) {
+      return;
+    }
+
+    const controller = new AbortController();
+    setQueryState({ kind: "loading" });
+    void (async () => {
+      try {
+        const result = await getDatasetQueryResult(
+          datasetId,
+          appliedFilters,
+          appliedLimit,
+          controller.signal,
+        );
+        if (!controller.signal.aborted) {
+          setQueryState({ kind: "ready", result });
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setQueryState({
+            kind: "failed",
+            error: asDashboardApiError(
+              error,
+              "query_page",
+              "تعذّر تنفيذ الاستعلام الحي.",
+            ),
+          });
+        }
+      }
+    })();
+
+    return () => controller.abort();
+  }, [appliedFilters, appliedLimit, datasetId]);
 
   function handleApply() {
-    setAppliedSignal((v) => v + 1);
+    const parsedLimit = Number(limit);
+    setAppliedFilters(filterRowsToFilters(filters));
+    setAppliedLimit(
+      Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : null,
+    );
   }
 
   function handleReset() {
     setFilters([]);
     setLimit("100");
-    setScenario("success");
-    setAppliedSignal((v) => v + 1);
+    setAppliedFilters({});
+    setAppliedLimit(100);
   }
 
   function handleExport() {
-    const blob = new Blob([JSON.stringify(result, null, 2)], {
+    if (queryState.kind !== "ready") {
+      return;
+    }
+    const blob = new Blob([JSON.stringify(queryState.result, null, 2)], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
@@ -108,6 +206,12 @@ export function QueryPage({ role }: QueryPageProps) {
     link.click();
     URL.revokeObjectURL(url);
   }
+
+  const freshness = health?.freshness ?? null;
+  const shouldShowStaleState =
+    queryState.kind === "ready" &&
+    queryState.result.status === "success" &&
+    freshness?.status === "stale";
 
   return (
     <div className="flex flex-col gap-6">
@@ -120,121 +224,141 @@ export function QueryPage({ role }: QueryPageProps) {
         </p>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_1fr]">
-        <div className="flex flex-col gap-4">
-          <DatasetSelector value={datasetId} onChange={setDatasetId} />
+      {catalogState.kind === "loading" && <LoadingState />}
 
-          <div className="flex flex-col gap-1">
-            <label
-              htmlFor="scenario-selector"
-              className="text-sm font-medium text-ink-700"
-            >
-              {ar.query.scenarioLabel}
-            </label>
-            <select
-              id="scenario-selector"
-              value={scenario}
-              onChange={(event) =>
-                setScenario(event.target.value as QueryScenarioName)
-              }
-              className="w-full rounded-md border border-ink-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-ink-700 focus:outline-none focus:ring-1 focus:ring-ink-700"
-            >
-              {SCENARIOS.map((entry) => (
-                <option key={entry.value} value={entry.value}>
-                  {ar.query.scenarios[entry.labelKey]}
-                </option>
-              ))}
-            </select>
-            <span className="id-mono text-[0.75rem] text-ink-500">
-              {scenario}
-            </span>
+      {catalogState.kind === "failed" && (
+        <section className="flex flex-col gap-3">
+          {catalogState.error.kind === "unauthorized" ? (
+            <UnauthorizedState />
+          ) : (
+            <ErrorState
+              stage={catalogState.error.stage}
+              errorType={catalogState.error.name}
+              message={catalogState.error.message}
+            />
+          )}
+          <button
+            type="button"
+            onClick={() => setCatalogReloadToken((value) => value + 1)}
+            className="self-start rounded-md border border-ink-300 bg-white px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-ink-100"
+          >
+            {ar.app.retry}
+          </button>
+        </section>
+      )}
+
+      {catalogState.kind === "ready" && datasets.length > 0 && datasetId && (
+        <section className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_1fr]">
+          <div className="flex flex-col gap-4">
+            <DatasetSelector
+              datasets={datasets}
+              value={datasetId}
+              onChange={setDatasetId}
+            />
+
+            <FilterForm
+              filters={filters}
+              onFiltersChange={setFilters}
+              limit={limit}
+              onLimitChange={setLimit}
+              onApply={handleApply}
+              onReset={handleReset}
+            />
           </div>
 
-          <FilterForm
-            filters={filters}
-            onFiltersChange={setFilters}
-            limit={limit}
-            onLimitChange={setLimit}
-            onApply={handleApply}
-            onReset={handleReset}
-          />
-        </div>
+          <div className="flex flex-col gap-4">
+            {queryState.kind === "ready" && (
+              <MetadataStrip
+                dataset_id={queryState.result.dataset_id}
+                source={queryState.result.source}
+                status_kind="query"
+                status={queryState.result.status}
+                data_origin={queryState.result.data_origin}
+                freshness_status={freshness?.status ?? null}
+                degradation_reason={queryState.result.degradation_reason}
+                schema_version={health?.schema_version ?? null}
+                snapshot_age_label={
+                  freshness?.snapshot_age_seconds != null
+                    ? formatAge(freshness.snapshot_age_seconds)
+                    : null
+                }
+              />
+            )}
 
-        <div className="flex flex-col gap-4">
-          <MetadataStrip
-            dataset_id={result.dataset_id}
-            source={result.source}
-            status_kind="query"
-            status={result.status}
-            data_origin={result.data_origin}
-            freshness_status={freshness?.status ?? null}
-            degradation_reason={result.degradation_reason}
-            schema_version={health?.schema_version ?? null}
-            snapshot_age_label={
-              freshness?.snapshot_age_seconds != null
-                ? formatAge(freshness.snapshot_age_seconds)
-                : null
-            }
-          />
+            <ResultPanel
+              queryState={queryState}
+              isStale={shouldShowStaleState}
+            />
 
-          <ResultPanel
-            result={result}
-            isLoading={isLoading}
-            isUnauthorized={isUnauthorized}
-          />
-
-          <div className="flex flex-wrap items-center gap-3 text-xs text-ink-700">
-            {result.total_records_before_filter != null && (
-              <span>
-                {ar.query.totalBeforeFilter}:{" "}
-                <span className="num-latn">
-                  {formatNumber(result.total_records_before_filter)}
+            <div className="flex flex-wrap items-center gap-3 text-xs text-ink-700">
+              {queryState.kind === "ready" &&
+                queryState.result.total_records_before_filter != null && (
+                  <span>
+                    {ar.query.totalBeforeFilter}:{" "}
+                    <span className="num-latn">
+                      {formatNumber(queryState.result.total_records_before_filter)}
+                    </span>
+                  </span>
+                )}
+              {queryState.kind === "ready" &&
+                queryState.result.status === "success" && (
+                  <span>
+                    {ar.query.matchedCount}:{" "}
+                    <span className="num-latn">
+                      {formatNumber(queryState.result.matched_records.length)}
+                    </span>
+                  </span>
+                )}
+              {queryState.kind === "ready" && queryState.result.limit != null && (
+                <span>
+                  {ar.query.limitApplied}:{" "}
+                  <span className="num-latn">
+                    {formatNumber(queryState.result.limit)}
+                  </span>
                 </span>
-              </span>
-            )}
-            {result.status === "success" && (
-              <span>
-                {ar.query.matchedCount}:{" "}
-                <span className="num-latn">
-                  {formatNumber(result.matched_records.length)}
-                </span>
-              </span>
-            )}
-            {result.limit != null && (
-              <span>
-                {ar.query.limitApplied}:{" "}
-                <span className="num-latn">{formatNumber(result.limit)}</span>
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={handleExport}
-              className="rounded-md border border-ink-300 bg-white px-3 py-1.5 font-medium text-ink-700 hover:bg-ink-100"
-            >
-              {ar.query.export}
-            </button>
-            <span className="id-mono text-ink-500">role={role}</span>
+              )}
+              <button
+                type="button"
+                onClick={handleExport}
+                disabled={queryState.kind !== "ready"}
+                className="rounded-md border border-ink-300 bg-white px-3 py-1.5 font-medium text-ink-700 hover:bg-ink-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {ar.query.export}
+              </button>
+              {role && <span className="id-mono text-ink-500">role={role}</span>}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }
 
-interface ResultPanelProps {
-  result: ReturnType<typeof buildMockQueryResult>;
-  isLoading: boolean;
-  isUnauthorized: boolean;
-}
-
 function ResultPanel({
-  result,
-  isLoading,
-  isUnauthorized,
-}: ResultPanelProps) {
-  if (isLoading) return <LoadingState />;
-  if (isUnauthorized) return <UnauthorizedState />;
+  queryState,
+  isStale,
+}: {
+  queryState: QueryState;
+  isStale: boolean;
+}) {
+  if (queryState.kind === "loading") {
+    return <LoadingState />;
+  }
 
+  if (queryState.kind === "failed") {
+    if (queryState.error.kind === "unauthorized") {
+      return <UnauthorizedState />;
+    }
+    return (
+      <ErrorState
+        stage={queryState.error.stage}
+        errorType={queryState.error.name}
+        message={queryState.error.message}
+      />
+    );
+  }
+
+  const result = queryState.result;
   switch (result.status) {
     case "missing":
       return <MissingState />;
@@ -256,12 +380,9 @@ function ResultPanel({
       }
       return (
         <div className="flex flex-col gap-2">
-          {result.degradation_reason ===
-            "stale_fallback_after_refresh_failure" && <StaleState />}
+          {isStale && <StaleState />}
           <ResultTable records={result.matched_records} />
         </div>
       );
-    default:
-      return <EmptyState />;
   }
 }

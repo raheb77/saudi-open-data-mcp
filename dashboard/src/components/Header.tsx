@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { ar } from "../i18n/ar";
+import type { DashboardRole } from "../types/core";
 
 const NAV_LINKS: ReadonlyArray<{ to: string; label: string }> = [
   { to: "/", label: ar.app.nav.home },
@@ -8,10 +9,10 @@ const NAV_LINKS: ReadonlyArray<{ to: string; label: string }> = [
 ];
 
 interface HeaderProps {
-  role: "viewer" | "operator" | "admin";
+  role: DashboardRole | null;
 }
 
-const ROLE_LABEL: Record<HeaderProps["role"], string> = {
+const ROLE_LABEL: Record<DashboardRole, string> = {
   viewer: ar.app.role.viewer,
   operator: ar.app.role.operator,
   admin: ar.app.role.admin,
@@ -50,13 +51,15 @@ export function Header({ role }: HeaderProps) {
           </ul>
         </nav>
 
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-ink-500">{ar.app.role.label}:</span>
-          <span className="rounded-full bg-ink-100 px-2 py-0.5 font-medium text-ink-900">
-            {ROLE_LABEL[role]}
-          </span>
-          <span className="id-mono text-ink-500">{role}</span>
-        </div>
+        {role && (
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-ink-500">{ar.app.role.label}:</span>
+            <span className="rounded-full bg-ink-100 px-2 py-0.5 font-medium text-ink-900">
+              {ROLE_LABEL[role]}
+            </span>
+            <span className="id-mono text-ink-500">{role}</span>
+          </div>
+        )}
       </div>
     </header>
   );

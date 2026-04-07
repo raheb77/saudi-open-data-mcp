@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Phase 5 prototype: Arabic RTL dashboard over the saudi-open-data-mcp core (mock-data only).",
+  "description": "Phase 5 dashboard: Arabic RTL thin live integration over the saudi-open-data-mcp core.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

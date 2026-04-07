@@ -1,8 +1,10 @@
 import type {
   CanonicalRecord,
+  DatasetCatalogSummary,
   DatasetHealthLookupResult,
   DatasetPreviewResult,
   DatasetQueryResult,
+  DatasetCatalogEntry,
   DatasetHealthStatus,
   MaterializationSummary,
   ObservabilityCounterGroup,
@@ -272,8 +274,100 @@ export function parseDatasetPreviewResult(value: unknown): DatasetPreviewResult 
   };
 }
 
+export function parseDatasetCatalogSummary(value: unknown): DatasetCatalogSummary {
+  const summary = expectRecord(value, "DatasetCatalogSummary");
+  const datasets = summary.datasets;
+  if (!Array.isArray(datasets)) {
+    fail("DatasetCatalogSummary.datasets", "expected DatasetCatalogEntry[]");
+  }
+  const parsedDatasets = datasets.map((entry, index) =>
+    parseDatasetCatalogEntry(entry, `DatasetCatalogSummary.datasets.${index}`),
+  );
+  const datasetCount = expectNumber(
+    summary.dataset_count,
+    "DatasetCatalogSummary.dataset_count",
+  );
+  if (datasetCount !== parsedDatasets.length) {
+    fail(
+      "DatasetCatalogSummary.dataset_count",
+      "must match datasets length",
+    );
+  }
+  return {
+    dataset_count: datasetCount,
+    datasets: parsedDatasets,
+  };
+}
+
+function parseDatasetCatalogEntry(
+  value: unknown,
+  context: string,
+): DatasetCatalogEntry {
+  const entry = expectRecord(value, context);
+  return {
+    dataset_id: expectString(entry.dataset_id, `${context}.dataset_id`),
+    source: expectOneOf(
+      entry.source,
+      ["sama", "stats-gov-sa", "mof", "data-gov-sa"] as const,
+      `${context}.source`,
+    ) as SourceName,
+    title: expectString(entry.title, `${context}.title`),
+    update_frequency: expectOneOf(
+      entry.update_frequency,
+      [
+        "daily",
+        "weekly",
+        "monthly",
+        "quarterly",
+        "annual",
+        "ad_hoc",
+        "unspecified",
+      ] as const,
+      `${context}.update_frequency`,
+    ) as UpdateFrequency,
+    health_status: expectOneOf(
+      entry.health_status,
+      ["healthy", "degraded", "unavailable", "unknown"] as const,
+      `${context}.health_status`,
+    ) as DatasetHealthStatus,
+  };
+}
+
+function parseIso8601DurationToSeconds(
+  value: string | null,
+  context: string,
+): number | null {
+  if (value === null) {
+    return null;
+  }
+  const match = value.match(
+    /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/,
+  );
+  if (!match) {
+    fail(context, "expected ISO-8601 duration like P5DT2H");
+  }
+  const days = Number(match[1] ?? 0);
+  const hours = Number(match[2] ?? 0);
+  const minutes = Number(match[3] ?? 0);
+  const seconds = Number(match[4] ?? 0);
+  return days * 86_400 + hours * 3600 + minutes * 60 + seconds;
+}
+
 function parseSnapshotFreshnessResult(value: unknown): SnapshotFreshnessResult {
   const freshness = expectRecord(value, "SnapshotFreshnessResult");
+  const snapshotAgeValue =
+    freshness.snapshot_age_seconds !== undefined
+      ? expectNullableNumber(
+          freshness.snapshot_age_seconds,
+          "SnapshotFreshnessResult.snapshot_age_seconds",
+        )
+      : parseIso8601DurationToSeconds(
+          expectNullableString(
+            freshness.snapshot_age ?? null,
+            "SnapshotFreshnessResult.snapshot_age",
+          ),
+          "SnapshotFreshnessResult.snapshot_age",
+        );
   return {
     source: expectOneOf(
       freshness.source,
@@ -311,10 +405,7 @@ function parseSnapshotFreshnessResult(value: unknown): SnapshotFreshnessResult {
       freshness.snapshot_modified_at,
       "SnapshotFreshnessResult.snapshot_modified_at",
     ),
-    snapshot_age_seconds: expectNullableNumber(
-      freshness.snapshot_age_seconds,
-      "SnapshotFreshnessResult.snapshot_age_seconds",
-    ),
+    snapshot_age_seconds: snapshotAgeValue,
     update_frequency: expectNullableOneOf(
       freshness.update_frequency,
       [
@@ -333,8 +424,13 @@ function parseSnapshotFreshnessResult(value: unknown): SnapshotFreshnessResult {
 
 export function parseDatasetHealthLookupResult(
   value: unknown,
+  options: {
+    sourceFallback?: SourceName | null;
+  } = {},
 ): DatasetHealthLookupResult {
   const health = expectRecord(value, "DatasetHealthLookupResult");
+  const sourceValue =
+    health.source === undefined ? options.sourceFallback ?? null : health.source;
   return {
     dataset_id: expectString(
       health.dataset_id,
@@ -346,7 +442,7 @@ export function parseDatasetHealthLookupResult(
       "DatasetHealthLookupResult.status",
     ),
     source: expectNullableOneOf(
-      health.source,
+      sourceValue,
       ["sama", "stats-gov-sa", "mof", "data-gov-sa"] as const,
       "DatasetHealthLookupResult.source",
     ) as SourceName | null,
@@ -375,12 +471,20 @@ export function parseReadinessReport(value: unknown): ReadinessReport {
   const report = expectRecord(value, "ReadinessReport");
   const checks = expectRecord(report.checks, "ReadinessReport.checks");
   for (const [key, entry] of Object.entries(checks)) {
-    expectOneOf(entry, ["ok", "fail"] as const, `ReadinessReport.checks.${key}`);
+    if (
+      typeof entry !== "boolean" &&
+      (typeof entry !== "string" || !["ok", "fail"].includes(entry))
+    ) {
+      fail(
+        `ReadinessReport.checks.${key}`,
+        "expected boolean or one of: ok, fail",
+      );
+    }
   }
   return {
     status: expectOneOf(
       report.status,
-      ["ok", "degraded", "unavailable"] as const,
+      ["ready", "ok", "degraded", "unavailable"] as const,
       "ReadinessReport.status",
     ),
     ready: expectBoolean(report.ready, "ReadinessReport.ready"),

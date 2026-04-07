@@ -1,5 +1,5 @@
 import { ar } from "../i18n/ar";
-import { SOURCE_LABELS } from "../mocks/datasets";
+import { SOURCE_LABELS } from "../lib/catalogPresentation";
 import type {
   DatasetHealthStatus,
   PreviewStatus,

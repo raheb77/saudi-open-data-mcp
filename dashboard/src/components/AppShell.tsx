@@ -1,8 +1,9 @@
 import { Outlet } from "react-router-dom";
+import type { DashboardRole } from "../types/core";
 import { Header } from "./Header";
 
 interface AppShellProps {
-  role: "viewer" | "operator" | "admin";
+  role: DashboardRole | null;
 }
 
 export function AppShell({ role }: AppShellProps) {

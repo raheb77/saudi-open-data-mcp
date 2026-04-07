@@ -67,6 +67,7 @@ export type UpdateFrequency =
   | "unspecified";
 
 export type SourceName = "sama" | "stats-gov-sa" | "mof" | "data-gov-sa";
+export type DashboardRole = "viewer" | "operator" | "admin";
 
 // ---------- Canonical record ----------
 
@@ -166,6 +167,11 @@ export interface DatasetCatalogEntry {
   health_status: DatasetHealthStatus;
 }
 
+export interface DatasetCatalogSummary {
+  dataset_count: number;
+  datasets: DatasetCatalogEntry[];
+}
+
 // ---------- Observability ----------
 
 export interface ObservabilityCounter {
@@ -200,9 +206,9 @@ export interface MaterializationSummary {
 // ---------- Readiness probe ----------
 
 export interface ReadinessReport {
-  status: "ok" | "degraded" | "unavailable";
+  status: "ready" | "ok" | "degraded" | "unavailable";
   ready: boolean;
   scope: string;
   app_name: string;
-  checks: Record<string, "ok" | "fail">;
+  checks: Record<string, boolean | "ok" | "fail">;
 }
