@@ -2,6 +2,8 @@
 
 Internal-only runtime and durability guidance for the current container-first phase.
 
+For common failure handling, see [docs/RUNBOOKS.md](./RUNBOOKS.md).
+
 ## Runtime Model
 
 - `REGISTRY_PATH` points to the SQLite registry file. Treat it as persistent state.

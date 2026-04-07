@@ -15,7 +15,7 @@ The repository also includes an Arabic RTL dashboard package under `dashboard/`.
 In the current branch that package remains an optional prototype surface, not a
 required runtime dependency for the governed backend/core.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, [docs/ADR/ADR-001-start-with-sama.md](docs/ADR/ADR-001-start-with-sama.md) for the initial source decision, [docs/GOVERNANCE.md](docs/GOVERNANCE.md) for the current core auth/audit/data-access model, [docs/OPERATIONS.md](docs/OPERATIONS.md) for runtime and durability guidance, and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the current local/container/runtime topology.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, [docs/ADR/ADR-001-start-with-sama.md](docs/ADR/ADR-001-start-with-sama.md) for the initial source decision, [docs/GOVERNANCE.md](docs/GOVERNANCE.md) for the current core auth/audit/data-access model, [docs/OPERATIONS.md](docs/OPERATIONS.md) for runtime and durability guidance, [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the current local/container/runtime topology, and [docs/RUNBOOKS.md](docs/RUNBOOKS.md) for concise failure/recovery handling.
 
 ## Current Architecture
 
