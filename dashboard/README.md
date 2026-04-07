@@ -1,11 +1,10 @@
-# saudi-open-data-mcp dashboard (Phase 5 prototype)
+# saudi-open-data-mcp dashboard (Phase 5)
 
 Arabic RTL dashboard prototype over the existing `saudi-open-data-mcp` core.
-This is an **interactive prototype with mock data only** (build level B).
-It does not call the real MCP core, but the mock payloads are shaped exactly
-like `DatasetQueryResult`, `DatasetHealthLookupResult`,
-`SnapshotFreshnessResult`, `ReadinessReport`, and `ObservabilitySummary` from
-the current Python core.
+This is now a **thin live integration** over the existing MCP core.
+The dashboard calls the current `/mcp` and `/readyz` surfaces directly, keeps
+runtime payload validation at the frontend boundary, and does not invent a
+parallel backend.
 
 This package is optional. The governed backend/core can run without the
 dashboard, and the dashboard does not currently require `/mcp` or `/readyz`
@@ -22,6 +21,8 @@ as prototype-local, not as the canonical institutional export path.
 - Mandatory shared `MetadataStrip` on every result-oriented view
 - Distinct rendering for: loading, empty, success, limited, stale, failed,
   missing, snapshot_missing, unauthorized
+- Thin live data adapter over `resource://catalog`, `resource://observability`,
+  `query_dataset`, `preview_dataset`, `dataset_health`, and `/readyz`
 - No BI tooling, no charts, no invented RBAC, no new datasets
 
 ## Commands
@@ -35,6 +36,7 @@ npm run test        # vitest run
 npm run build       # type-check + vite build
 ```
 
+<<<<<<< HEAD
 ## Runtime Expectations
 
 - local dashboard dev server: `127.0.0.1:5173`
@@ -49,18 +51,29 @@ For the current repository-wide deployment/runtime story, see
 visibility and migration notes, see [docs/CHANGELOG.md](../docs/CHANGELOG.md).
 
 ## Mock-to-core mapping
+=======
+For local live development against `run-http`, you can optionally proxy the
+backend through Vite so the browser stays same-origin and bearer tokens remain
+server-side:
+>>>>>>> feat/dashboard-codex-alt
 
-| Mock module                  | Mirrors                         |
-| ---------------------------- | ------------------------------- |
-| `src/types/core.ts`          | Pydantic models from core tools |
-| `src/mocks/datasets.ts`      | registry catalog subset         |
-| `src/mocks/queryResults.ts`  | `DatasetQueryResult` scenarios  |
-| `src/mocks/health.ts`        | `DatasetHealthLookupResult` +   |
-|                              | `SnapshotFreshnessResult` +     |
-|                              | `ReadinessReport`               |
-| `src/mocks/observability.ts` | `ObservabilitySummary`          |
+```bash
+cd dashboard
+DASHBOARD_PROXY_TARGET=http://127.0.0.1:8000 \
+DASHBOARD_PROXY_BEARER_TOKEN=your-token-here \
+npm run dev
+```
 
-The query page exposes a scenario picker so the prototype can demonstrate
-every core-visible status (`success`, `limited`, `stale`, `failed`,
-`missing`, `snapshot_missing`, plus the UI-only `loading` and
-`unauthorized` affordances) without fabricating new semantics.
+## Live surface mapping
+
+| Frontend adapter call            | Core surface                    |
+| -------------------------------- | ------------------------------- |
+| `listDatasets()`                 | `resource://catalog`            |
+| `getDatasetQueryResult()`        | `query_dataset`                 |
+| `getDatasetPreviewResult()`      | `preview_dataset`               |
+| `getDatasetHealthResult()`       | `dataset_health`                |
+| `getObservability()`             | `resource://observability`      |
+| `getReadiness()`                 | `/readyz`                       |
+
+The remaining mock modules are now test/prototype fixtures only. The pages no
+longer read them directly.

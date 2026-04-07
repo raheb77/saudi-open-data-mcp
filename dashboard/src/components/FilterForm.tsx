@@ -56,6 +56,7 @@ export function FilterForm({
           <div key={index} className="flex flex-wrap items-center gap-2">
             <input
               aria-label={ar.query.keyPlaceholder}
+              dir="ltr"
               placeholder={ar.query.keyPlaceholder}
               value={row.key}
               onChange={(event) => update(index, { key: event.target.value })}
@@ -64,6 +65,7 @@ export function FilterForm({
             <span className="text-ink-500">=</span>
             <input
               aria-label={ar.query.valuePlaceholder}
+              dir="ltr"
               placeholder={ar.query.valuePlaceholder}
               value={row.value}
               onChange={(event) => update(index, { value: event.target.value })}

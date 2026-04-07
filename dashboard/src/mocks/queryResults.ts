@@ -7,6 +7,7 @@ import type {
   DatasetQueryResult,
   QueryFilterValue,
 } from "../types/core";
+import { parseDatasetQueryResult } from "../lib/runtimeValidation";
 
 export type QueryScenarioName =
   | "success"
@@ -171,7 +172,7 @@ export function buildMockQueryResult(
   const fallbackRecords = RECORD_BANK[dataset_id] ?? [];
 
   if (scenario === "missing") {
-    return {
+    return parseDatasetQueryResult({
       dataset_id,
       status: "missing",
       source: null,
@@ -184,11 +185,11 @@ export function buildMockQueryResult(
       matched_records: [],
       limitations: [],
       failure: null,
-    };
+    });
   }
 
   if (scenario === "snapshot_missing") {
-    return {
+    return parseDatasetQueryResult({
       dataset_id,
       status: "snapshot_missing",
       source,
@@ -201,11 +202,11 @@ export function buildMockQueryResult(
       matched_records: [],
       limitations: [],
       failure: null,
-    };
+    });
   }
 
   if (scenario === "limited") {
-    return {
+    return parseDatasetQueryResult({
       dataset_id,
       status: "limited",
       source,
@@ -221,11 +222,11 @@ export function buildMockQueryResult(
         "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
       ],
       failure: null,
-    };
+    });
   }
 
   if (scenario === "failed") {
-    return {
+    return parseDatasetQueryResult({
       dataset_id,
       status: "failed",
       source,
@@ -243,7 +244,7 @@ export function buildMockQueryResult(
         message:
           "Ministry of Finance reports page did not expose approved quarterly report PDF links",
       },
-    };
+    });
   }
 
   if (scenario === "stale") {
@@ -252,7 +253,7 @@ export function buildMockQueryResult(
     // the metadata strip) is `stale`.
     const filtered = applyMockFilters(fallbackRecords, filters);
     const limited = limit ? filtered.slice(0, limit) : filtered;
-    return {
+    return parseDatasetQueryResult({
       dataset_id,
       status: "success",
       source,
@@ -265,13 +266,13 @@ export function buildMockQueryResult(
       matched_records: limited,
       limitations: [],
       failure: null,
-    };
+    });
   }
 
   // success (default)
   const filtered = applyMockFilters(fallbackRecords, filters);
   const limited = limit ? filtered.slice(0, limit) : filtered;
-  return {
+  return parseDatasetQueryResult({
     dataset_id,
     status: "success",
     source,
@@ -284,5 +285,5 @@ export function buildMockQueryResult(
     matched_records: limited,
     limitations: [],
     failure: null,
-  };
+  });
 }

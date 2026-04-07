@@ -3,12 +3,18 @@
 
 import type {
   DatasetHealthLookupResult,
+  MaterializationSummary,
   ReadinessReport,
 } from "../types/core";
+import {
+  parseDatasetHealthLookupResult,
+  parseMaterializationSummary,
+  parseReadinessReport,
+} from "../lib/runtimeValidation";
 
 const REFERENCE_TIME = "2026-04-05T08:00:00Z";
 
-export const MOCK_READINESS: ReadinessReport = {
+const MOCK_READINESS: ReadinessReport = {
   status: "ok",
   ready: true,
   scope: "process+config+wiring",
@@ -21,7 +27,7 @@ export const MOCK_READINESS: ReadinessReport = {
   },
 };
 
-export const MOCK_HEALTH: DatasetHealthLookupResult[] = [
+const MOCK_HEALTH: DatasetHealthLookupResult[] = [
   {
     dataset_id: "sama-pos-weekly",
     status: "found",
@@ -150,7 +156,7 @@ export const MOCK_HEALTH: DatasetHealthLookupResult[] = [
   },
 ];
 
-export const MOCK_MATERIALIZATION_SUMMARY = {
+const MOCK_MATERIALIZATION_SUMMARY: MaterializationSummary = {
   last_run_at: "2026-04-05T03:00:00Z",
   tier_a_success_count: 5,
   tier_a_failure_count: 0,
@@ -158,8 +164,21 @@ export const MOCK_MATERIALIZATION_SUMMARY = {
   tier_b_failure_count: 0,
 };
 
+export function getReadinessReport(): ReadinessReport {
+  return parseReadinessReport(MOCK_READINESS);
+}
+
+export function getHealthEntries(): DatasetHealthLookupResult[] {
+  return MOCK_HEALTH.map((entry) => parseDatasetHealthLookupResult(entry));
+}
+
 export function findHealthById(
   dataset_id: string,
 ): DatasetHealthLookupResult | undefined {
-  return MOCK_HEALTH.find((entry) => entry.dataset_id === dataset_id);
+  const match = MOCK_HEALTH.find((entry) => entry.dataset_id === dataset_id);
+  return match ? parseDatasetHealthLookupResult(match) : undefined;
+}
+
+export function getMaterializationSummary(): MaterializationSummary {
+  return parseMaterializationSummary(MOCK_MATERIALIZATION_SUMMARY);
 }

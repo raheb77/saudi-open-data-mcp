@@ -1,6 +1,8 @@
 import { ar } from "../i18n/ar";
-import { SOURCE_LABELS } from "../mocks/datasets";
+import { SOURCE_LABELS } from "../lib/catalogPresentation";
 import type {
+  DatasetHealthStatus,
+  PreviewStatus,
   DatasetQueryStatus,
   ResultDataOrigin,
   ResultDegradationReason,
@@ -10,6 +12,8 @@ import type {
 import {
   DataOriginBadge,
   FreshnessBadge,
+  HealthStatusBadge,
+  PreviewStatusBadge,
   QueryStatusBadge,
 } from "./StatusBadge";
 
@@ -23,16 +27,36 @@ import {
 // Fields that are not present in the underlying result are simply not
 // rendered. The component never fabricates a freshness or origin.
 
-export interface MetadataStripProps {
+type BaseMetadataStripProps = {
   dataset_id: string;
   source: SourceName | null;
-  status: DatasetQueryStatus;
   data_origin: ResultDataOrigin | null;
   freshness_status?: SnapshotFreshnessStatus | null;
   degradation_reason?: ResultDegradationReason | null;
   schema_version?: string | null;
   snapshot_age_label?: string | null;
-}
+  variant?: "default" | "flat";
+};
+
+type QueryMetadataStripProps = BaseMetadataStripProps & {
+  status_kind: "query";
+  status: DatasetQueryStatus;
+};
+
+type PreviewMetadataStripProps = BaseMetadataStripProps & {
+  status_kind: "preview";
+  status: PreviewStatus;
+};
+
+type HealthMetadataStripProps = BaseMetadataStripProps & {
+  status_kind: "health";
+  status: DatasetHealthStatus;
+};
+
+export type MetadataStripProps =
+  | QueryMetadataStripProps
+  | PreviewMetadataStripProps
+  | HealthMetadataStripProps;
 
 const DEGRADATION_LABEL: Record<ResultDegradationReason, string> = {
   normalization_limited: ar.state.normalizationLimited,
@@ -40,13 +64,22 @@ const DEGRADATION_LABEL: Record<ResultDegradationReason, string> = {
 };
 
 export function MetadataStrip(props: MetadataStripProps) {
+  const isFlat = props.variant === "flat";
   return (
     <div
       data-testid="metadata-strip"
-      className="rounded-lg border border-ink-300 bg-white px-4 py-3 shadow-sm"
+      className={
+        isFlat
+          ? "rounded-md border-0 bg-transparent px-0 py-0 shadow-none"
+          : "rounded-lg border border-ink-300 bg-white px-4 py-3 shadow-sm"
+      }
     >
       <h3 className="text-xs font-semibold text-ink-500">{ar.meta.title}</h3>
-      <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+      <dl
+        className={`grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3 ${
+          isFlat ? "mt-1" : "mt-2"
+        }`}
+      >
         <Row label={ar.meta.datasetId}>
           <span className="id-mono">{props.dataset_id}</span>
         </Row>
@@ -63,7 +96,7 @@ export function MetadataStrip(props: MetadataStripProps) {
         </Row>
 
         <Row label={ar.meta.status}>
-          <QueryStatusBadge status={props.status} />
+          <StatusCell props={props} />
         </Row>
 
         <Row label={ar.meta.dataOrigin}>
@@ -103,6 +136,18 @@ export function MetadataStrip(props: MetadataStripProps) {
       </dl>
     </div>
   );
+}
+
+function StatusCell({ props }: { props: MetadataStripProps }) {
+  switch (props.status_kind) {
+    case "preview":
+      return <PreviewStatusBadge status={props.status} />;
+    case "health":
+      return <HealthStatusBadge status={props.status} />;
+    case "query":
+    default:
+      return <QueryStatusBadge status={props.status} />;
+  }
 }
 
 function Row({

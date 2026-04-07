@@ -2,6 +2,7 @@ import { ar } from "../i18n/ar";
 import type {
   DatasetHealthStatus,
   DatasetQueryStatus,
+  PreviewStatus,
   ResultDataOrigin,
   SnapshotFreshnessStatus,
 } from "../types/core";
@@ -44,6 +45,17 @@ export function QueryStatusBadge({ status }: { status: DatasetQueryStatus }) {
     failed: { label: ar.state.failed, tone: "bad" },
     missing: { label: ar.state.missing, tone: "neutral" },
     snapshot_missing: { label: ar.state.snapshotMissing, tone: "neutral" },
+  };
+  const entry = map[status];
+  return <StatusBadge label={entry.label} tone={entry.tone} technical={status} />;
+}
+
+export function PreviewStatusBadge({ status }: { status: PreviewStatus }) {
+  const map: Record<PreviewStatus, { label: string; tone: Tone }> = {
+    record_derivable: { label: ar.state.recordDerivable, tone: "ok" },
+    limited: { label: ar.state.limited, tone: "warn" },
+    failed: { label: ar.state.failed, tone: "bad" },
+    missing: { label: ar.state.missing, tone: "neutral" },
   };
   const entry = map[status];
   return <StatusBadge label={entry.label} tone={entry.tone} technical={status} />;

@@ -1,0 +1,98 @@
+import { parseDatasetPreviewResult } from "../lib/runtimeValidation";
+import type { DatasetPreviewResult } from "../types/core";
+
+const MOCK_PREVIEWS: DatasetPreviewResult[] = [
+  {
+    dataset_id: "sama-pos-weekly",
+    status: "record_derivable",
+    resolution_outcome: "serve_local",
+    data_origin: "local_snapshot",
+    freshness_status: "fresh",
+    failure_stage: null,
+    degradation_reason: null,
+    snapshot_modified_at: "2026-03-31T05:00:00Z",
+    resolution_notice: null,
+    records: [],
+    limitations: [],
+    failure: null,
+  },
+  {
+    dataset_id: "sama-exchange-rates-current",
+    status: "record_derivable",
+    resolution_outcome: "refresh_then_serve",
+    data_origin: "live_refresh",
+    freshness_status: "fresh",
+    failure_stage: null,
+    degradation_reason: null,
+    snapshot_modified_at: "2026-04-04T20:00:00Z",
+    resolution_notice: "local preview artifact was unavailable; refreshed live instead",
+    records: [],
+    limitations: [],
+    failure: null,
+  },
+  {
+    dataset_id: "sama-repo-rate",
+    status: "record_derivable",
+    resolution_outcome: "serve_local",
+    data_origin: "local_snapshot",
+    freshness_status: "unknown",
+    failure_stage: null,
+    degradation_reason: null,
+    snapshot_modified_at: "2025-09-19T11:00:00Z",
+    resolution_notice: null,
+    records: [],
+    limitations: [],
+    failure: null,
+  },
+  {
+    dataset_id: "stats-gov-sa-cpi-headline-monthly",
+    status: "limited",
+    resolution_outcome: "serve_stale_with_notice",
+    data_origin: "stale_snapshot",
+    freshness_status: "stale",
+    failure_stage: "fetch",
+    degradation_reason: "stale_fallback_after_refresh_failure",
+    snapshot_modified_at: "2026-02-12T08:00:00Z",
+    resolution_notice: "serving stale snapshot because live refresh failed",
+    records: [],
+    limitations: [
+      "stats_gov_sa_cpi_headline_monthly_html_requires_supported_release_cards",
+    ],
+    failure: null,
+  },
+  {
+    dataset_id: "stats-gov-sa-real-gdp-growth-quarterly",
+    status: "record_derivable",
+    resolution_outcome: "serve_local",
+    data_origin: "local_snapshot",
+    freshness_status: "fresh",
+    failure_stage: null,
+    degradation_reason: null,
+    snapshot_modified_at: "2026-03-15T09:00:00Z",
+    resolution_notice: null,
+    records: [],
+    limitations: [],
+    failure: null,
+  },
+  {
+    dataset_id: "mof-budget-balance-quarterly",
+    status: "record_derivable",
+    resolution_outcome: "serve_local",
+    data_origin: "local_snapshot",
+    freshness_status: "fresh",
+    failure_stage: null,
+    degradation_reason: null,
+    snapshot_modified_at: "2026-03-20T08:00:00Z",
+    resolution_notice: null,
+    records: [],
+    limitations: [],
+    failure: null,
+  },
+];
+
+export function findPreviewById(
+  dataset_id: string,
+): DatasetPreviewResult | undefined {
+  const preview = MOCK_PREVIEWS.find((entry) => entry.dataset_id === dataset_id);
+  return preview ? parseDatasetPreviewResult(preview) : undefined;
+}

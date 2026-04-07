@@ -8,6 +8,10 @@ export const ar = {
   app: {
     title: "لوحة البيانات السعودية المفتوحة",
     subtitle: "واجهة عرض رقيقة فوق نواة MCP الحالية",
+    renderError: {
+      title: "تعذّر عرض الصفحة",
+      body: "حدث خطأ غير متوقع أثناء بناء هذا العرض. بقيت الواجهة في وضع آمن بدل شاشة فارغة.",
+    },
     nav: {
       home: "الرئيسية",
       query: "الاستعلام",
@@ -19,6 +23,7 @@ export const ar = {
       operator: "مُشغّل",
       admin: "مدير",
     },
+    retry: "أعد المحاولة",
   },
 
   home: {
@@ -29,7 +34,7 @@ export const ar = {
     viewStatus: "افتح صفحة حالة النظام",
     cardLabels: {
       source: "المصدر",
-      status: "الحالة الصحية",
+      status: "حالة العرض",
       freshness: "الحداثة",
       origin: "أصل البيانات",
       lastUpdated: "آخر تحديث",
@@ -102,12 +107,12 @@ export const ar = {
       note: "تُعاد العدّادات إلى الصفر عند إعادة تشغيل العملية. هذه ليست واجهة مقاييس خارجية.",
     },
     materialization: {
-      title: "ملخص آخر تحديث للمجموعة الساخنة",
-      lastRunAt: "آخر تشغيل",
+      title: "ملخص عدّادات التحديث",
+      runCount: "عدد مرات التشغيل",
       successCount: "عدد النجاحات",
       failureCount: "عدد الإخفاقات",
-      tierA: "المستوى أ",
-      tierB: "المستوى ب",
+      liveNote:
+        "المسار الحي الحالي يعرض عدّادات process-local فقط لعمليات materialize.* ولا يعرّض آخر وقت تشغيل أو تقسيمات Tier A/B كواجهة قراءة مستقلة.",
     },
   },
 
@@ -132,6 +137,7 @@ export const ar = {
     failed: "فشل",
     missing: "غير موجود",
     snapshotMissing: "لا توجد لقطة محلية",
+    recordDerivable: "قابل للاشتقاق",
     unauthorized: "غير مخوّل",
     healthy: "سليم",
     degraded: "متدهور",

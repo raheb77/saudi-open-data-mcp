@@ -1,8 +1,11 @@
+<<<<<<< HEAD
 // Arabic display labels for canonical record field names.
 // Canonical field names are always English identifiers; these labels are
 // shown in the result table header above the id-mono field name span.
 // Unknown fields fall back to the raw field name — never omit a column.
 
+=======
+>>>>>>> feat/dashboard-codex-alt
 export const FIELD_LABELS: Record<string, string> = {
   // SAMA POS weekly
   week_start_date: "بداية الأسبوع",

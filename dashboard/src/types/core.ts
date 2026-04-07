@@ -29,7 +29,25 @@ export type DatasetQueryStatus =
   | "failed"
   | "success";
 
+export type PreviewStatus =
+  | "missing"
+  | "record_derivable"
+  | "limited"
+  | "failed";
+
 export type QueryFailureStage = "snapshot_read" | "normalization";
+
+export type PreviewFailureStage =
+  | "lookup"
+  | "fetch"
+  | "snapshot"
+  | "normalization";
+
+export type PreviewResolutionOutcome =
+  | "serve_local"
+  | "refresh_then_serve"
+  | "serve_stale_with_notice"
+  | "fail_closed";
 
 export type SnapshotFreshnessStatus = "missing" | "fresh" | "stale" | "unknown";
 
@@ -49,6 +67,7 @@ export type UpdateFrequency =
   | "unspecified";
 
 export type SourceName = "sama" | "stats-gov-sa" | "mof" | "data-gov-sa";
+export type DashboardRole = "viewer" | "operator" | "admin";
 
 // ---------- Canonical record ----------
 
@@ -82,6 +101,29 @@ export interface DatasetQueryResult {
   matched_records: CanonicalRecord[];
   limitations: string[];
   failure: QueryFailure | null;
+}
+
+// ---------- Preview result ----------
+
+export interface PreviewFailure {
+  stage: PreviewFailureStage;
+  error_type: string;
+  message: string;
+}
+
+export interface DatasetPreviewResult {
+  dataset_id: string;
+  status: PreviewStatus;
+  resolution_outcome: PreviewResolutionOutcome | null;
+  data_origin: ResultDataOrigin | null;
+  freshness_status: SnapshotFreshnessStatus | null;
+  failure_stage: PreviewFailureStage | null;
+  degradation_reason: ResultDegradationReason | null;
+  snapshot_modified_at: string | null;
+  resolution_notice: string | null;
+  records: CanonicalRecord[];
+  limitations: string[];
+  failure: PreviewFailure | null;
 }
 
 // ---------- Freshness ----------
@@ -125,6 +167,11 @@ export interface DatasetCatalogEntry {
   health_status: DatasetHealthStatus;
 }
 
+export interface DatasetCatalogSummary {
+  dataset_count: number;
+  datasets: DatasetCatalogEntry[];
+}
+
 // ---------- Observability ----------
 
 export interface ObservabilityCounter {
@@ -146,12 +193,22 @@ export interface ObservabilitySummary {
   notes: string[];
 }
 
+// ---------- Materialization summary ----------
+
+export interface MaterializationSummary {
+  last_run_at: string;
+  tier_a_success_count: number;
+  tier_a_failure_count: number;
+  tier_b_success_count: number;
+  tier_b_failure_count: number;
+}
+
 // ---------- Readiness probe ----------
 
 export interface ReadinessReport {
-  status: "ok" | "degraded" | "unavailable";
+  status: "ready" | "ok" | "degraded" | "unavailable";
   ready: boolean;
   scope: string;
   app_name: string;
-  checks: Record<string, "ok" | "fail">;
+  checks: Record<string, boolean | "ok" | "fail">;
 }

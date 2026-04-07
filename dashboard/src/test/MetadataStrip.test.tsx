@@ -8,6 +8,7 @@ describe("MetadataStrip", () => {
       <MetadataStrip
         dataset_id="sama-pos-weekly"
         source="sama"
+        status_kind="query"
         status="success"
         data_origin="local_snapshot"
         freshness_status="fresh"
@@ -30,6 +31,7 @@ describe("MetadataStrip", () => {
       <MetadataStrip
         dataset_id="stats-gov-sa-cpi-headline-monthly"
         source="stats-gov-sa"
+        status_kind="query"
         status="missing"
         data_origin={null}
       />,
@@ -48,6 +50,7 @@ describe("MetadataStrip", () => {
       <MetadataStrip
         dataset_id="stats-gov-sa-cpi-headline-monthly"
         source="stats-gov-sa"
+        status_kind="query"
         status="limited"
         data_origin="local_snapshot"
         degradation_reason="normalization_limited"
@@ -56,5 +59,56 @@ describe("MetadataStrip", () => {
 
     const strip = screen.getByTestId("metadata-strip");
     expect(strip).toHaveTextContent("normalization_limited");
+  });
+
+  it("renders preview and health status families explicitly", () => {
+    const { rerender } = render(
+      <MetadataStrip
+        dataset_id="sama-pos-weekly"
+        source="sama"
+        status_kind="preview"
+        status="record_derivable"
+        data_origin="local_snapshot"
+      />,
+    );
+
+    expect(screen.getByTestId("metadata-strip")).toHaveTextContent(
+      "record_derivable",
+    );
+
+    rerender(
+      <MetadataStrip
+        dataset_id="stats-gov-sa-cpi-headline-monthly"
+        source="stats-gov-sa"
+        status_kind="health"
+        status="degraded"
+        data_origin={null}
+      />,
+    );
+
+    expect(screen.getByTestId("metadata-strip")).toHaveTextContent("degraded");
+  });
+
+  it("supports a flat embedded variant without changing metadata content", () => {
+    render(
+      <MetadataStrip
+        dataset_id="mof-budget-balance-quarterly"
+        source="mof"
+        variant="flat"
+        status_kind="health"
+        status="healthy"
+        data_origin="local_snapshot"
+        freshness_status="fresh"
+        schema_version="1.0.0"
+      />,
+    );
+
+    const strip = screen.getByTestId("metadata-strip");
+    expect(strip.className).toContain("border-0");
+    expect(strip.className).toContain("bg-transparent");
+    expect(strip.className).toContain("shadow-none");
+    expect(strip).toHaveTextContent("mof-budget-balance-quarterly");
+    expect(strip).toHaveTextContent("healthy");
+    expect(strip).toHaveTextContent("local_snapshot");
   });
 });

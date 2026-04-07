@@ -1,6 +1,6 @@
 import { ar } from "../i18n/ar";
 import { formatAge, formatDateTime } from "../lib/format";
-import { SOURCE_LABELS } from "../mocks/datasets";
+import { SOURCE_LABELS } from "../lib/catalogPresentation";
 import type { DatasetHealthLookupResult } from "../types/core";
 import { MetadataStrip } from "./MetadataStrip";
 import { FreshnessBadge, HealthStatusBadge } from "./StatusBadge";
@@ -55,7 +55,9 @@ export function HealthCard({ health }: HealthCardProps) {
       <MetadataStrip
         dataset_id={health.dataset_id}
         source={health.source}
-        status="success"
+        variant="flat"
+        status_kind="health"
+        status={health.health_status ?? "unknown"}
         data_origin={freshness?.artifact_present ? "local_snapshot" : null}
         freshness_status={freshness?.status ?? null}
         schema_version={health.schema_version}

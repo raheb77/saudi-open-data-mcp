@@ -1,21 +1,22 @@
 import { Link } from "react-router-dom";
 import { ar } from "../i18n/ar";
-import { formatDateTime } from "../lib/format";
-import { SOURCE_LABELS } from "../mocks/datasets";
+import { formatAge, formatDateTime } from "../lib/format";
+import { SOURCE_LABELS } from "../lib/catalogPresentation";
 import type {
   DatasetCatalogEntry,
+  DatasetPreviewResult,
   DatasetHealthLookupResult,
 } from "../types/core";
 import { MetadataStrip } from "./MetadataStrip";
-import { FreshnessBadge, HealthStatusBadge } from "./StatusBadge";
+import { DataOriginBadge, FreshnessBadge, PreviewStatusBadge } from "./StatusBadge";
 
 interface DatasetCardProps {
   catalog: DatasetCatalogEntry;
+  preview: DatasetPreviewResult;
   health: DatasetHealthLookupResult | undefined;
 }
 
-export function DatasetCard({ catalog, health }: DatasetCardProps) {
-  const freshness = health?.freshness ?? null;
+export function DatasetCard({ catalog, preview, health }: DatasetCardProps) {
   return (
     <article className="flex flex-col gap-3 rounded-xl border border-ink-300 bg-white p-4 shadow-sm">
       <header className="flex flex-col gap-1">
@@ -35,17 +36,22 @@ export function DatasetCard({ catalog, health }: DatasetCardProps) {
           </span>
         </Row>
         <Row label={ar.home.cardLabels.status}>
-          <HealthStatusBadge status={catalog.health_status} />
+          <PreviewStatusBadge status={preview.status} />
         </Row>
-        {freshness && (
-          <Row label={ar.home.cardLabels.freshness}>
-            <FreshnessBadge status={freshness.status} />
+        {preview.data_origin && (
+          <Row label={ar.home.cardLabels.origin}>
+            <DataOriginBadge origin={preview.data_origin} />
           </Row>
         )}
-        {freshness?.snapshot_modified_at && (
+        {preview.freshness_status && (
+          <Row label={ar.home.cardLabels.freshness}>
+            <FreshnessBadge status={preview.freshness_status} />
+          </Row>
+        )}
+        {preview.snapshot_modified_at && (
           <Row label={ar.home.cardLabels.lastUpdated}>
             <span className="num-latn">
-              {formatDateTime(freshness.snapshot_modified_at)}
+              {formatDateTime(preview.snapshot_modified_at)}
             </span>
           </Row>
         )}
@@ -54,10 +60,18 @@ export function DatasetCard({ catalog, health }: DatasetCardProps) {
       <MetadataStrip
         dataset_id={catalog.dataset_id}
         source={catalog.source}
-        status="success"
-        data_origin={freshness?.artifact_present ? "local_snapshot" : null}
-        freshness_status={freshness?.status ?? null}
+        variant="flat"
+        status_kind="preview"
+        status={preview.status}
+        data_origin={preview.data_origin}
+        freshness_status={preview.freshness_status}
+        degradation_reason={preview.degradation_reason}
         schema_version={health?.schema_version ?? null}
+        snapshot_age_label={
+          health?.freshness?.snapshot_age_seconds != null
+            ? formatAge(health.freshness.snapshot_age_seconds)
+            : null
+        }
       />
 
       <Link
