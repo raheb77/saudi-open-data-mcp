@@ -14,7 +14,11 @@ The project does not treat MCP as the core product. MCP is the interface layer t
 
 ## Assumptions for the Current Internal Baseline
 
-- Current source scope is SAMA plus one narrow `data.gov.sa` pilot dataset.
+- Current source scope is the current narrow curated set:
+  - SAMA
+  - three `stats.gov.sa` macro datasets
+  - one Ministry of Finance fiscal dataset
+  - one narrow `data.gov.sa` pilot dataset
 - Python 3.12 is the runtime.
 - FastMCP 2.x is the MCP framework.
 - `httpx` is the only HTTP client. `requests` is out of scope.
@@ -24,6 +28,32 @@ The project does not treat MCP as the core product. MCP is the interface layer t
 - Horizontal scaling is not a goal in the current baseline.
 - Only approved official sources may be accessed by connectors.
 - No LLM dependency is allowed in the core path.
+
+## Current System Surfaces
+
+The repository currently exposes four distinct but related surfaces:
+
+- backend/core
+  - the real governed runtime
+  - includes the MCP server, registry, normalization, health, observability,
+    security, and storage paths
+- CLI
+  - a thin local façade over the same core operations
+  - does not define separate business logic
+- dashboard
+  - an Arabic RTL prototype package under `dashboard/`
+  - optional in this branch
+  - not part of the governed backend runtime today
+- exports
+  - institutional artifacts generated from governed query results
+  - currently exposed through the CLI export path
+
+This distinction matters operationally:
+
+- the backend/core is the system of record in this repository
+- the CLI is an operator/engineer convenience surface over that same record
+- the dashboard is currently a prototype review surface, not a required runtime dependency
+- exports are outputs of governed results, not a second interpretation layer
 
 ## Architectural Philosophy
 

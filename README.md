@@ -17,6 +17,87 @@ required runtime dependency for the governed backend/core.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, [docs/ADR/ADR-001-start-with-sama.md](docs/ADR/ADR-001-start-with-sama.md) for the initial source decision, [docs/GOVERNANCE.md](docs/GOVERNANCE.md) for the current core auth/audit/data-access model, [docs/OPERATIONS.md](docs/OPERATIONS.md) for runtime and durability guidance, [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the current local/container/runtime topology, [docs/RUNBOOKS.md](docs/RUNBOOKS.md) for concise failure/recovery handling, and [docs/PERSISTENCE.md](docs/PERSISTENCE.md) for current persistence and backup/restore boundaries.
 
+## What The System Does
+
+- isolates approved official Saudi data sources behind explicit connectors
+- normalizes a narrow supported dataset set into typed contracts
+- keeps dataset metadata and health metadata in a registry-backed model
+- exposes a small governed MCP surface for search, metadata, health, preview, query, download, and controlled materialization
+- provides a thin local CLI over the same core
+- produces governed institutional artifacts from query results through JSON, Excel-compatible XML, and text-first PDF export
+
+## What The System Does Not Do
+
+- it is not a generic BI suite or reporting platform
+- it is not a broad national data lake or a crawler for arbitrary sites
+- it does not add LLM rewriting, semantic search, or AI-generated narrative reporting in the core path
+- it does not make `query_dataset` a live remote query surface
+- it does not claim full public-internet deployment maturity or disaster-recovery automation
+- in this branch, the dashboard is not a live-integrated production surface; it remains an optional mock-driven prototype
+
+## Why It Is Trustworthy
+
+- source boundaries are explicit and approved-source-only
+- normalized outputs use typed contracts rather than free-form transport payloads
+- registry-backed metadata keeps descriptors, health state, and caveats out of ad hoc request-time logic
+- `query_dataset` and `download_dataset` stay local-only, while `preview_dataset` is the only hybrid path and exposes freshness/origin/degradation context explicitly
+- HTTP auth, narrow RBAC, structured audit logs, and current-state governance docs are already in place
+- deployment, runbook, and persistence expectations are documented explicitly rather than implied
+
+## Current System Surfaces
+
+| Surface | Purpose | Current state |
+| --- | --- | --- |
+| Backend/core | Governed MCP service over `/mcp` with `/readyz` | primary runtime |
+| CLI | Thin operator/engineer façade over the same core | supported |
+| Dashboard | Arabic RTL UI package under `dashboard/` | optional prototype, mock-driven in this branch |
+| Exports | Institutional artifacts over governed query results | CLI-governed path today |
+
+## Supported Scope
+
+### Supported Sources
+
+- SAMA
+- `stats.gov.sa`
+- Ministry of Finance
+- one narrow `data.gov.sa` pilot path
+
+### Supported Dataset Families
+
+- SAMA high-frequency monetary and market datasets currently in the registry
+- `stats.gov.sa` headline CPI monthly
+- `stats.gov.sa` total unemployment rate quarterly
+- `stats.gov.sa` real GDP growth quarterly
+- Ministry of Finance headline budget balance quarterly
+
+See [docs/DATASETS.md](docs/DATASETS.md) for the current canonical dataset direction and current narrow-contract limits.
+
+### Stable vs Evolving
+
+Stable enough to evaluate and operate now:
+
+- current MCP tool/resource surface
+- current CLI over that surface
+- current auth/audit/governance model
+- current container/runtime/deployment story
+- current governed CLI export path
+
+Still intentionally evolving:
+
+- breadth of source and dataset coverage
+- richness of normalization for HTML/PDF-oriented sources
+- automation depth around operations, backup, and restore
+- dashboard integration depth, because the dashboard remains a mock-driven prototype in this branch
+
+## Start Here By Audience
+
+- Evaluator:
+  - start with this README, then [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/GOVERNANCE.md](docs/GOVERNANCE.md), and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+- Operator:
+  - start with [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), [docs/OPERATIONS.md](docs/OPERATIONS.md), [docs/RUNBOOKS.md](docs/RUNBOOKS.md), and [docs/PERSISTENCE.md](docs/PERSISTENCE.md)
+- Engineer:
+  - start with [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/DATASETS.md](docs/DATASETS.md), [docs/GOVERNANCE.md](docs/GOVERNANCE.md), and [dashboard/README.md](dashboard/README.md) for the current UI prototype boundary
+
 ## Current Architecture
 
 The current codebase is organized around three layers.
