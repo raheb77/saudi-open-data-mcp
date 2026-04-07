@@ -51,7 +51,13 @@ export const ar = {
     limitLabel: "الحد الأقصى للسجلات",
     apply: "تنفيذ الاستعلام",
     reset: "إعادة الضبط",
-    export: "تصدير النتيجة (JSON)",
+    export: "تصدير النتيجة",
+    exportFormatLabel: "تنسيق التصدير",
+    exportFormats: {
+      json: "JSON",
+      excel: "Excel",
+      pdf: "PDF",
+    },
     scenarioLabel: "سيناريو محاكاة",
     scenarios: {
       success: "نجاح",

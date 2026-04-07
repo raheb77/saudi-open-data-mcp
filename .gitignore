@@ -12,3 +12,9 @@ wheels/
 .env
 
 .local/
+
+# Frontend-generated files
+/dashboard/node_modules/
+/dashboard/dist/
+/dashboard/*.tsbuildinfo
+/dashboard/node_modules/.vite/

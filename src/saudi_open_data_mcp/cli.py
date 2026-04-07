@@ -7,6 +7,7 @@ import asyncio
 import json
 import sys
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -21,8 +22,17 @@ from saudi_open_data_mcp.config import (
 from saudi_open_data_mcp.security.http_auth import build_http_auth_middleware
 from saudi_open_data_mcp.security.http_readiness import build_http_readiness_middleware
 from saudi_open_data_mcp.server import create_server
+from saudi_open_data_mcp.tools.export_artifacts import (
+    ExportArtifactFormat,
+    render_query_result_excel_artifact,
+    render_query_result_pdf_artifact,
+)
+from saudi_open_data_mcp.tools.health import DatasetHealthLookupResult
+from saudi_open_data_mcp.tools.query import DatasetQueryResult
 
 JSON_FORMAT = "json"
+EXCEL_FORMAT = ExportArtifactFormat.EXCEL.value
+PDF_FORMAT = ExportArtifactFormat.PDF.value
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -120,12 +130,15 @@ def build_parser() -> argparse.ArgumentParser:
     export_parser = subparsers.add_parser(
         "export",
         help=(
-            "Export the exact structured output of the current local-only query_dataset "
-            "path for one dataset_id."
+            "Export the current governed query_dataset result for one dataset_id as "
+            "json, excel, or pdf."
         ),
     )
     _add_dataset_query_arguments(export_parser)
-    _add_output_arguments(export_parser)
+    _add_output_arguments(
+        export_parser,
+        allowed_formats=(JSON_FORMAT, EXCEL_FORMAT, PDF_FORMAT),
+    )
     export_parser.set_defaults(command="export")
 
     health_parser = subparsers.add_parser(
@@ -164,20 +177,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.command in {
-        "config",
-        "list",
-        "query",
-        "export",
-        "preview",
-        "health",
-        "refresh",
-    }:
+    if args.command in {"config", "list", "query", "preview", "health", "refresh"}:
         _validate_output_arguments_or_exit(
             parser,
             output_format=args.format,
             output_path=args.output,
             quiet=args.quiet,
+            allowed_formats=(JSON_FORMAT,),
+        )
+
+    if args.command == "export":
+        _validate_output_arguments_or_exit(
+            parser,
+            output_format=args.format,
+            output_path=args.output,
+            quiet=args.quiet,
+            allowed_formats=(JSON_FORMAT, EXCEL_FORMAT, PDF_FORMAT),
         )
 
     if args.check_startup or args.command in {None, "check-startup"}:
@@ -269,6 +284,25 @@ def main(argv: Sequence[str] | None = None) -> int:
                 },
             )
         )
+
+        if args.command == "export" and args.format in {EXCEL_FORMAT, PDF_FORMAT}:
+            health_payload = asyncio.run(
+                _invoke_tool_payload(
+                    app,
+                    tool_name="dataset_health",
+                    arguments={"dataset_id": args.dataset_id},
+                )
+            )
+            _write_query_export_artifact_or_exit(
+                parser,
+                query_payload=payload,
+                health_payload=health_payload,
+                output_path=args.output,
+                quiet=args.quiet,
+                output_format=args.format,
+            )
+            return 0
+
         _write_payload_or_exit(
             parser,
             payload=payload,
@@ -361,14 +395,18 @@ def _add_dataset_query_arguments(subparser: argparse.ArgumentParser) -> None:
     )
 
 
-def _add_output_arguments(subparser: argparse.ArgumentParser) -> None:
+def _add_output_arguments(
+    subparser: argparse.ArgumentParser,
+    *,
+    allowed_formats: Sequence[str] = (JSON_FORMAT,),
+) -> None:
     """Add the current machine-friendly output arguments for local CLI commands."""
 
     subparser.add_argument(
         "--format",
         default=JSON_FORMAT,
         metavar="FORMAT",
-        help="Output format. Only json is currently supported.",
+        help=_output_format_help(allowed_formats),
     )
     subparser.add_argument(
         "--output",
@@ -389,16 +427,18 @@ def _validate_output_arguments_or_exit(
     output_format: str,
     output_path: Path | None,
     quiet: bool,
+    allowed_formats: Sequence[str],
 ) -> None:
     """Validate the shared output arguments for local JSON-emitting commands."""
 
-    if output_format != JSON_FORMAT:
-        parser.error(
-            f"unsupported --format '{output_format}'; only {JSON_FORMAT} is currently supported"
-        )
+    if output_format not in allowed_formats:
+        parser.error(_unsupported_format_message(output_format, allowed_formats))
 
     if quiet and output_path is None:
         parser.error("--quiet requires --output")
+
+    if output_format in {EXCEL_FORMAT, PDF_FORMAT} and output_path is None:
+        parser.error(f"--output is required when --format is {output_format}")
 
 
 def _parse_filter_arguments_or_exit(
@@ -508,6 +548,61 @@ def _write_payload_or_exit(
         print(f"Wrote {output_path}")
 
 
+def _write_query_export_artifact_or_exit(
+    parser: argparse.ArgumentParser,
+    *,
+    query_payload: dict[str, Any],
+    health_payload: dict[str, Any],
+    output_path: Path | None,
+    quiet: bool,
+    output_format: str,
+) -> None:
+    """Render one governed query export artifact and write it to disk."""
+
+    if output_path is None:
+        parser.error(f"--output is required when --format is {output_format}")
+
+    try:
+        query_result = DatasetQueryResult.model_validate(query_payload)
+        health_result = DatasetHealthLookupResult.model_validate(health_payload)
+        freshness_status = (
+            health_result.freshness.status.value
+            if health_result.freshness is not None
+            else None
+        )
+        exported_at = datetime.now(UTC)
+        if output_format == EXCEL_FORMAT:
+            rendered = render_query_result_excel_artifact(
+                query_result,
+                freshness_status=freshness_status,
+                exported_at=exported_at,
+            )
+        elif output_format == PDF_FORMAT:
+            rendered = render_query_result_pdf_artifact(
+                query_result,
+                freshness_status=freshness_status,
+                exported_at=exported_at,
+            )
+        else:
+            parser.error(
+                _unsupported_format_message(
+                    output_format,
+                    (JSON_FORMAT, EXCEL_FORMAT, PDF_FORMAT),
+                )
+            )
+            return
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    try:
+        output_path.write_bytes(rendered)
+    except OSError as exc:
+        parser.error(f"unable to write output file '{output_path}': {exc}")
+
+    if not quiet:
+        print(f"Wrote {output_path}")
+
+
 def _render_payload(
     payload: dict[str, Any],
     *,
@@ -516,10 +611,32 @@ def _render_payload(
     """Render one command payload using the currently supported output format."""
 
     if output_format != JSON_FORMAT:
-        raise ValueError(
+        raise ValueError(_unsupported_format_message(output_format, (JSON_FORMAT,)))
+    return json.dumps(payload, indent=2, sort_keys=True)
+
+
+def _output_format_help(allowed_formats: Sequence[str]) -> str:
+    """Build the parser help text for one command's output formats."""
+
+    if tuple(allowed_formats) == (JSON_FORMAT,):
+        return "Output format. Only json is currently supported."
+    return "Output format. Supported: " + ", ".join(allowed_formats) + "."
+
+
+def _unsupported_format_message(
+    output_format: str,
+    allowed_formats: Sequence[str],
+) -> str:
+    """Build one consistent unsupported-format parser message."""
+
+    if tuple(allowed_formats) == (JSON_FORMAT,):
+        return (
             f"unsupported --format '{output_format}'; only {JSON_FORMAT} is currently supported"
         )
-    return json.dumps(payload, indent=2, sort_keys=True)
+    return (
+        f"unsupported --format '{output_format}'; supported formats: "
+        + ", ".join(allowed_formats)
+    )
 
 
 def _load_config_or_exit(parser: argparse.ArgumentParser):

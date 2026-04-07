@@ -364,6 +364,102 @@ def test_cli_export_writes_query_result_to_output_file_and_respects_quiet(
     ]
 
 
+def test_cli_export_writes_excel_artifact_with_health_metadata(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    output_path = tmp_path / "export.xml"
+    app = _DummyToolApp(
+        {
+            "query_dataset": _DummyToolRunner(
+                {
+                    "dataset_id": "sama-pos-weekly",
+                    "status": "success",
+                    "source": "sama",
+                    "data_origin": "local_snapshot",
+                    "applied_filters": {},
+                    "limit": None,
+                    "total_records_before_filter": 1,
+                    "failure_stage": None,
+                    "degradation_reason": None,
+                    "matched_records": [
+                        {
+                            "dataset_id": "sama-pos-weekly",
+                            "source": "sama",
+                            "record_index": 0,
+                            "fields": {"week_end_date": "2026-01-03", "value": 12},
+                        }
+                    ],
+                    "limitations": [],
+                    "failure": None,
+                }
+            ),
+            "dataset_health": _DummyToolRunner(
+                {
+                    "dataset_id": "sama-pos-weekly",
+                    "status": "found",
+                    "health_status": "healthy",
+                    "schema_version": "0.1.0",
+                    "caveats": [],
+                    "known_issues": [],
+                    "freshness": {
+                        "source": "sama",
+                        "dataset_id": "sama-pos-weekly",
+                        "status": "fresh",
+                        "reason": "within_expected_window",
+                        "artifact_present": True,
+                        "reference_time": "2026-04-07T08:00:00Z",
+                        "snapshot_modified_at": "2026-04-06T00:00:00Z",
+                        "snapshot_age": "P1D",
+                        "update_frequency": "weekly",
+                    },
+                }
+            ),
+        }
+    )
+    monkeypatch.setattr(cli_module, "load_config", lambda: RuntimeConfig())
+    monkeypatch.setattr(cli_module, "create_server", lambda runtime_config=None: app)
+
+    exit_code = cli_module.main(
+        [
+            "export",
+            "sama-pos-weekly",
+            "--format",
+            "excel",
+            "--output",
+            str(output_path),
+            "--quiet",
+        ]
+    )
+
+    assert exit_code == 0
+    assert app.calls["query_dataset"] == [
+        {
+            "dataset_id": "sama-pos-weekly",
+            "filters": None,
+            "limit": None,
+        }
+    ]
+    assert app.calls["dataset_health"] == [{"dataset_id": "sama-pos-weekly"}]
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    rendered = output_path.read_text(encoding="utf-8")
+    assert "<?mso-application progid=\"Excel.Sheet\"?>" in rendered
+    assert "sama-pos-weekly" in rendered
+    assert "fresh" in rendered
+
+
+def test_cli_export_rejects_excel_without_output(capsys) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        cli_module.main(["export", "sama-pos-weekly", "--format", "excel"])
+
+    assert excinfo.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "--output is required when --format is excel" in captured.err
+
+
 def test_cli_config_redacts_http_auth_token(
     monkeypatch,
     capsys,

@@ -19,6 +19,10 @@ import {
   UnauthorizedState,
 } from "../components/StateBlocks";
 import { ar } from "../i18n/ar";
+import {
+  downloadQueryExportArtifact,
+  type ExportArtifactFormat,
+} from "../lib/exportArtifacts";
 import { formatAge, formatNumber } from "../lib/format";
 import { MOCK_DATASETS } from "../mocks/datasets";
 import { findHealthById } from "../mocks/health";
@@ -54,6 +58,7 @@ export function QueryPage({ role }: QueryPageProps) {
   const [filters, setFilters] = useState<FilterRow[]>([]);
   const [limit, setLimit] = useState<string>("100");
   const [scenario, setScenario] = useState<QueryScenarioName>("success");
+  const [exportFormat, setExportFormat] = useState<ExportArtifactFormat>("json");
   const [appliedSignal, setAppliedSignal] = useState(0);
 
   useEffect(() => {
@@ -98,15 +103,13 @@ export function QueryPage({ role }: QueryPageProps) {
   }
 
   function handleExport() {
-    const blob = new Blob([JSON.stringify(result, null, 2)], {
-      type: "application/json",
+    if (isLoading || isUnauthorized) return;
+
+    downloadQueryExportArtifact({
+      format: exportFormat,
+      result,
+      freshnessStatus: freshness?.status ?? null,
     });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${datasetId}.query_result.json`;
-    link.click();
-    URL.revokeObjectURL(url);
   }
 
   return (
@@ -205,10 +208,30 @@ export function QueryPage({ role }: QueryPageProps) {
                 <span className="num-latn">{formatNumber(result.limit)}</span>
               </span>
             )}
+            <label
+              htmlFor="query-export-format"
+              className="text-xs font-medium text-ink-700"
+            >
+              {ar.query.exportFormatLabel}
+            </label>
+            <select
+              id="query-export-format"
+              value={exportFormat}
+              disabled={isLoading || isUnauthorized}
+              onChange={(event) =>
+                setExportFormat(event.target.value as ExportArtifactFormat)
+              }
+              className="rounded-md border border-ink-300 bg-white px-2 py-1.5 text-xs text-ink-700 shadow-sm focus:border-ink-700 focus:outline-none focus:ring-1 focus:ring-ink-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <option value="json">{ar.query.exportFormats.json}</option>
+              <option value="excel">{ar.query.exportFormats.excel}</option>
+              <option value="pdf">{ar.query.exportFormats.pdf}</option>
+            </select>
             <button
               type="button"
               onClick={handleExport}
-              className="rounded-md border border-ink-300 bg-white px-3 py-1.5 font-medium text-ink-700 hover:bg-ink-100"
+              disabled={isLoading || isUnauthorized}
+              className="rounded-md border border-ink-300 bg-white px-3 py-1.5 font-medium text-ink-700 hover:bg-ink-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {ar.query.export}
             </button>

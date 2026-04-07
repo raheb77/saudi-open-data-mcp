@@ -160,18 +160,27 @@ HTTP_AUTH_TOKEN=dev-internal-token python src/saudi_open_data_mcp/cli.py run-htt
 
 The same source-tree CLI also provides a thin non-interactive local façade over
 the current core operations. These commands emit structured JSON by default and
-support `--output` for file writes. `--format` is currently limited to `json`,
-and `--quiet` only applies when `--output` is set:
+support `--output` for file writes. `--quiet` only applies when `--output` is
+set. `--format` remains `json` for the read/health/config commands, while
+`export` now also supports `excel` and `pdf` artifacts over the governed
+`query_dataset` result:
 
 ```bash
 python src/saudi_open_data_mcp/cli.py list
 python src/saudi_open_data_mcp/cli.py query sama-pos-weekly --filter week_end_date=2024-01-13 --limit 5
 python src/saudi_open_data_mcp/cli.py preview stats-gov-sa-cpi-headline-monthly
 python src/saudi_open_data_mcp/cli.py export sama-money-supply-weekly --output money_supply.json
+python src/saudi_open_data_mcp/cli.py export sama-money-supply-weekly --format excel --output money_supply.xml
+python src/saudi_open_data_mcp/cli.py export sama-money-supply-weekly --format pdf --output money_supply.pdf
 python src/saudi_open_data_mcp/cli.py health mof-budget-balance-quarterly
 python src/saudi_open_data_mcp/cli.py refresh --include-optional
 python src/saudi_open_data_mcp/cli.py config
 ```
+
+The Excel artifact is an Excel-compatible XML workbook with visible metadata and
+records worksheets. The PDF artifact is a metadata-first text PDF that keeps
+status, origin, freshness, and limitations explicit instead of adding
+decorative reporting layers.
 
 Use the source-tree CLI or the local helper scripts for development and local
 host integration. Installed module entrypoints and packaged console scripts are
