@@ -13,6 +13,24 @@ Use them alongside:
 
 - [docs/DEPLOYMENT.md](./DEPLOYMENT.md)
 - [docs/OPERATIONS.md](./OPERATIONS.md)
+- [docs/PERSISTENCE.md](./PERSISTENCE.md)
+
+## Recovery Terminology
+
+These runbooks use the current repository terms intentionally:
+
+- restore
+  - put previously backed-up `REGISTRY_PATH` and `SNAPSHOT_DIR` back into the
+    intended runtime paths
+- regenerate
+  - recreate state from current live sources or from the runtime itself
+- recover
+  - restore, regenerate, or both, depending on what was lost and what still
+    exists
+
+Use [docs/PERSISTENCE.md](./PERSISTENCE.md) as the source of truth for what is
+persistent, what is recreatable, and when restore is different from
+regeneration.
 
 ## 1. Service Not Starting
 
@@ -203,21 +221,26 @@ python src/saudi_open_data_mcp/cli.py query <dataset_id> --limit 5
 
 **Recovery steps**
 
-1. For Tier A SAMA datasets, run:
+1. If the local snapshot store still exists and you are trying to recreate fresher state, prefer regeneration first.
+2. For Tier A SAMA datasets, run:
 
 ```bash
 python src/saudi_open_data_mcp/cli.py refresh
 ```
 
-2. For other supported datasets, run `preview_dataset` through the CLI or an MCP-aware client to attempt a live fetch/write through the current preview path.
-3. Restore the snapshot directory from backup if the volume was lost.
-4. Re-run `dataset_health`, then `query_dataset` or `download_dataset`.
+3. For other supported datasets, run `preview_dataset` through the CLI or an MCP-aware client to attempt a live fetch/write through the current preview path.
+4. If the runtime volume or snapshot directory was lost and you have a backup, use restore rather than regeneration:
+   - restore `REGISTRY_PATH` and `SNAPSHOT_DIR`
+   - then restart the service
+5. Re-run `dataset_health`, then `query_dataset` or `download_dataset`.
 
 **Not yet supported / manual**
 
 - no automatic historical backfill
 - no remote query path when a snapshot is missing
 - no automatic recovery after accidental snapshot-volume deletion
+- no guarantee that regeneration from current live sources recreates the exact
+  prior snapshot set
 
 ## 6. Export Failure
 
@@ -251,11 +274,15 @@ python src/saudi_open_data_mcp/cli.py health <dataset_id>
 
 1. Fix the output path first.
 2. For Excel/PDF, make sure `--output` is present.
-3. Ensure the dataset has a local queryable snapshot before retrying export.
-4. If the dataset is missing locally, recover the snapshot first through `refresh` or `preview_dataset`, depending on the dataset path.
+3. Treat CLI export artifacts as derived outputs:
+   - regenerate them by rerunning export when the underlying query result is available
+4. Ensure the dataset has a local queryable snapshot before retrying export.
+5. If the dataset is missing locally, recover the snapshot first through `refresh` or `preview_dataset`, depending on the dataset path.
+6. If the institution needs the exact previous exported file, restore that file only if it was backed up separately; restoring `REGISTRY_PATH` and `SNAPSHOT_DIR` alone does not restore previously written export artifacts.
 
 **Not yet supported / manual**
 
 - no export-only data retrieval path
 - no `.xlsx` export in this branch
+- no managed export archive or export-retention subsystem
 - the dashboard's export actions remain prototype-local because the dashboard is still mock-driven here

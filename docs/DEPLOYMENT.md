@@ -78,6 +78,7 @@ What that means in current-state terms:
   source surfaces already implemented in the connectors
 - CLI and stdio remain valid local operator/engineer access paths alongside
   `/mcp`
+- backup, restore, and durable-volume handling remain operator responsibilities
 
 This is intentionally not positioned as:
 
@@ -104,6 +105,7 @@ The repository does not claim:
 - secret-management, HSM, or KMS integration beyond whatever the deployment
   environment provides
 - full offline operation when live source refresh is required
+- automated backup or disaster-recovery orchestration
 
 ## Local Development
 

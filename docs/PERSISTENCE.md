@@ -8,6 +8,25 @@ This document is intentionally narrow:
 - no hidden storage replication story
 - no automated backup workflow claims
 
+## Recovery Terms Used In This Repository
+
+- backup
+  - an operator-managed copy of persistent state, primarily `REGISTRY_PATH` and
+    `SNAPSHOT_DIR`
+- restore
+  - putting that previously backed-up persistent state back into the intended
+    runtime paths
+- regeneration
+  - recreating state from currently available sources or from the current
+    runtime itself rather than from a stored backup
+  - examples:
+    - rebuilding `CACHE_DIR`
+    - re-running CLI export to produce a new artifact
+    - writing a new snapshot through `refresh` or `preview_dataset`
+- recovery
+  - the broader operational goal
+  - in practice, recovery may use restore, regeneration, or both
+
 ## Persistence Map
 
 ### Persistent Runtime State
@@ -75,6 +94,28 @@ Usually safe to regenerate instead of backing up:
 - dashboard dependencies and build caches
 - process-local counters and in-memory state
 
+## When Backup Actually Matters
+
+Back up `REGISTRY_PATH` and `SNAPSHOT_DIR` when:
+
+- the runtime volume or local storage path matters beyond a single machine life
+- snapshots would be expensive or slow to recreate
+- the institution wants continuity of current local queryability
+- the deployment may be moved, replaced, or restored after accidental deletion
+
+Back up export artifacts separately only when:
+
+- the institution needs to preserve those exact generated files
+- the file itself is an institutional record, not just a reproducible view of a
+  query result
+
+Do not treat regeneration as a full substitute for backup when:
+
+- the runtime volume was lost
+- upstream sources are unavailable
+- the institution needs the exact prior local snapshot set rather than merely a
+  newly fetched one
+
 ## What Restore Means Today
 
 Restore in the current system is practical and manual:
@@ -102,6 +143,33 @@ In current-state terms, restore means:
 - if only the registry is restored, datasets may appear in metadata but still have missing local artifacts
 - if the runtime volume was lost entirely, there is no hidden server-side copy to recover from
 - if export artifacts were not backed up separately, they should be treated as operator outputs that may need to be regenerated
+
+## Responsibility Boundary
+
+What the system handles today:
+
+- deterministic startup validation
+- recreation of process-local state on process start
+- reuse of restored registry/snapshot state once those files are placed back in
+  the expected runtime paths
+- explicit health/query/preview signals that help an operator verify recovery
+
+What the operator must handle today:
+
+- choosing durable storage for `REGISTRY_PATH` and `SNAPSHOT_DIR`
+- deciding whether backups are required for the deployment
+- stopping the service or otherwise ensuring a safe copy point before backup
+- copying backup material
+- restoring files into the intended runtime paths
+- verifying post-restore queryability and freshness expectations
+- separately preserving export artifacts if exact prior files matter
+
+What remains explicitly unsupported:
+
+- automatic backup scheduling
+- orchestrated restore workflows
+- transactional backup across all runtime files
+- automatic proof that a regenerated state is equivalent to a restored one
 
 ## Explicit Limitations
 

@@ -129,7 +129,9 @@ capability bundle.
 ## Backup / Restore
 
 Use [docs/PERSISTENCE.md](./PERSISTENCE.md) for the current honest persistence
-map and the limits of backup/restore in this branch.
+map, the difference between restore and regeneration, and the limits of
+backup/restore in this branch. Use [docs/RUNBOOKS.md](./RUNBOOKS.md) when that
+storage reality becomes an operational recovery problem.
 
 Backup:
 
