@@ -18,3 +18,5 @@ wheels/
 /dashboard/dist/
 /dashboard/*.tsbuildinfo
 /dashboard/node_modules/.vite/
+
+/.claude/worktrees/

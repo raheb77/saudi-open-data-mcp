@@ -18,8 +18,25 @@ describe("buildQueryExportArtifact", () => {
     expect(artifact.mimeType).toBe("application/vnd.ms-excel");
     expect(xml).toContain("<?mso-application progid=\"Excel.Sheet\"?>");
     expect(xml).toContain("mof-budget-balance-quarterly");
+    expect(xml).toContain("Ministry of Finance (MoF) [mof]");
     expect(xml).toContain("headline_budget_balance");
     expect(xml).toContain("fresh");
+  });
+
+  it("renders cleaner XML metadata for empty filters", () => {
+    const result = buildMockQueryResult("stats-gov-sa-cpi-headline-monthly", "limited");
+    const artifact = buildQueryExportArtifact({
+      format: "excel",
+      result,
+      freshnessStatus: "stale",
+      exportedAt: "2026-04-07T08:30:00Z",
+    });
+
+    const xml = new TextDecoder().decode(artifact.bytes);
+
+    expect(xml).toContain("General Authority for Statistics (GASTAT) [stats-gov-sa]");
+    expect(xml).toContain("applied_filters_json");
+    expect(xml).toContain(">none<");
   });
 
   it("renders a metadata-first PDF artifact for degraded results", () => {

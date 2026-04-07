@@ -60,8 +60,35 @@ def test_render_query_result_excel_artifact_includes_metadata_and_records() -> N
     assert 'Worksheet ss:Name="Metadata"' in rendered
     assert 'Worksheet ss:Name="Records"' in rendered
     assert "mof-budget-balance-quarterly" in rendered
+    assert "Ministry of Finance (MoF) [mof]" in rendered
     assert "headline_budget_balance" in rendered
     assert "fresh" in rendered
+
+
+def test_render_query_result_excel_artifact_cleans_empty_filter_presentation() -> None:
+    result = DatasetQueryResult(
+        dataset_id="stats-gov-sa-cpi-headline-monthly",
+        status="limited",
+        source="stats-gov-sa",
+        data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
+        applied_filters={},
+        limit=None,
+        degradation_reason="normalization_limited",
+        limitations=(
+            "stats_gov_sa_cpi_headline_monthly_html_requires_supported_release_cards",
+        ),
+    )
+
+    artifact = render_query_result_excel_artifact(
+        result,
+        freshness_status="stale",
+        exported_at=datetime(2026, 4, 7, 8, 30, tzinfo=UTC),
+    )
+    rendered = artifact.decode("utf-8")
+
+    assert "General Authority for Statistics (GASTAT) [stats-gov-sa]" in rendered
+    assert "applied_filters_json" in rendered
+    assert ">none<" in rendered
 
 
 def test_render_query_result_pdf_artifact_keeps_degraded_status_visible() -> None:

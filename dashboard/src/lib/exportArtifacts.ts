@@ -141,7 +141,7 @@ function renderExcelWorkbook(
 function renderMetadataWorksheet(context: QueryExportContext): string {
   const rows: Array<[string, string | number | null]> = [
     ["dataset_id", context.datasetId],
-    ["source", context.source],
+    ["source", sourceDisplayLabel(context.source)],
     ["exported_at", context.exportedAt],
     ["query_status", context.queryStatus],
     ["freshness_status", context.freshnessStatus],
@@ -149,7 +149,7 @@ function renderMetadataWorksheet(context: QueryExportContext): string {
     ["matched_record_count", context.matchedRecordCount],
     ["total_records_before_filter", context.totalRecordsBeforeFilter],
     ["limit", context.limit],
-    ["applied_filters_json", context.appliedFiltersJson],
+    ["applied_filters_json", appliedFiltersDisplay(context.appliedFiltersJson)],
     ["degradation_reason", context.degradationReason],
     ["failure_stage", context.failureStage],
     ["failure_type", context.failureType],

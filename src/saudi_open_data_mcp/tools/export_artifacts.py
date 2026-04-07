@@ -136,7 +136,7 @@ def _render_metadata_worksheet(context: QueryExportContext) -> str:
 
     rows = [
         ("dataset_id", context.dataset_id),
-        ("source", context.source),
+        ("source", _source_display_label(context.source)),
         ("exported_at", context.exported_at),
         ("query_status", context.query_status),
         ("freshness_status", context.freshness_status),
@@ -144,7 +144,7 @@ def _render_metadata_worksheet(context: QueryExportContext) -> str:
         ("matched_record_count", context.matched_record_count),
         ("total_records_before_filter", context.total_records_before_filter),
         ("limit", context.limit),
-        ("applied_filters_json", context.applied_filters_json),
+        ("applied_filters_json", _applied_filters_display(context.applied_filters_json)),
         ("degradation_reason", context.degradation_reason),
         ("failure_stage", context.failure_stage),
         ("failure_type", context.failure_type),
