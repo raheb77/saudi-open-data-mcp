@@ -109,4 +109,5 @@ It does not claim full IAM, compliance controls, or public-internet maturity.
   - per-user deletion or access review workflow
 
 Use [docs/OPERATIONS.md](docs/OPERATIONS.md) for startup, shutdown, readiness,
-backup, and restore details.
+backup, and restore details, and [docs/PERSISTENCE.md](docs/PERSISTENCE.md) for
+the current honest persistence map and backup/restore limits.

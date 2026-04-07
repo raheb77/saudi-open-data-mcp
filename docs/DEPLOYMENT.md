@@ -218,6 +218,7 @@ Current export semantics:
 
 - [README.md](../README.md)
 - [docs/OPERATIONS.md](./OPERATIONS.md)
+- [docs/PERSISTENCE.md](./PERSISTENCE.md)
 - [docs/RUNBOOKS.md](./RUNBOOKS.md)
 - [docs/GOVERNANCE.md](./GOVERNANCE.md)
 - [dashboard/README.md](../dashboard/README.md)

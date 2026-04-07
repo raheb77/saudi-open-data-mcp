@@ -2,7 +2,9 @@
 
 Internal-only runtime and durability guidance for the current container-first phase.
 
-For common failure handling, see [docs/RUNBOOKS.md](./RUNBOOKS.md).
+For common failure handling, see [docs/RUNBOOKS.md](./RUNBOOKS.md). For current
+persistence, backup, and restore boundaries, see
+[docs/PERSISTENCE.md](./PERSISTENCE.md).
 
 ## Runtime Model
 
@@ -125,6 +127,9 @@ bound into the current request audit context alongside the token fingerprint and
 capability bundle.
 
 ## Backup / Restore
+
+Use [docs/PERSISTENCE.md](./PERSISTENCE.md) for the current honest persistence
+map and the limits of backup/restore in this branch.
 
 Backup:
 
