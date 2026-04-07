@@ -276,6 +276,7 @@ Current export semantics:
 ## Related Docs
 
 - [README.md](../README.md)
+- [docs/CHANGELOG.md](./CHANGELOG.md)
 - [docs/OPERATIONS.md](./OPERATIONS.md)
 - [docs/PERSISTENCE.md](./PERSISTENCE.md)
 - [docs/RUNBOOKS.md](./RUNBOOKS.md)

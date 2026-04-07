@@ -15,7 +15,7 @@ The repository also includes an Arabic RTL dashboard package under `dashboard/`.
 In the current branch that package remains an optional prototype surface, not a
 required runtime dependency for the governed backend/core.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, [docs/ADR/ADR-001-start-with-sama.md](docs/ADR/ADR-001-start-with-sama.md) for the initial source decision, [docs/GOVERNANCE.md](docs/GOVERNANCE.md) for the current core auth/audit/data-access model, [docs/OPERATIONS.md](docs/OPERATIONS.md) for runtime and durability guidance, [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the current local/container/runtime topology, [docs/RUNBOOKS.md](docs/RUNBOOKS.md) for concise failure/recovery handling, and [docs/PERSISTENCE.md](docs/PERSISTENCE.md) for current persistence and backup/restore boundaries.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, [docs/ADR/ADR-001-start-with-sama.md](docs/ADR/ADR-001-start-with-sama.md) for the initial source decision, [docs/GOVERNANCE.md](docs/GOVERNANCE.md) for the current core auth/audit/data-access model, [docs/OPERATIONS.md](docs/OPERATIONS.md) for runtime and durability guidance, [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the current local/container/runtime topology, [docs/RUNBOOKS.md](docs/RUNBOOKS.md) for concise failure/recovery handling, [docs/PERSISTENCE.md](docs/PERSISTENCE.md) for current persistence and backup/restore boundaries, and [docs/CHANGELOG.md](docs/CHANGELOG.md) for current baseline change visibility and migration notes.
 
 ## What The System Does
 
@@ -117,11 +117,11 @@ Still intentionally evolving:
 ## Start Here By Audience
 
 - Evaluator:
-  - start with this README, then [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/GOVERNANCE.md](docs/GOVERNANCE.md), and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+  - start with this README, then [docs/CHANGELOG.md](docs/CHANGELOG.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/GOVERNANCE.md](docs/GOVERNANCE.md), and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 - Operator:
-  - start with [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), [docs/OPERATIONS.md](docs/OPERATIONS.md), [docs/RUNBOOKS.md](docs/RUNBOOKS.md), and [docs/PERSISTENCE.md](docs/PERSISTENCE.md)
+  - start with [docs/CHANGELOG.md](docs/CHANGELOG.md), [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), [docs/OPERATIONS.md](docs/OPERATIONS.md), [docs/RUNBOOKS.md](docs/RUNBOOKS.md), and [docs/PERSISTENCE.md](docs/PERSISTENCE.md)
 - Engineer:
-  - start with [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/DATASETS.md](docs/DATASETS.md), [docs/GOVERNANCE.md](docs/GOVERNANCE.md), and [dashboard/README.md](dashboard/README.md) for the current UI prototype boundary
+  - start with [docs/CHANGELOG.md](docs/CHANGELOG.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/DATASETS.md](docs/DATASETS.md), [docs/GOVERNANCE.md](docs/GOVERNANCE.md), and [dashboard/README.md](dashboard/README.md) for the current UI prototype boundary
 
 ## Current Architecture
 

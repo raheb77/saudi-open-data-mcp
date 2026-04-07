@@ -11,6 +11,10 @@ This package is optional. The governed backend/core can run without the
 dashboard, and the dashboard does not currently require `/mcp` or `/readyz`
 because it is still mock-driven in this branch.
 
+The governed institutional export path today is still the CLI export surface in
+the backend/core. Any dashboard export action in this branch should be treated
+as prototype-local, not as the canonical institutional export path.
+
 ## Scope
 
 - Three pages: Home, Query, System Status
@@ -38,9 +42,11 @@ npm run build       # type-check + vite build
 - no required reverse proxy in the current branch
 - no live MCP session handling in the current branch
 - export actions are prototype-local because the page data is still mock-driven
+  and are not the governed institutional export path today
 
 For the current repository-wide deployment/runtime story, see
-[docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md).
+[docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md). For current baseline change
+visibility and migration notes, see [docs/CHANGELOG.md](../docs/CHANGELOG.md).
 
 ## Mock-to-core mapping
 
