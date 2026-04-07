@@ -52,20 +52,15 @@ type QueryState =
   | { kind: "failed"; error: DashboardApiError }
   | { kind: "ready"; result: DatasetQueryResult };
 
-export function QueryPage({ role }: QueryPageProps) {
+export function QueryPage({ role: _role }: QueryPageProps) {
   const [searchParams] = useSearchParams();
   const [catalogState, setCatalogState] = useState<CatalogState>({
     kind: "loading",
   });
   const [datasetId, setDatasetId] = useState("");
   const [filters, setFilters] = useState<FilterRow[]>([]);
-<<<<<<< HEAD
-  const [limit, setLimit] = useState<string>("100");
-  const [scenario, setScenario] = useState<QueryScenarioName>("success");
-  const [exportFormat, setExportFormat] = useState<ExportArtifactFormat>("json");
-  const [appliedSignal, setAppliedSignal] = useState(0);
-=======
   const [limit, setLimit] = useState("100");
+  const [exportFormat, setExportFormat] = useState<ExportArtifactFormat>("json");
   const [appliedFilters, setAppliedFilters] = useState<
     Record<string, QueryFilterValue>
   >({});
@@ -73,7 +68,6 @@ export function QueryPage({ role }: QueryPageProps) {
   const [queryState, setQueryState] = useState<QueryState>({ kind: "loading" });
   const [health, setHealth] = useState<DatasetHealthLookupResult | null>(null);
   const [catalogReloadToken, setCatalogReloadToken] = useState(0);
->>>>>>> feat/dashboard-codex-alt
 
   useEffect(() => {
     const controller = new AbortController();
@@ -203,25 +197,19 @@ export function QueryPage({ role }: QueryPageProps) {
     setAppliedLimit(100);
   }
 
-  function handleExport() {
-<<<<<<< HEAD
-    if (isLoading || isUnauthorized) return;
+  const freshness = health?.freshness ?? null;
 
-    downloadQueryExportArtifact({
-      format: exportFormat,
-      result,
-      freshnessStatus: freshness?.status ?? null,
-=======
+  function handleExport() {
     if (queryState.kind !== "ready") {
       return;
     }
-    const blob = new Blob([JSON.stringify(queryState.result, null, 2)], {
-      type: "application/json",
->>>>>>> feat/dashboard-codex-alt
+    downloadQueryExportArtifact({
+      format: exportFormat,
+      result: queryState.result,
+      freshnessStatus: freshness?.status ?? null,
     });
   }
 
-  const freshness = health?.freshness ?? null;
   const shouldShowStaleState =
     queryState.kind === "ready" &&
     queryState.result.status === "success" &&
@@ -299,10 +287,7 @@ export function QueryPage({ role }: QueryPageProps) {
               />
             )}
 
-            <ResultPanel
-              queryState={queryState}
-              isStale={shouldShowStaleState}
-            />
+            <ResultPanel queryState={queryState} isStale={shouldShowStaleState} />
 
             <div className="flex flex-wrap items-center gap-3 text-xs text-ink-700">
               {queryState.kind === "ready" &&
@@ -330,53 +315,26 @@ export function QueryPage({ role }: QueryPageProps) {
                     {formatNumber(queryState.result.limit)}
                   </span>
                 </span>
-<<<<<<< HEAD
-              </span>
-            )}
-            {result.status === "success" && (
-              <span>
-                {ar.query.matchedCount}:{" "}
-                <span className="num-latn">
-                  {formatNumber(result.matched_records.length)}
-                </span>
-              </span>
-            )}
-            {result.limit != null && (
-              <span>
-                {ar.query.limitApplied}:{" "}
-                <span className="num-latn">{formatNumber(result.limit)}</span>
-              </span>
-            )}
-            <label
-              htmlFor="query-export-format"
-              className="text-xs font-medium text-ink-700"
-            >
-              {ar.query.exportFormatLabel}
-            </label>
-            <select
-              id="query-export-format"
-              value={exportFormat}
-              disabled={isLoading || isUnauthorized}
-              onChange={(event) =>
-                setExportFormat(event.target.value as ExportArtifactFormat)
-              }
-              className="rounded-md border border-ink-300 bg-white px-2 py-1.5 text-xs text-ink-700 shadow-sm focus:border-ink-700 focus:outline-none focus:ring-1 focus:ring-ink-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <option value="json">{ar.query.exportFormats.json}</option>
-              <option value="excel">{ar.query.exportFormats.excel}</option>
-              <option value="pdf">{ar.query.exportFormats.pdf}</option>
-            </select>
-            <button
-              type="button"
-              onClick={handleExport}
-              disabled={isLoading || isUnauthorized}
-              className="rounded-md border border-ink-300 bg-white px-3 py-1.5 font-medium text-ink-700 hover:bg-ink-100 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {ar.query.export}
-            </button>
-            <span className="id-mono text-ink-500">role={role}</span>
-=======
               )}
+              <label
+                htmlFor="query-export-format"
+                className="text-xs font-medium text-ink-700"
+              >
+                {ar.query.exportFormatLabel}
+              </label>
+              <select
+                id="query-export-format"
+                value={exportFormat}
+                disabled={queryState.kind !== "ready"}
+                onChange={(event) =>
+                  setExportFormat(event.target.value as ExportArtifactFormat)
+                }
+                className="rounded-md border border-ink-300 bg-white px-2 py-1.5 text-xs text-ink-700 shadow-sm focus:border-ink-700 focus:outline-none focus:ring-1 focus:ring-ink-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <option value="json">{ar.query.exportFormats.json}</option>
+                <option value="excel">{ar.query.exportFormats.excel}</option>
+                <option value="pdf">{ar.query.exportFormats.pdf}</option>
+              </select>
               <button
                 type="button"
                 onClick={handleExport}
@@ -385,9 +343,7 @@ export function QueryPage({ role }: QueryPageProps) {
               >
                 {ar.query.export}
               </button>
-              {role && <span className="id-mono text-ink-500">role={role}</span>}
             </div>
->>>>>>> feat/dashboard-codex-alt
           </div>
         </section>
       )}

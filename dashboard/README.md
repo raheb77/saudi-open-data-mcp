@@ -7,12 +7,14 @@ runtime payload validation at the frontend boundary, and does not invent a
 parallel backend.
 
 This package is optional. The governed backend/core can run without the
-dashboard, and the dashboard does not currently require `/mcp` or `/readyz`
-because it is still mock-driven in this branch.
+dashboard. The dashboard is a separate frontend package that consumes the live
+backend surfaces when they are available, but it is not required for running
+the governed Python core.
 
 The governed institutional export path today is still the CLI export surface in
-the backend/core. Any dashboard export action in this branch should be treated
-as prototype-local, not as the canonical institutional export path.
+the backend/core. Dashboard export actions use the same live query-result
+semantics for local UI convenience, but the CLI remains the canonical
+institutional export path.
 
 ## Scope
 
@@ -36,26 +38,9 @@ npm run test        # vitest run
 npm run build       # type-check + vite build
 ```
 
-<<<<<<< HEAD
-## Runtime Expectations
-
-- local dashboard dev server: `127.0.0.1:5173`
-- separate package from the Python backend
-- no required reverse proxy in the current branch
-- no live MCP session handling in the current branch
-- export actions are prototype-local because the page data is still mock-driven
-  and are not the governed institutional export path today
-
-For the current repository-wide deployment/runtime story, see
-[docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md). For current baseline change
-visibility and migration notes, see [docs/CHANGELOG.md](../docs/CHANGELOG.md).
-
-## Mock-to-core mapping
-=======
 For local live development against `run-http`, you can optionally proxy the
 backend through Vite so the browser stays same-origin and bearer tokens remain
 server-side:
->>>>>>> feat/dashboard-codex-alt
 
 ```bash
 cd dashboard
@@ -63,6 +48,18 @@ DASHBOARD_PROXY_TARGET=http://127.0.0.1:8000 \
 DASHBOARD_PROXY_BEARER_TOKEN=your-token-here \
 npm run dev
 ```
+
+## Runtime Expectations
+
+- local dashboard dev server: `127.0.0.1:5173`
+- separate package from the Python backend
+- same-origin `/mcp` and `/readyz` are expected in production-style deployment
+- local development can use the optional Vite proxy shown above
+- no dashboard-owned backend logic or parallel API layer
+
+For the current repository-wide deployment/runtime story, see
+[docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md). For current baseline change
+visibility and migration notes, see [docs/CHANGELOG.md](../docs/CHANGELOG.md).
 
 ## Live surface mapping
 
@@ -75,5 +72,5 @@ npm run dev
 | `getObservability()`             | `resource://observability`      |
 | `getReadiness()`                 | `/readyz`                       |
 
-The remaining mock modules are now test/prototype fixtures only. The pages no
-longer read them directly.
+The remaining mock modules are now test fixtures only. The pages no longer read
+them directly.

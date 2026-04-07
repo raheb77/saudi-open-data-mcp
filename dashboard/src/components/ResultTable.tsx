@@ -1,10 +1,6 @@
 import { ar } from "../i18n/ar";
 import { FIELD_LABELS } from "../lib/fieldLabels";
 import { formatCellValue } from "../lib/format";
-<<<<<<< HEAD
-import { FIELD_LABELS } from "../lib/fieldLabels";
-=======
->>>>>>> feat/dashboard-codex-alt
 import type { CanonicalRecord } from "../types/core";
 
 interface ResultTableProps {
