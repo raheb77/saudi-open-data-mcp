@@ -15,8 +15,10 @@ wheels/
 
 # frontend
 /dashboard/node_modules/
+/dashboard/node_modules/.vite/
 /dashboard/dist/
 /dashboard/.vite/
 /dashboard/*.tsbuildinfo
+/dashboard/.tsbuildinfo-node/
 
 /.claude/worktrees/
