@@ -26,9 +26,9 @@ export function DatasetCard({ catalog, preview, health }: DatasetCardProps) {
         </span>
       </header>
 
-      <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+      <dl className="grid grid-cols-1 gap-3 text-sm">
         <Row label={ar.home.cardLabels.source}>
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-2">
             <span>{SOURCE_LABELS[catalog.source] ?? catalog.source}</span>
             <span className="id-mono text-[0.75rem] text-ink-500">
               {catalog.source}
@@ -92,9 +92,9 @@ function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 flex-col gap-1">
       <dt className="text-xs font-medium text-ink-500">{label}</dt>
-      <dd>{children}</dd>
+      <dd className="min-w-0 text-ink-900">{children}</dd>
     </div>
   );
 }

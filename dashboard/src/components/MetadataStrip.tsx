@@ -65,6 +65,9 @@ const DEGRADATION_LABEL: Record<ResultDegradationReason, string> = {
 
 export function MetadataStrip(props: MetadataStripProps) {
   const isFlat = props.variant === "flat";
+  const gridClass = isFlat
+    ? "mt-1 grid grid-cols-1 gap-x-6 gap-y-3 text-sm"
+    : "mt-2 grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3";
   return (
     <div
       data-testid="metadata-strip"
@@ -75,18 +78,14 @@ export function MetadataStrip(props: MetadataStripProps) {
       }
     >
       <h3 className="text-xs font-semibold text-ink-500">{ar.meta.title}</h3>
-      <dl
-        className={`grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3 ${
-          isFlat ? "mt-1" : "mt-2"
-        }`}
-      >
+      <dl className={gridClass}>
         <Row label={ar.meta.datasetId}>
           <span className="id-mono">{props.dataset_id}</span>
         </Row>
 
         <Row label={ar.meta.source}>
           {props.source ? (
-            <span className="flex items-center gap-2">
+            <span className="flex flex-wrap items-center gap-2">
               <span>{SOURCE_LABELS[props.source] ?? props.source}</span>
               <span className="id-mono">{props.source}</span>
             </span>
@@ -118,7 +117,7 @@ export function MetadataStrip(props: MetadataStripProps) {
             <span className="text-amber-800">
               {DEGRADATION_LABEL[props.degradation_reason]}
             </span>
-            <span className="id-mono ms-2">{props.degradation_reason}</span>
+            <span className="id-mono">{props.degradation_reason}</span>
           </Row>
         )}
 
@@ -158,9 +157,11 @@ function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex min-w-0 flex-col gap-1">
       <dt className="text-xs font-medium text-ink-500">{label}</dt>
-      <dd className="text-ink-900">{children}</dd>
+      <dd className="flex min-w-0 flex-wrap items-center gap-2 text-ink-900">
+        {children}
+      </dd>
     </div>
   );
 }
