@@ -23,5 +23,10 @@ describe("ErrorBoundary", () => {
 
     expect(screen.getByTestId("error-boundary-fallback")).toBeInTheDocument();
     expect(screen.getByText("تعذّر عرض الصفحة")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "حدث خطأ غير متوقع أثناء بناء هذا العرض. بقيت الواجهة في وضع آمن بدل شاشة فارغة.",
+      ),
+    ).toBeInTheDocument();
   });
 });
