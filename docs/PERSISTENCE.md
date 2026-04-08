@@ -73,8 +73,8 @@ These reset on process restart and are not restored from disk:
   - not governed backend state
   - regeneratable
 - dashboard runtime state in this branch
-  - there is no live dashboard data store to back up
-  - the dashboard remains a mock-driven prototype in this branch
+  - there is still no separate dashboard-owned live data store to back up
+  - the dashboard consumes live backend surfaces, but its browser/session state is not a governed persistence boundary
 
 ## What To Back Up
 

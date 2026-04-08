@@ -123,32 +123,37 @@ docker compose logs app
 **Symptom**
 
 - an operator expects the dashboard to reflect live backend data
-- the dashboard does not react to backend changes
-- browser network tools show no `/mcp` or `/readyz` traffic
+- the dashboard shows loading, unauthorized, or error states instead of live data
+- browser network tools show failed `/mcp` or `/readyz` requests
 
 **Likely causes**
 
-- the current dashboard package is still mock-driven by design in this branch
-- the operator expected a live-integrated dashboard that does not exist here
-- a local experimental branch or proxy setup is being confused with the supported branch
+- the backend is not running or `/readyz` is not actually ready
+- the dashboard is not reaching the intended backend origin or local proxy target
+- the bearer token or proxy token forwarding is missing or wrong
+- the configured HTTP role/capability bundle does not allow the requested MCP operations
+- the live dashboard received a malformed or unexpected payload and failed validation
 
 **Quick checks**
 
 - read [dashboard/README.md](../dashboard/README.md)
-- confirm the current dashboard pages still use `src/mocks/*`
-- confirm the browser network panel shows no live MCP or readiness calls
+- confirm the browser network panel shows `/mcp` and `/readyz` requests
+- confirm the backend is running and `/readyz` responds successfully
+- if using local frontend development, confirm any optional Vite proxy target and bearer token are configured correctly
 
 **Recovery steps**
 
-1. Treat the dashboard as a UI prototype only in this branch.
-2. Use the governed backend through the CLI or an MCP-aware client for live operations.
-3. If you are testing a local experimental dashboard integration, handle that outside the supported runbook path for this branch.
+1. Verify the backend starts cleanly and `/readyz` is ready.
+2. Verify the dashboard is pointed at the correct same-origin backend or optional local proxy target.
+3. Correct the bearer token or proxy token forwarding if MCP requests return `401` or `403`.
+4. If the HTTP role is too narrow, correct the configured role/capability bundle and retry.
+5. If the dashboard is failing on payload validation, treat it as a cross-surface integration issue and inspect the failing `/mcp` or `/readyz` response directly while the CLI remains the fallback governed access path.
 
 **Not yet supported / manual**
 
-- no supported dashboard live-data integration in this branch
-- no supported dashboard auth flow for `/mcp`
-- no required dashboard/backend reverse-proxy topology
+- no dashboard-owned backend or fallback API
+- no browser-friendly REST fallback for `/mcp`
+- no repo-provided production reverse-proxy topology beyond the optional local Vite proxy path
 
 ## 4. Source Fetch Failure
 
@@ -285,4 +290,4 @@ python src/saudi_open_data_mcp/cli.py health <dataset_id>
 - no export-only data retrieval path
 - no `.xlsx` export in this branch
 - no managed export archive or export-retention subsystem
-- the dashboard's export actions remain prototype-local because the dashboard is still mock-driven here
+- dashboard export actions remain UI convenience over live query-result semantics; the CLI remains the canonical governed institutional export path

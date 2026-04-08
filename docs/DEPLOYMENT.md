@@ -19,16 +19,16 @@ Current runtime surfaces:
   - readiness probe at `/readyz`
 - dashboard:
   - separate Vite/React frontend package under `dashboard/`
-  - prototype-only today
-  - uses mock payloads shaped like current core responses
-  - does not call `/mcp` or `/readyz` in the current branch
+  - optional live consumer of `/mcp` and `/readyz`
+  - uses the current MCP/resource/readiness surfaces directly
+  - does not add a separate backend or parallel domain API
 
 Concise topology:
 
 ```text
-dashboard/ (optional prototype, mock-driven today)
+dashboard/ (optional live frontend)
         |
-        |  no live dependency in the current branch
+        |  live reads over `/mcp` and `/readyz`
         v
 Python MCP core
   - CLI
@@ -56,8 +56,8 @@ Optional:
 Important current-state note:
 
 - the backend/core is the real governed system
-- the dashboard is still an optional Arabic RTL prototype package in this branch
-- the dashboard's export actions are prototype-local because the dashboard is still mock-driven here
+- the dashboard is an optional Arabic RTL live consumer of the core in this branch
+- the dashboard does not add a separate backend or separate business semantics
 - the CLI export path is the governed institutional export path today
 
 ## Supported Deployment Posture Today
@@ -147,8 +147,8 @@ Current dashboard reality:
 
 - serves on `127.0.0.1:5173` by default
 - Arabic-only and RTL
-- mock-driven in the current branch
-- useful for UI iteration and evaluator review
+- thin live integration over `/mcp` and `/readyz`
+- useful for UI evaluation and live-core review
 - not required to run the governed backend/core
 
 ## Containerized Run Path
@@ -234,7 +234,7 @@ For an evaluator or institutional operator, the short current-state reading is:
 - the backend/core is the deployable system
 - the CLI is a thin local/operator façade over that same system
 - exports are governed outputs of current query results
-- the dashboard remains optional and prototype-only in this branch
+- the dashboard is optional, live-integrated, and still subordinate to the governed core
 - governance/security boundaries are real but intentionally narrow
 - deployment expectations are clear, but broad enterprise platform claims are
   intentionally out of scope
@@ -244,9 +244,9 @@ For an evaluator or institutional operator, the short current-state reading is:
 Current expectations are intentionally simple:
 
 - the backend/core can run alone
-- the dashboard can run alone as a prototype
+- the dashboard can also run separately as a frontend package when the backend is available
 - there is no required full-stack orchestration layer in this branch
-- there is no required reverse proxy between dashboard and backend today
+- there is no required repo-provided reverse proxy, though local development may use the optional Vite proxy documented in `dashboard/README.md`
 
 If an evaluator wants to review the full repository:
 

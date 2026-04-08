@@ -12,8 +12,9 @@ The project is not just an MCP wrapper around upstream websites. Its value is in
 Current implementation now includes curated official-source coverage across SAMA, `stats.gov.sa`, Ministry of Finance, and one narrow `data.gov.sa` pilot dataset. The current baseline is an internal, container-first MCP service with stdio still available for local development and command-based host integration.
 
 The repository also includes an Arabic RTL dashboard package under `dashboard/`.
-In the current branch that package remains an optional prototype surface, not a
-required runtime dependency for the governed backend/core.
+That package remains optional, but on `main` it is now a thin live consumer of
+the governed backend over `/mcp` and `/readyz`, not a separate backend or
+required runtime dependency for the core.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, [docs/ADR/ADR-001-start-with-sama.md](docs/ADR/ADR-001-start-with-sama.md) for the initial source decision, [docs/GOVERNANCE.md](docs/GOVERNANCE.md) for the current core auth/audit/data-access model, [docs/OPERATIONS.md](docs/OPERATIONS.md) for runtime and durability guidance, [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the current local/container/runtime topology, [docs/RUNBOOKS.md](docs/RUNBOOKS.md) for concise failure/recovery handling, [docs/PERSISTENCE.md](docs/PERSISTENCE.md) for current persistence and backup/restore boundaries, and [docs/CHANGELOG.md](docs/CHANGELOG.md) for current baseline change visibility and migration notes.
 
@@ -33,7 +34,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, [docs/ADR
 - it does not add LLM rewriting, semantic search, or AI-generated narrative reporting in the core path
 - it does not make `query_dataset` a live remote query surface
 - it does not claim full public-internet deployment maturity or disaster-recovery automation
-- in this branch, the dashboard is not a live-integrated production surface; it remains an optional mock-driven prototype
+- the dashboard is not a separate backend, control plane, or canonical institutional export path
 
 ## Why It Is Trustworthy
 
@@ -50,7 +51,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, [docs/ADR
 | --- | --- | --- |
 | Backend/core | Governed MCP service over `/mcp` with `/readyz` | primary runtime |
 | CLI | Thin operator/engineer façade over the same core | supported |
-| Dashboard | Arabic RTL UI package under `dashboard/` | optional prototype, mock-driven in this branch |
+| Dashboard | Arabic RTL UI package under `dashboard/` | optional live consumer of `/mcp` and `/readyz` |
 | Exports | Institutional artifacts over governed query results | CLI-governed path today |
 
 ## Deployment Fit Today
@@ -112,7 +113,7 @@ Still intentionally evolving:
 - breadth of source and dataset coverage
 - richness of normalization for HTML/PDF-oriented sources
 - automation depth around operations, backup, and restore
-- dashboard integration depth, because the dashboard remains a mock-driven prototype in this branch
+- dashboard operational resilience and cross-surface coherence as a live consumer of the governed core
 
 ## Start Here By Audience
 
@@ -121,7 +122,7 @@ Still intentionally evolving:
 - Operator:
   - start with [docs/CHANGELOG.md](docs/CHANGELOG.md), [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), [docs/OPERATIONS.md](docs/OPERATIONS.md), [docs/RUNBOOKS.md](docs/RUNBOOKS.md), and [docs/PERSISTENCE.md](docs/PERSISTENCE.md)
 - Engineer:
-  - start with [docs/CHANGELOG.md](docs/CHANGELOG.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/DATASETS.md](docs/DATASETS.md), [docs/GOVERNANCE.md](docs/GOVERNANCE.md), and [dashboard/README.md](dashboard/README.md) for the current UI prototype boundary
+  - start with [docs/CHANGELOG.md](docs/CHANGELOG.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/DATASETS.md](docs/DATASETS.md), [docs/GOVERNANCE.md](docs/GOVERNANCE.md), and [dashboard/README.md](dashboard/README.md) for the current UI/live-integration boundary
 
 ## Current Architecture
 
