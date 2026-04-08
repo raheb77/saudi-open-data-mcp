@@ -72,6 +72,8 @@ def test_cli_run_http_dispatches_to_server(monkeypatch) -> None:
     assert exit_code == 0
     assert len(calls) == 1
     assert calls[0]["transport"] == "streamable-http"
+    assert calls[0]["json_response"] is True
+    assert calls[0]["stateless_http"] is False
     assert calls[0]["host"] == "127.0.0.1"
     assert calls[0]["port"] == 8081
     assert calls[0]["log_level"] == "DEBUG"
@@ -108,6 +110,8 @@ def test_cli_run_http_uses_loopback_default_host(monkeypatch) -> None:
     assert exit_code == 0
     assert len(calls) == 1
     assert calls[0]["transport"] == "streamable-http"
+    assert calls[0]["json_response"] is True
+    assert calls[0]["stateless_http"] is False
     assert calls[0]["host"] == "127.0.0.1"
     assert calls[0]["port"] == 8000
     assert calls[0]["log_level"] == "INFO"

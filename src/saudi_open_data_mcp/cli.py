@@ -220,6 +220,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         asyncio.run(
             app.run_http_async(
                 transport="streamable-http",
+                # Keep the MCP session stateful, but emit finite JSON responses for
+                # POST requests so browser/dashboard clients receive a usable
+                # initialize/tools/resources result without waiting on an SSE body
+                # to terminate.
+                json_response=True,
+                stateless_http=False,
                 host=host,
                 port=port,
                 log_level=log_level,
