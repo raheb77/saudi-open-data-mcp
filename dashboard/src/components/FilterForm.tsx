@@ -2,8 +2,20 @@ import { ar } from "../i18n/ar";
 import type { QueryFilterValue } from "../types/core";
 
 export interface FilterRow {
+  id?: string;
   key: string;
   value: string;
+}
+
+let filterRowSequence = 0;
+
+export function createFilterRow(): FilterRow {
+  filterRowSequence += 1;
+  return {
+    id: `filter-row-${filterRowSequence}`,
+    key: "",
+    value: "",
+  };
 }
 
 interface FilterFormProps {
@@ -23,17 +35,21 @@ export function FilterForm({
   onApply,
   onReset,
 }: FilterFormProps) {
-  function update(index: number, patch: Partial<FilterRow>) {
-    const next = filters.map((row, i) => (i === index ? { ...row, ...patch } : row));
+  function update(targetId: string, patch: Partial<FilterRow>) {
+    const next = filters.map((row, index) =>
+      filterRowIdentity(row, index) === targetId ? { ...row, ...patch } : row,
+    );
     onFiltersChange(next);
   }
 
-  function remove(index: number) {
-    onFiltersChange(filters.filter((_, i) => i !== index));
+  function remove(targetId: string) {
+    onFiltersChange(
+      filters.filter((row, index) => filterRowIdentity(row, index) !== targetId),
+    );
   }
 
   function add() {
-    onFiltersChange([...filters, { key: "", value: "" }]);
+    onFiltersChange([...filters, createFilterRow()]);
   }
 
   return (
@@ -52,34 +68,37 @@ export function FilterForm({
         {filters.length === 0 && (
           <p className="text-xs text-ink-500">—</p>
         )}
-        {filters.map((row, index) => (
-          <div key={index} className="flex flex-wrap items-center gap-2">
-            <input
-              aria-label={ar.query.keyPlaceholder}
-              dir="ltr"
-              placeholder={ar.query.keyPlaceholder}
-              value={row.key}
-              onChange={(event) => update(index, { key: event.target.value })}
-              className="id-mono w-44 rounded-md border border-ink-300 px-2 py-1 text-sm"
-            />
-            <span className="text-ink-500">=</span>
-            <input
-              aria-label={ar.query.valuePlaceholder}
-              dir="ltr"
-              placeholder={ar.query.valuePlaceholder}
-              value={row.value}
-              onChange={(event) => update(index, { value: event.target.value })}
-              className="id-mono w-56 rounded-md border border-ink-300 px-2 py-1 text-sm"
-            />
-            <button
-              type="button"
-              onClick={() => remove(index)}
-              className="text-xs text-rose-700 hover:underline"
-            >
-              {ar.query.removeFilter}
-            </button>
-          </div>
-        ))}
+        {filters.map((row, index) => {
+          const rowId = filterRowIdentity(row, index);
+          return (
+            <div key={rowId} className="flex flex-wrap items-center gap-2">
+              <input
+                aria-label={ar.query.keyPlaceholder}
+                dir="ltr"
+                placeholder={ar.query.keyPlaceholder}
+                value={row.key}
+                onChange={(event) => update(rowId, { key: event.target.value })}
+                className="id-mono w-44 rounded-md border border-ink-300 px-2 py-1 text-sm"
+              />
+              <span className="text-ink-500">=</span>
+              <input
+                aria-label={ar.query.valuePlaceholder}
+                dir="ltr"
+                placeholder={ar.query.valuePlaceholder}
+                value={row.value}
+                onChange={(event) => update(rowId, { value: event.target.value })}
+                className="id-mono w-56 rounded-md border border-ink-300 px-2 py-1 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => remove(rowId)}
+                className="text-xs text-rose-700 hover:underline"
+              >
+                {ar.query.removeFilter}
+              </button>
+            </div>
+          );
+        })}
         <button
           type="button"
           onClick={add}
@@ -152,4 +171,8 @@ export function filterRowsToFilters(
     result[key] = raw;
   }
   return result;
+}
+
+function filterRowIdentity(row: FilterRow, index: number): string {
+  return row.id ?? `legacy-filter-row-${index}`;
 }

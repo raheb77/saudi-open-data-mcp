@@ -4,6 +4,11 @@ import type {
   SnapshotFreshnessStatus,
 } from "../types/core";
 
+// Client-side artifact builder for dashboard convenience only.
+// The backend/CLI remains the canonical institutional export surface.
+// This module mirrors the current governed query-result semantics without
+// inventing extra fields or alternate meanings.
+
 export type ExportArtifactFormat = "json" | "excel" | "pdf";
 
 interface BuildQueryExportArtifactArgs {
@@ -94,14 +99,14 @@ function buildQueryExportContext(
   return {
     datasetId: result.dataset_id,
     source: result.source,
-    exportedAt: exportedAt ?? new Date().toISOString(),
+    exportedAt: canonicalizeIsoTimestamp(exportedAt ?? new Date().toISOString()),
     queryStatus: result.status,
     freshnessStatus,
     dataOrigin: result.data_origin,
     matchedRecordCount: result.matched_records.length,
     totalRecordsBeforeFilter: result.total_records_before_filter,
     limit: result.limit,
-    appliedFiltersJson: JSON.stringify(result.applied_filters),
+    appliedFiltersJson: canonicalizeAppliedFiltersJson(result.applied_filters),
     degradationReason: result.degradation_reason,
     failureStage: result.failure_stage,
     failureType: result.failure?.error_type ?? null,
@@ -430,6 +435,15 @@ function appliedFiltersDisplay(appliedFiltersJson: string): string {
   return appliedFiltersJson;
 }
 
+function canonicalizeAppliedFiltersJson(
+  filters: DatasetQueryResult["applied_filters"],
+): string {
+  const orderedEntries = Object.entries(filters).sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  return JSON.stringify(Object.fromEntries(orderedEntries));
+}
+
 function sourceDisplayLabel(source: string | null): string {
   if (source === "sama") return "Saudi Central Bank (SAMA) [sama]";
   if (source === "stats-gov-sa") {
@@ -486,4 +500,12 @@ function escapePdfText(value: string): string {
 
 function filenameTimestamp(isoTimestamp: string): string {
   return isoTimestamp.replace(/[:.-]/g, "").replace("+0000", "Z").replace("+00:00", "Z");
+}
+
+function canonicalizeIsoTimestamp(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toISOString().replace(/\.\d{3}Z$/, "Z");
 }

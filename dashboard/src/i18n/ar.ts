@@ -63,17 +63,6 @@ export const ar = {
       excel: "Excel",
       pdf: "PDF",
     },
-    scenarioLabel: "سيناريو محاكاة",
-    scenarios: {
-      success: "نجاح",
-      limited: "محدود",
-      stale: "لقطة قديمة",
-      failed: "فشل",
-      missing: "مجموعة غير موجودة",
-      snapshotMissing: "لا توجد لقطة محلية",
-      unauthorized: "غير مخوّل",
-      loading: "تحميل",
-    },
     table: {
       empty: "لا توجد سجلات مطابقة",
       recordIndex: "#",

@@ -11,7 +11,7 @@ export function App() {
       <Routes>
         <Route element={<AppShell role={null} />}>
           <Route index element={<HomePage />} />
-          <Route path="/query" element={<QueryPage role={null} />} />
+          <Route path="/query" element={<QueryPage />} />
           <Route path="/status" element={<SystemStatusPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

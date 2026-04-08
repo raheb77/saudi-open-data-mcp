@@ -112,7 +112,7 @@ function renderQueryPage(initialEntry = "/query") {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
-        <Route path="/query" element={<QueryPage role={null} />} />
+        <Route path="/query" element={<QueryPage />} />
       </Routes>
     </MemoryRouter>,
   );

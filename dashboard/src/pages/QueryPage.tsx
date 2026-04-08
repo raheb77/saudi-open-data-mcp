@@ -31,16 +31,11 @@ import {
 } from "../lib/liveData";
 import { DashboardApiError, asDashboardApiError } from "../lib/mcpClient";
 import type {
-  DashboardRole,
   DatasetCatalogEntry,
   DatasetHealthLookupResult,
   DatasetQueryResult,
   QueryFilterValue,
 } from "../types/core";
-
-interface QueryPageProps {
-  role: DashboardRole | null;
-}
 
 type CatalogState =
   | { kind: "loading" }
@@ -52,7 +47,7 @@ type QueryState =
   | { kind: "failed"; error: DashboardApiError }
   | { kind: "ready"; result: DatasetQueryResult };
 
-export function QueryPage({ role: _role }: QueryPageProps) {
+export function QueryPage() {
   const [searchParams] = useSearchParams();
   const [catalogState, setCatalogState] = useState<CatalogState>({
     kind: "loading",

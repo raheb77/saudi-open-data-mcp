@@ -27,6 +27,27 @@ describe("runtimeValidation", () => {
     expect(result.status).toBe("success");
   });
 
+  it("rejects a query result payload whose applied filters are not scalar values", () => {
+    expect(() =>
+      parseDatasetQueryResult({
+        dataset_id: "sama-pos-weekly",
+        status: "success",
+        source: "sama",
+        data_origin: "local_snapshot",
+        applied_filters: {
+          observation_quarter: { from: "2025-Q1" },
+        },
+        limit: 10,
+        total_records_before_filter: 1,
+        failure_stage: null,
+        degradation_reason: null,
+        matched_records: [],
+        limitations: [],
+        failure: null,
+      }),
+    ).toThrow(/Invalid DatasetQueryResult\.applied_filters\.observation_quarter payload/);
+  });
+
   it("rejects an invalid preview payload", () => {
     expect(() =>
       parseDatasetPreviewResult({

@@ -13,6 +13,7 @@ import type {
   PreviewResolutionOutcome,
   PreviewStatus,
   QueryFailureStage,
+  QueryFilterValue,
   ReadinessReport,
   ResultDataOrigin,
   ResultDegradationReason,
@@ -83,6 +84,21 @@ function expectStringArray(value: unknown, context: string): string[] {
   return value;
 }
 
+function expectQueryFilterValue(
+  value: unknown,
+  context: string,
+): QueryFilterValue {
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    value === null
+  ) {
+    return value;
+  }
+  fail(context, "expected scalar query filter value");
+}
+
 function expectOneOf<T extends string>(
   value: unknown,
   allowed: readonly T[],
@@ -130,9 +146,15 @@ function parseCanonicalRecord(value: unknown): CanonicalRecord {
 
 export function parseDatasetQueryResult(value: unknown): DatasetQueryResult {
   const result = expectRecord(value, "DatasetQueryResult");
-  const appliedFilters = expectRecord(
+  const appliedFiltersRecord = expectRecord(
     result.applied_filters,
     "DatasetQueryResult.applied_filters",
+  );
+  const appliedFilters = Object.fromEntries(
+    Object.entries(appliedFiltersRecord).map(([key, entry]) => [
+      key,
+      expectQueryFilterValue(entry, `DatasetQueryResult.applied_filters.${key}`),
+    ]),
   );
   const matchedRecords = result.matched_records;
   if (!Array.isArray(matchedRecords)) {
@@ -156,7 +178,7 @@ export function parseDatasetQueryResult(value: unknown): DatasetQueryResult {
       ["local_snapshot", "live_refresh", "stale_snapshot"] as const,
       "DatasetQueryResult.data_origin",
     ),
-    applied_filters: appliedFilters as DatasetQueryResult["applied_filters"],
+    applied_filters: appliedFilters,
     limit: expectNullableNumber(result.limit, "DatasetQueryResult.limit"),
     total_records_before_filter: expectNullableNumber(
       result.total_records_before_filter,

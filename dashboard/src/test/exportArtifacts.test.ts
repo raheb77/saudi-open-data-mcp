@@ -39,6 +39,27 @@ describe("buildQueryExportArtifact", () => {
     expect(xml).toContain(">none<");
   });
 
+  it("keeps frontend convenience exports aligned to canonical filter ordering and UTC timestamps", () => {
+    const result = {
+      ...buildMockQueryResult("mof-budget-balance-quarterly", "success"),
+      applied_filters: {
+        z_last: "tail",
+        a_first: 1,
+      },
+    };
+    const artifact = buildQueryExportArtifact({
+      format: "pdf",
+      result,
+      freshnessStatus: "fresh",
+      exportedAt: "2026-04-07T08:30:00.123Z",
+    });
+
+    const pdf = new TextDecoder().decode(artifact.bytes);
+
+    expect(pdf).toContain('Applied Filters: {"a_first":1,"z_last":"tail"}');
+    expect(pdf).toContain("Exported At \\(UTC\\): 2026-04-07T08:30:00Z");
+  });
+
   it("renders a metadata-first PDF artifact for degraded results", () => {
     const result = buildMockQueryResult("stats-gov-sa-cpi-headline-monthly", "limited");
     const artifact = buildQueryExportArtifact({
