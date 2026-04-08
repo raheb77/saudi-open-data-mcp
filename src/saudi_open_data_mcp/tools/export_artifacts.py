@@ -6,6 +6,8 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 from saudi_open_data_mcp.tools.query import DatasetQueryResult
@@ -38,6 +40,14 @@ class QueryExportContext:
     failure_type: str | None
     failure_message: str | None
     notes: tuple[str, ...]
+
+
+@lru_cache(maxsize=1)
+def _load_export_semantics() -> dict[str, Any]:
+    """Load the canonical governed export semantics shared across surfaces."""
+
+    semantics_path = Path(__file__).with_name("export_semantics.json")
+    return json.loads(semantics_path.read_text(encoding="utf-8"))
 
 
 def render_query_result_excel_artifact(
@@ -135,20 +145,8 @@ def _render_metadata_worksheet(context: QueryExportContext) -> str:
     """Render the workbook metadata worksheet."""
 
     rows = [
-        ("dataset_id", context.dataset_id),
-        ("source", _source_display_label(context.source)),
-        ("exported_at", context.exported_at),
-        ("query_status", context.query_status),
-        ("freshness_status", context.freshness_status),
-        ("data_origin", context.data_origin),
-        ("matched_record_count", context.matched_record_count),
-        ("total_records_before_filter", context.total_records_before_filter),
-        ("limit", context.limit),
-        ("applied_filters_json", _applied_filters_display(context.applied_filters_json)),
-        ("degradation_reason", context.degradation_reason),
-        ("failure_stage", context.failure_stage),
-        ("failure_type", context.failure_type),
-        ("failure_message", context.failure_message),
+        (field_name, _metadata_field_value(context, field_name))
+        for field_name in _load_export_semantics()["metadata_field_order"]
     ]
     return _render_worksheet(
         "Metadata",
@@ -236,49 +234,63 @@ def _build_pdf_lines(
 ) -> list[str]:
     """Build line-oriented PDF content for one governed query result."""
 
+    semantics = _load_export_semantics()
+    pdf = semantics["pdf"]
     lines = [
-        "Saudi Open Data MCP Query Export",
+        pdf["document_title"],
         "=" * 32,
         "",
-        "Dataset & Source",
-        f"Dataset ID: {context.dataset_id}",
-        f"Source: {_source_display_label(context.source)}",
+        pdf["dataset_source_section"],
+        f'{pdf["labels"]["dataset_id"]}: {context.dataset_id}',
+        f'{pdf["labels"]["source"]}: {_source_display_label(context.source)}',
         "",
-        "Result Context",
-        f"Exported At (UTC): {context.exported_at}",
-        f"Result Status: {context.query_status}",
-        f"Freshness Status: {_display_value(context.freshness_status)}",
-        f"Data Origin: {_display_value(context.data_origin)}",
-        f"Matched Records: {context.matched_record_count}",
-        f"Total Before Filter: {_display_value(context.total_records_before_filter)}",
-        f"Limit: {_display_value(context.limit)}",
-        f"Applied Filters: {_applied_filters_display(context.applied_filters_json)}",
+        pdf["result_context_section"],
+        f'{pdf["labels"]["exported_at"]}: {context.exported_at}',
+        f'{pdf["labels"]["query_status"]}: {context.query_status}',
+        f'{pdf["labels"]["freshness_status"]}: {_display_value(context.freshness_status)}',
+        f'{pdf["labels"]["data_origin"]}: {_display_value(context.data_origin)}',
+        f'{pdf["labels"]["matched_record_count"]}: {context.matched_record_count}',
+        (
+            f'{pdf["labels"]["total_records_before_filter"]}: '
+            f'{_display_value(context.total_records_before_filter)}'
+        ),
+        f'{pdf["labels"]["limit"]}: {_display_value(context.limit)}',
+        (
+            f'{pdf["labels"]["applied_filters_json"]}: '
+            f'{_applied_filters_display(context.applied_filters_json)}'
+        ),
     ]
 
     if context.degradation_reason is not None:
-        lines.extend(["", "Degraded Context", f"Degradation Reason: {context.degradation_reason}"])
+        lines.extend(
+            [
+                "",
+                pdf["degraded_context_section"],
+                f'{pdf["labels"]["degradation_reason"]}: {context.degradation_reason}',
+            ]
+        )
 
     if any(
         item is not None
         for item in (context.failure_stage, context.failure_type, context.failure_message)
     ):
         lines.append("")
-        lines.append("Failure Details")
+        lines.append(pdf["failure_details_section"])
         if context.failure_stage is not None:
-            lines.append(f"Failure Stage: {context.failure_stage}")
+            lines.append(f'{pdf["labels"]["failure_stage"]}: {context.failure_stage}')
         if context.failure_type is not None:
-            lines.append(f"Failure Type: {context.failure_type}")
+            lines.append(f'{pdf["labels"]["failure_type"]}: {context.failure_type}')
         if context.failure_message is not None:
-            lines.append(f"Failure Message: {context.failure_message}")
+            lines.append(f'{pdf["labels"]["failure_message"]}: {context.failure_message}')
 
     if context.notes:
-        lines.extend(["", "Notes / Limitations"])
+        lines.extend(["", pdf["notes_section"]])
         lines.extend(f"- {note}" for note in context.notes)
 
     if result.matched_records:
         columns = _collect_record_columns(result)
         total_records = len(result.matched_records)
-        lines.extend(["", f"Records ({total_records})"])
+        lines.extend(["", f'{pdf["records_label"]} ({total_records})'])
         for display_index, record in enumerate(result.matched_records, start=1):
             lines.append(f"{display_index}. Record {display_index} of {total_records}")
             for column in columns:
@@ -411,48 +423,60 @@ def _applied_filters_display(applied_filters_json: str) -> str:
     """Render applied filters more cleanly when the query used no filters."""
 
     if applied_filters_json == "{}":
-        return "none"
+        return _load_export_semantics()["applied_filters_empty_label"]
     return applied_filters_json
 
 
 def _source_display_label(source: str | None) -> str:
     """Render an institutional source label without losing source identity."""
 
-    if source == "sama":
-        return "Saudi Central Bank (SAMA) [sama]"
-    if source == "stats-gov-sa":
-        return "General Authority for Statistics (GASTAT) [stats-gov-sa]"
-    if source == "mof":
-        return "Ministry of Finance (MoF) [mof]"
-    if source == "data-gov-sa":
-        return "Saudi Open Data Platform [data-gov-sa]"
+    labels = _load_export_semantics()["source_display_labels"]
+    if source in labels:
+        return labels[source]
     return _display_value(source)
 
 
 def _record_field_label(field_name: str) -> str:
     """Render a readable field label while preserving the governed field identity."""
 
-    field_labels = {
-        "observation_quarter": "Observation Quarter [observation_quarter]",
-        "observation_month": "Observation Month [observation_month]",
-        "fiscal_series_code": "Fiscal Series Code [fiscal_series_code]",
-        "fiscal_series_name": "Fiscal Series Name [fiscal_series_name]",
-        "gdp_series_code": "GDP Series Code [gdp_series_code]",
-        "gdp_series_name": "GDP Series Name [gdp_series_name]",
-        "labor_series_code": "Labor Series Code [labor_series_code]",
-        "labor_series_name": "Labor Series Name [labor_series_name]",
-        "value_sar_bn": "Value (SAR bn) [value_sar_bn]",
-        "value_percent": "Value (%) [value_percent]",
-        "release_date": "Release Date [release_date]",
-        "week_start_date": "Week Start Date [week_start_date]",
-        "week_end_date": "Week End Date [week_end_date]",
-        "transaction_count": "Transaction Count [transaction_count]",
-        "transaction_value_sar": "Transaction Value (SAR) [transaction_value_sar]",
-        "average_ticket_sar": "Average Ticket (SAR) [average_ticket_sar]",
-    }
+    field_labels = _load_export_semantics()["record_field_labels"]
     if field_name in field_labels:
         return field_labels[field_name]
     return f"{field_name.replace('_', ' ').title()} [{field_name}]"
+
+
+def _metadata_field_value(context: QueryExportContext, field_name: str) -> Any:
+    """Return one canonical metadata field value from the shared export context."""
+
+    if field_name == "dataset_id":
+        return context.dataset_id
+    if field_name == "source":
+        return _source_display_label(context.source)
+    if field_name == "exported_at":
+        return context.exported_at
+    if field_name == "query_status":
+        return context.query_status
+    if field_name == "freshness_status":
+        return context.freshness_status
+    if field_name == "data_origin":
+        return context.data_origin
+    if field_name == "matched_record_count":
+        return context.matched_record_count
+    if field_name == "total_records_before_filter":
+        return context.total_records_before_filter
+    if field_name == "limit":
+        return context.limit
+    if field_name == "applied_filters_json":
+        return _applied_filters_display(context.applied_filters_json)
+    if field_name == "degradation_reason":
+        return context.degradation_reason
+    if field_name == "failure_stage":
+        return context.failure_stage
+    if field_name == "failure_type":
+        return context.failure_type
+    if field_name == "failure_message":
+        return context.failure_message
+    raise ValueError(f"unknown export metadata field: {field_name}")
 
 
 def _escape_xml(value: str) -> str:

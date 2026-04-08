@@ -3,6 +3,7 @@ import type {
   DatasetQueryResult,
   SnapshotFreshnessStatus,
 } from "../types/core";
+import exportSemantics from "../../../src/saudi_open_data_mcp/tools/export_semantics.json";
 
 // Client-side artifact builder for dashboard convenience only.
 // The backend/CLI remains the canonical institutional export surface.
@@ -43,6 +44,40 @@ interface QueryExportContext {
 }
 
 const ENCODER = new TextEncoder();
+const EXPORT_SEMANTICS = exportSemantics as ExportSemantics;
+
+type ExportMetadataField =
+  | "dataset_id"
+  | "source"
+  | "exported_at"
+  | "query_status"
+  | "freshness_status"
+  | "data_origin"
+  | "matched_record_count"
+  | "total_records_before_filter"
+  | "limit"
+  | "applied_filters_json"
+  | "degradation_reason"
+  | "failure_stage"
+  | "failure_type"
+  | "failure_message";
+
+interface ExportSemantics {
+  applied_filters_empty_label: string;
+  metadata_field_order: ExportMetadataField[];
+  pdf: {
+    document_title: string;
+    dataset_source_section: string;
+    result_context_section: string;
+    degraded_context_section: string;
+    failure_details_section: string;
+    notes_section: string;
+    records_label: string;
+    labels: Record<ExportMetadataField, string>;
+  };
+  source_display_labels: Record<string, string>;
+  record_field_labels: Record<string, string>;
+}
 
 export function buildQueryExportArtifact({
   format,
@@ -144,22 +179,11 @@ function renderExcelWorkbook(
 }
 
 function renderMetadataWorksheet(context: QueryExportContext): string {
-  const rows: Array<[string, string | number | null]> = [
-    ["dataset_id", context.datasetId],
-    ["source", sourceDisplayLabel(context.source)],
-    ["exported_at", context.exportedAt],
-    ["query_status", context.queryStatus],
-    ["freshness_status", context.freshnessStatus],
-    ["data_origin", context.dataOrigin],
-    ["matched_record_count", context.matchedRecordCount],
-    ["total_records_before_filter", context.totalRecordsBeforeFilter],
-    ["limit", context.limit],
-    ["applied_filters_json", appliedFiltersDisplay(context.appliedFiltersJson)],
-    ["degradation_reason", context.degradationReason],
-    ["failure_stage", context.failureStage],
-    ["failure_type", context.failureType],
-    ["failure_message", context.failureMessage],
-  ];
+  const rows: Array<[string, string | number | null]> =
+    EXPORT_SEMANTICS.metadata_field_order.map((fieldName) => [
+      fieldName,
+      metadataFieldValue(context, fieldName),
+    ]);
   return renderWorksheet("Metadata", [["Field", "Value"], ...rows]);
 }
 
@@ -312,42 +336,47 @@ function buildPdfLines(
   result: DatasetQueryResult,
   context: QueryExportContext,
 ): string[] {
+  const pdf = EXPORT_SEMANTICS.pdf;
   const lines = [
-    "Saudi Open Data MCP Query Export",
+    pdf.document_title,
     "=".repeat(32),
     "",
-    "Dataset & Source",
-    `Dataset ID: ${context.datasetId}`,
-    `Source: ${sourceDisplayLabel(context.source)}`,
+    pdf.dataset_source_section,
+    `${pdf.labels.dataset_id}: ${context.datasetId}`,
+    `${pdf.labels.source}: ${sourceDisplayLabel(context.source)}`,
     "",
-    "Result Context",
-    `Exported At (UTC): ${context.exportedAt}`,
-    `Result Status: ${context.queryStatus}`,
-    `Freshness Status: ${displayValue(context.freshnessStatus)}`,
-    `Data Origin: ${displayValue(context.dataOrigin)}`,
-    `Matched Records: ${context.matchedRecordCount}`,
-    `Total Before Filter: ${displayValue(context.totalRecordsBeforeFilter)}`,
-    `Limit: ${displayValue(context.limit)}`,
-    `Applied Filters: ${appliedFiltersDisplay(context.appliedFiltersJson)}`,
+    pdf.result_context_section,
+    `${pdf.labels.exported_at}: ${context.exportedAt}`,
+    `${pdf.labels.query_status}: ${context.queryStatus}`,
+    `${pdf.labels.freshness_status}: ${displayValue(context.freshnessStatus)}`,
+    `${pdf.labels.data_origin}: ${displayValue(context.dataOrigin)}`,
+    `${pdf.labels.matched_record_count}: ${context.matchedRecordCount}`,
+    `${pdf.labels.total_records_before_filter}: ${displayValue(context.totalRecordsBeforeFilter)}`,
+    `${pdf.labels.limit}: ${displayValue(context.limit)}`,
+    `${pdf.labels.applied_filters_json}: ${appliedFiltersDisplay(context.appliedFiltersJson)}`,
   ];
 
   if (context.degradationReason) {
-    lines.push("", "Degraded Context", `Degradation Reason: ${context.degradationReason}`);
+    lines.push(
+      "",
+      pdf.degraded_context_section,
+      `${pdf.labels.degradation_reason}: ${context.degradationReason}`,
+    );
   }
   if (context.failureStage || context.failureType || context.failureMessage) {
-    lines.push("", "Failure Details");
+    lines.push("", pdf.failure_details_section);
     if (context.failureStage) {
-      lines.push(`Failure Stage: ${context.failureStage}`);
+      lines.push(`${pdf.labels.failure_stage}: ${context.failureStage}`);
     }
     if (context.failureType) {
-      lines.push(`Failure Type: ${context.failureType}`);
+      lines.push(`${pdf.labels.failure_type}: ${context.failureType}`);
     }
     if (context.failureMessage) {
-      lines.push(`Failure Message: ${context.failureMessage}`);
+      lines.push(`${pdf.labels.failure_message}: ${context.failureMessage}`);
     }
   }
   if (context.notes.length > 0) {
-    lines.push("", "Notes / Limitations");
+    lines.push("", pdf.notes_section);
     context.notes.forEach((note) => {
       lines.push(`- ${note}`);
     });
@@ -355,7 +384,7 @@ function buildPdfLines(
   if (result.matched_records.length > 0) {
     const columns = collectRecordColumns(result.matched_records);
     const totalRecords = result.matched_records.length;
-    lines.push("", `Records (${totalRecords})`);
+    lines.push("", `${pdf.records_label} (${totalRecords})`);
     result.matched_records.forEach((record, index) => {
       lines.push(`${index + 1}. Record ${index + 1} of ${totalRecords}`);
       columns.forEach((column) => {
@@ -431,7 +460,9 @@ function displayValue(value: string | number | boolean | null): string {
 }
 
 function appliedFiltersDisplay(appliedFiltersJson: string): string {
-  if (appliedFiltersJson === "{}") return "none";
+  if (appliedFiltersJson === "{}") {
+    return EXPORT_SEMANTICS.applied_filters_empty_label;
+  }
   return appliedFiltersJson;
 }
 
@@ -445,34 +476,14 @@ function canonicalizeAppliedFiltersJson(
 }
 
 function sourceDisplayLabel(source: string | null): string {
-  if (source === "sama") return "Saudi Central Bank (SAMA) [sama]";
-  if (source === "stats-gov-sa") {
-    return "General Authority for Statistics (GASTAT) [stats-gov-sa]";
+  if (source && source in EXPORT_SEMANTICS.source_display_labels) {
+    return EXPORT_SEMANTICS.source_display_labels[source];
   }
-  if (source === "mof") return "Ministry of Finance (MoF) [mof]";
-  if (source === "data-gov-sa") return "Saudi Open Data Platform [data-gov-sa]";
   return displayValue(source);
 }
 
 function recordFieldLabel(fieldName: string): string {
-  const fieldLabels: Record<string, string> = {
-    observation_quarter: "Observation Quarter [observation_quarter]",
-    observation_month: "Observation Month [observation_month]",
-    fiscal_series_code: "Fiscal Series Code [fiscal_series_code]",
-    fiscal_series_name: "Fiscal Series Name [fiscal_series_name]",
-    gdp_series_code: "GDP Series Code [gdp_series_code]",
-    gdp_series_name: "GDP Series Name [gdp_series_name]",
-    labor_series_code: "Labor Series Code [labor_series_code]",
-    labor_series_name: "Labor Series Name [labor_series_name]",
-    value_sar_bn: "Value (SAR bn) [value_sar_bn]",
-    value_percent: "Value (%) [value_percent]",
-    release_date: "Release Date [release_date]",
-    week_start_date: "Week Start Date [week_start_date]",
-    week_end_date: "Week End Date [week_end_date]",
-    transaction_count: "Transaction Count [transaction_count]",
-    transaction_value_sar: "Transaction Value (SAR) [transaction_value_sar]",
-    average_ticket_sar: "Average Ticket (SAR) [average_ticket_sar]",
-  };
+  const fieldLabels = EXPORT_SEMANTICS.record_field_labels;
   return (
     fieldLabels[fieldName] ??
     `${fieldName.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase())} [${fieldName}]`
@@ -508,4 +519,40 @@ function canonicalizeIsoTimestamp(value: string): string {
     return value;
   }
   return parsed.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+function metadataFieldValue(
+  context: QueryExportContext,
+  fieldName: ExportMetadataField,
+): string | number | null {
+  switch (fieldName) {
+    case "dataset_id":
+      return context.datasetId;
+    case "source":
+      return sourceDisplayLabel(context.source);
+    case "exported_at":
+      return context.exportedAt;
+    case "query_status":
+      return context.queryStatus;
+    case "freshness_status":
+      return context.freshnessStatus;
+    case "data_origin":
+      return context.dataOrigin;
+    case "matched_record_count":
+      return context.matchedRecordCount;
+    case "total_records_before_filter":
+      return context.totalRecordsBeforeFilter;
+    case "limit":
+      return context.limit;
+    case "applied_filters_json":
+      return appliedFiltersDisplay(context.appliedFiltersJson);
+    case "degradation_reason":
+      return context.degradationReason;
+    case "failure_stage":
+      return context.failureStage;
+    case "failure_type":
+      return context.failureType;
+    case "failure_message":
+      return context.failureMessage;
+  }
 }

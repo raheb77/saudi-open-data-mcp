@@ -1,0 +1,68 @@
+{
+  "applied_filters_empty_label": "none",
+  "metadata_field_order": [
+    "dataset_id",
+    "source",
+    "exported_at",
+    "query_status",
+    "freshness_status",
+    "data_origin",
+    "matched_record_count",
+    "total_records_before_filter",
+    "limit",
+    "applied_filters_json",
+    "degradation_reason",
+    "failure_stage",
+    "failure_type",
+    "failure_message"
+  ],
+  "pdf": {
+    "document_title": "Saudi Open Data MCP Query Export",
+    "dataset_source_section": "Dataset & Source",
+    "result_context_section": "Result Context",
+    "degraded_context_section": "Degraded Context",
+    "failure_details_section": "Failure Details",
+    "notes_section": "Notes / Limitations",
+    "records_label": "Records",
+    "labels": {
+      "dataset_id": "Dataset ID",
+      "source": "Source",
+      "exported_at": "Exported At (UTC)",
+      "query_status": "Result Status",
+      "freshness_status": "Freshness Status",
+      "data_origin": "Data Origin",
+      "matched_record_count": "Matched Records",
+      "total_records_before_filter": "Total Before Filter",
+      "limit": "Limit",
+      "applied_filters_json": "Applied Filters",
+      "degradation_reason": "Degradation Reason",
+      "failure_stage": "Failure Stage",
+      "failure_type": "Failure Type",
+      "failure_message": "Failure Message"
+    }
+  },
+  "source_display_labels": {
+    "sama": "Saudi Central Bank (SAMA) [sama]",
+    "stats-gov-sa": "General Authority for Statistics (GASTAT) [stats-gov-sa]",
+    "mof": "Ministry of Finance (MoF) [mof]",
+    "data-gov-sa": "Saudi Open Data Platform [data-gov-sa]"
+  },
+  "record_field_labels": {
+    "observation_quarter": "Observation Quarter [observation_quarter]",
+    "observation_month": "Observation Month [observation_month]",
+    "fiscal_series_code": "Fiscal Series Code [fiscal_series_code]",
+    "fiscal_series_name": "Fiscal Series Name [fiscal_series_name]",
+    "gdp_series_code": "GDP Series Code [gdp_series_code]",
+    "gdp_series_name": "GDP Series Name [gdp_series_name]",
+    "labor_series_code": "Labor Series Code [labor_series_code]",
+    "labor_series_name": "Labor Series Name [labor_series_name]",
+    "value_sar_bn": "Value (SAR bn) [value_sar_bn]",
+    "value_percent": "Value (%) [value_percent]",
+    "release_date": "Release Date [release_date]",
+    "week_start_date": "Week Start Date [week_start_date]",
+    "week_end_date": "Week End Date [week_end_date]",
+    "transaction_count": "Transaction Count [transaction_count]",
+    "transaction_value_sar": "Transaction Value (SAR) [transaction_value_sar]",
+    "average_ticket_sar": "Average Ticket (SAR) [average_ticket_sar]"
+  }
+}
