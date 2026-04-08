@@ -33,6 +33,16 @@ const listDatasetsMock = vi.mocked(listDatasets);
 const getDatasetHealthResultMock = vi.mocked(getDatasetHealthResult);
 const getDatasetQueryResultMock = vi.mocked(getDatasetQueryResult);
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, resolve, reject };
+}
+
 function makeCatalogEntry(
   datasetId: string,
   source: SourceName,
@@ -240,5 +250,50 @@ describe("QueryPage", () => {
     expect(await screen.findByTestId("state-failed")).toBeInTheDocument();
     expect(screen.getByText("تعذّر التحقق من نتيجة الاستعلام الحية.")).toBeInTheDocument();
     expect(screen.getByText("query_validation")).toBeInTheDocument();
+  });
+
+  it("aborts slow live requests cleanly when the page unmounts before they resolve", async () => {
+    const slowHealth = deferred<DatasetHealthLookupResult>();
+    const slowQuery = deferred<DatasetQueryResult>();
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    let healthSignal: AbortSignal | undefined;
+    let querySignal: AbortSignal | undefined;
+
+    listDatasetsMock.mockResolvedValue([datasets[0]]);
+    getDatasetHealthResultMock.mockImplementation(
+      (_datasetId, _sourceFallback, signal) => {
+        healthSignal = signal;
+        return slowHealth.promise;
+      },
+    );
+    getDatasetQueryResultMock.mockImplementation(
+      (_datasetId, _filters, _limit, signal) => {
+        querySignal = signal;
+        return slowQuery.promise;
+      },
+    );
+
+    const view = renderQueryPage("/query?dataset=sama-pos-weekly");
+
+    await waitFor(() => {
+      expect(getDatasetHealthResultMock).toHaveBeenCalledTimes(1);
+      expect(getDatasetQueryResultMock).toHaveBeenCalledTimes(1);
+    });
+
+    view.unmount();
+
+    expect(healthSignal?.aborted).toBe(true);
+    expect(querySignal?.aborted).toBe(true);
+
+    slowHealth.resolve(makeHealthResult("sama-pos-weekly", "sama"));
+    slowQuery.resolve(makeQueryResult("sama-pos-weekly", "sama"));
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
   });
 });

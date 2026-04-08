@@ -50,7 +50,7 @@ export const MOCK_DATASETS: DatasetCatalogEntry[] = [
 ];
 
 export const SOURCE_LABELS: Record<string, string> = {
-  sama: "مؤسسة النقد العربي السعودي",
+  sama: "البنك المركزي السعودي",
   "stats-gov-sa": "الهيئة العامة للإحصاء",
   mof: "وزارة المالية",
   "data-gov-sa": "البوابة السعودية للبيانات المفتوحة",
