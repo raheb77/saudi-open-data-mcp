@@ -100,6 +100,10 @@ function isUnauthorizedStatus(status: number): boolean {
   return status === 401 || status === 403;
 }
 
+function isEventStreamContentType(contentType: string | null): boolean {
+  return (contentType ?? "").toLowerCase().startsWith("text/event-stream");
+}
+
 function isSessionLifecycleMessage(message: string): boolean {
   const normalized = message.toLowerCase();
   return normalized.includes("missing session") || normalized.includes("session");
@@ -119,6 +123,177 @@ async function parseJsonResponse(
       { status: response.status, cause: error },
     );
   }
+}
+
+interface ParsedSseEvent {
+  event: string;
+  data: string;
+}
+
+async function parseMcpResponsePayload(
+  response: Response,
+  stage: string,
+): Promise<unknown> {
+  if (isEventStreamContentType(response.headers.get("content-type"))) {
+    return parseSseResponse(response, stage);
+  }
+  return parseJsonResponse(response, stage);
+}
+
+async function parseSseResponse(
+  response: Response,
+  stage: string,
+): Promise<unknown> {
+  if (!response.body) {
+    throw new DashboardApiError(
+      "protocol",
+      stage,
+      "استجابة SSE الحية لا تحتوي على body قابل للقراءة.",
+      { status: response.status },
+    );
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (value) {
+        buffer += decoder.decode(value, { stream: !done });
+      }
+      if (done) {
+        buffer += decoder.decode();
+      }
+
+      let boundary = findSseEventBoundary(buffer);
+      while (boundary) {
+        const rawEvent = buffer.slice(0, boundary.index);
+        buffer = buffer.slice(boundary.index + boundary.length);
+        const payload = parseSseEventPayload(rawEvent, stage, response.status);
+        if (payload !== undefined) {
+          return payload;
+        }
+        boundary = findSseEventBoundary(buffer);
+      }
+
+      if (done) {
+        break;
+      }
+    }
+
+    const finalPayload = parseSseEventPayload(buffer, stage, response.status);
+    if (finalPayload !== undefined) {
+      return finalPayload;
+    }
+  } catch (error) {
+    if (error instanceof DashboardApiError) {
+      throw error;
+    }
+    throw new DashboardApiError(
+      "protocol",
+      stage,
+      "تعذّر قراءة استجابة SSE من مسار MCP الحي.",
+      { status: response.status, cause: error },
+    );
+  } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      // Reader may already be closed after the server ends the stream.
+    }
+  }
+
+  throw new DashboardApiError(
+    "protocol",
+    stage,
+    "انتهى تدفق SSE قبل وصول payload MCP قابل للاستخدام.",
+    { status: response.status },
+  );
+}
+
+function findSseEventBoundary(
+  buffer: string,
+): { index: number; length: number } | null {
+  const separators = ["\r\n\r\n", "\n\n", "\r\r"];
+  let earliest: { index: number; length: number } | null = null;
+
+  for (const separator of separators) {
+    const index = buffer.indexOf(separator);
+    if (index === -1) {
+      continue;
+    }
+    if (!earliest || index < earliest.index) {
+      earliest = { index, length: separator.length };
+    }
+  }
+
+  return earliest;
+}
+
+function parseSseEventPayload(
+  rawEvent: string,
+  stage: string,
+  status: number,
+): unknown | undefined {
+  const event = parseSseEvent(rawEvent);
+  if (!event || event.event !== "message" || !event.data.trim()) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(event.data);
+  } catch (error) {
+    throw new DashboardApiError(
+      "protocol",
+      stage,
+      "بيانات حدث SSE من مسار MCP ليست JSON صالحًا.",
+      { status, cause: error },
+    );
+  }
+}
+
+function parseSseEvent(rawEvent: string): ParsedSseEvent | null {
+  if (!rawEvent.trim()) {
+    return null;
+  }
+
+  let eventName = "message";
+  const dataLines: string[] = [];
+
+  for (const line of rawEvent.split(/\r\n|\n|\r/)) {
+    if (!line || line.startsWith(":")) {
+      continue;
+    }
+
+    const separatorIndex = line.indexOf(":");
+    const field =
+      separatorIndex === -1 ? line : line.slice(0, separatorIndex).trim();
+    let value =
+      separatorIndex === -1 ? "" : line.slice(separatorIndex + 1);
+    if (value.startsWith(" ")) {
+      value = value.slice(1);
+    }
+
+    if (field === "event") {
+      eventName = value || "message";
+      continue;
+    }
+
+    if (field === "data") {
+      dataLines.push(value);
+    }
+  }
+
+  if (dataLines.length === 0) {
+    return null;
+  }
+
+  return {
+    event: eventName,
+    data: dataLines.join("\n"),
+  };
 }
 
 class McpHttpClient {
@@ -272,7 +447,7 @@ class McpHttpClient {
       );
     }
 
-    const payload = await parseJsonResponse(response, stage);
+    const payload = await parseMcpResponsePayload(response, stage);
     if (isJsonRpcFailure(payload)) {
       if (canRetrySession && isSessionLifecycleMessage(payload.error.message)) {
         this.resetSession();
@@ -347,7 +522,7 @@ class McpHttpClient {
       );
     }
 
-    const payload = await parseJsonResponse(response, "mcp_initialize");
+    const payload = await parseMcpResponsePayload(response, "mcp_initialize");
     if (isJsonRpcFailure(payload)) {
       throw new DashboardApiError(
         "protocol",
