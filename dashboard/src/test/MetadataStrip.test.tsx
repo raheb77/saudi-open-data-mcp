@@ -111,4 +111,59 @@ describe("MetadataStrip", () => {
     expect(strip).toHaveTextContent("healthy");
     expect(strip).toHaveTextContent("local_snapshot");
   });
+
+  it("can hide duplicate embedded rows and collapse when nothing unique remains", () => {
+    const { rerender } = render(
+      <MetadataStrip
+        dataset_id="sama-pos-weekly"
+        source="sama"
+        variant="flat"
+        showTitle={false}
+        hiddenFields={[
+          "dataset_id",
+          "source",
+          "status",
+          "data_origin",
+          "freshness",
+          "schema_version",
+          "snapshot_age",
+        ]}
+        status_kind="preview"
+        status="record_derivable"
+        data_origin="local_snapshot"
+        freshness_status="fresh"
+        degradation_reason="normalization_limited"
+      />,
+    );
+
+    const strip = screen.getByTestId("metadata-strip");
+    expect(strip).not.toHaveTextContent("sama-pos-weekly");
+    expect(strip).not.toHaveTextContent("local_snapshot");
+    expect(strip).toHaveTextContent("normalization_limited");
+
+    rerender(
+      <MetadataStrip
+        dataset_id="sama-pos-weekly"
+        source="sama"
+        variant="flat"
+        showTitle={false}
+        hiddenFields={[
+          "dataset_id",
+          "source",
+          "status",
+          "data_origin",
+          "freshness",
+          "degradation",
+          "schema_version",
+          "snapshot_age",
+        ]}
+        status_kind="preview"
+        status="record_derivable"
+        data_origin="local_snapshot"
+        freshness_status="fresh"
+      />,
+    );
+
+    expect(screen.queryByTestId("metadata-strip")).not.toBeInTheDocument();
+  });
 });
