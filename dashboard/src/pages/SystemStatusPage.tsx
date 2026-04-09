@@ -255,7 +255,7 @@ function SectionFailurePanel({
         <h3 id={headingId} className="text-sm font-semibold text-ink-900">
           {title}
         </h3>
-        <p className="text-xs text-ink-500">{summary}</p>
+        <p className="hidden text-xs text-ink-500 md:block">{summary}</p>
       </header>
       {error?.kind === "unauthorized" ? (
         <UnauthorizedState />
@@ -398,9 +398,9 @@ function HealthFailureCard({ entry }: { entry: SourceHealthCardData }) {
           {entry.catalog.dataset_id}
         </span>
       </header>
-      <p className="text-xs text-ink-500">
-        {SOURCE_LABELS[entry.catalog.source] ?? entry.catalog.source}
-        <span className="id-mono ms-2">{entry.catalog.source}</span>
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-500">
+        <span>{SOURCE_LABELS[entry.catalog.source] ?? entry.catalog.source}</span>
+        <span className="id-mono">{entry.catalog.source}</span>
       </p>
       {entry.error?.kind === "unauthorized" ? (
         <UnauthorizedState />

@@ -311,60 +311,69 @@ export function QueryPage() {
 
             <ResultPanel queryState={queryState} isStale={shouldShowStaleState} />
 
-            <div className="flex flex-wrap items-center gap-3 text-xs text-ink-700">
-              {queryState.kind === "ready" &&
-                queryState.result.total_records_before_filter != null && (
+            <div className="flex flex-col gap-3 rounded-lg border border-ink-200 bg-white px-4 py-3 text-xs text-ink-700">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                {queryState.kind === "ready" &&
+                  queryState.result.total_records_before_filter != null && (
+                    <span>
+                      {ar.query.totalBeforeFilter}:{" "}
+                      <span className="num-latn">
+                        {formatNumber(queryState.result.total_records_before_filter)}
+                      </span>
+                    </span>
+                  )}
+                {queryState.kind === "ready" &&
+                  queryState.result.status === "success" && (
+                    <span>
+                      {ar.query.matchedCount}:{" "}
+                      <span className="num-latn">
+                        {formatNumber(queryState.result.matched_records.length)}
+                      </span>
+                    </span>
+                  )}
+                {queryState.kind === "ready" && queryState.result.limit != null && (
                   <span>
-                    {ar.query.totalBeforeFilter}:{" "}
+                    {ar.query.limitApplied}:{" "}
                     <span className="num-latn">
-                      {formatNumber(queryState.result.total_records_before_filter)}
+                      {formatNumber(queryState.result.limit)}
                     </span>
                   </span>
                 )}
-              {queryState.kind === "ready" &&
-                queryState.result.status === "success" && (
-                  <span>
-                    {ar.query.matchedCount}:{" "}
-                    <span className="num-latn">
-                      {formatNumber(queryState.result.matched_records.length)}
-                    </span>
-                  </span>
-                )}
-              {queryState.kind === "ready" && queryState.result.limit != null && (
-                <span>
-                  {ar.query.limitApplied}:{" "}
-                  <span className="num-latn">
-                    {formatNumber(queryState.result.limit)}
-                  </span>
-                </span>
-              )}
-              <label
-                htmlFor="query-export-format"
-                className="text-xs font-medium text-ink-700"
-              >
-                {ar.query.exportFormatLabel}
-              </label>
-              <select
-                id="query-export-format"
-                value={exportFormat}
-                disabled={queryState.kind !== "ready"}
-                onChange={(event) =>
-                  setExportFormat(event.target.value as ExportArtifactFormat)
-                }
-                className="rounded-md border border-ink-300 bg-white px-2 py-1.5 text-xs text-ink-700 shadow-sm focus:border-ink-700 focus:outline-none focus:ring-1 focus:ring-ink-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <option value="json">{ar.query.exportFormats.json}</option>
-                <option value="excel">{ar.query.exportFormats.excel}</option>
-                <option value="pdf">{ar.query.exportFormats.pdf}</option>
-              </select>
-              <button
-                type="button"
-                onClick={handleExport}
-                disabled={queryState.kind !== "ready"}
-                className="rounded-md border border-ink-300 bg-white px-3 py-1.5 font-medium text-ink-700 hover:bg-ink-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {ar.query.export}
-              </button>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+                  <label
+                    htmlFor="query-export-format"
+                    className="text-xs font-medium text-ink-700"
+                  >
+                    {ar.query.exportFormatLabel}
+                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      id="query-export-format"
+                      value={exportFormat}
+                      disabled={queryState.kind !== "ready"}
+                      onChange={(event) =>
+                        setExportFormat(event.target.value as ExportArtifactFormat)
+                      }
+                      className="rounded-md border border-ink-300 bg-white px-2 py-1.5 text-xs text-ink-700 shadow-sm focus:border-ink-700 focus:outline-none focus:ring-1 focus:ring-ink-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <option value="json">{ar.query.exportFormats.json}</option>
+                      <option value="excel">{ar.query.exportFormats.excel}</option>
+                      <option value="pdf">{ar.query.exportFormats.pdf}</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleExport}
+                      disabled={queryState.kind !== "ready"}
+                      className="rounded-md border border-ink-300 bg-white px-3 py-1.5 font-medium text-ink-700 hover:bg-ink-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {ar.query.export}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>

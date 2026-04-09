@@ -31,12 +31,12 @@ export function DatasetCard({ catalog, preview, health }: DatasetCardProps) {
         </span>
       </header>
 
-      <p className="text-xs text-ink-500">
-        {ar.home.cardLabels.source}:{" "}
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-500">
+        <span>{ar.home.cardLabels.source}:</span>
         <span className="text-ink-700">
           {SOURCE_LABELS[catalog.source] ?? catalog.source}
         </span>
-        <span className="id-mono ms-2 text-[0.75rem] text-ink-500">
+        <span className="id-mono text-[0.75rem] text-ink-500">
           {catalog.source}
         </span>
       </p>

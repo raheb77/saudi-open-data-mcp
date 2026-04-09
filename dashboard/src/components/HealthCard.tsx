@@ -32,10 +32,10 @@ export function HealthCard({ health }: HealthCardProps) {
           <h3 className="id-mono text-sm font-semibold text-ink-900">
             {health.dataset_id}
           </h3>
-          <p className="text-xs text-ink-500">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-500">
             <span>{sourceLabel ?? "—"}</span>
             {health.source && (
-              <span className="id-mono ms-2 text-[0.75rem] text-ink-500">
+              <span className="id-mono text-[0.75rem] text-ink-500">
                 {health.source}
               </span>
             )}

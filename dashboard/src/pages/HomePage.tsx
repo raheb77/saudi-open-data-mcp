@@ -207,10 +207,10 @@ function HomeCard({ card }: { card: HomeCardData }) {
           {card.catalog.dataset_id}
         </span>
       </header>
-      <p className="text-xs text-ink-500">
-        {ar.home.cardLabels.source}:{" "}
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-500">
+        <span>{ar.home.cardLabels.source}:</span>
         <span>{SOURCE_LABELS[card.catalog.source] ?? card.catalog.source}</span>
-        <span className="id-mono ms-2">{card.catalog.source}</span>
+        <span className="id-mono">{card.catalog.source}</span>
       </p>
       {card.previewError?.kind === "unauthorized" ? (
         <UnauthorizedState />
