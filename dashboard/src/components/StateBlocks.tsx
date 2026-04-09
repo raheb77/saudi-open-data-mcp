@@ -10,6 +10,8 @@ interface BaseStateProps {
   children?: React.ReactNode;
   tone?: "neutral" | "warn" | "bad";
   testId?: string;
+  liveRole?: "status" | "alert";
+  ariaLive?: "polite" | "assertive";
 }
 
 const TONE_CLASSES: Record<NonNullable<BaseStateProps["tone"]>, string> = {
@@ -24,15 +26,19 @@ function StateBlock({
   children,
   tone = "neutral",
   testId,
+  liveRole = "status",
+  ariaLive = liveRole === "alert" ? "assertive" : "polite",
 }: BaseStateProps) {
   return (
     <section
       data-testid={testId}
       className={`rounded-lg border px-4 py-4 ${TONE_CLASSES[tone]}`}
-      role="status"
+      role={liveRole}
+      aria-live={ariaLive}
+      aria-atomic="true"
     >
       <h3 className="text-sm font-semibold">{title}</h3>
-      <p className="mt-1 text-sm leading-relaxed">{body}</p>
+      {body && <p className="mt-1 text-sm leading-relaxed">{body}</p>}
       {children && <div className="mt-3 text-sm">{children}</div>}
     </section>
   );
@@ -126,7 +132,71 @@ export function UnauthorizedState() {
       body={ar.unauthorized.body}
       tone="bad"
       testId="state-unauthorized"
+      liveRole="alert"
     />
+  );
+}
+
+function FailureDetails({
+  stage,
+  errorType,
+  message,
+}: {
+  stage?: string | null;
+  errorType?: string | null;
+  message?: string | null;
+}) {
+  if (!stage && !errorType && !message) {
+    return null;
+  }
+
+  return (
+    <dl className="space-y-1 text-xs">
+      {stage && (
+        <div className="flex gap-2">
+          <dt className="font-semibold">{ar.error.stageLabel}:</dt>
+          <dd className="id-mono">{stage}</dd>
+        </div>
+      )}
+      {errorType && (
+        <div className="flex gap-2">
+          <dt className="font-semibold">{ar.error.typeLabel}:</dt>
+          <dd className="id-mono">{errorType}</dd>
+        </div>
+      )}
+      {message && <p className="mt-1">{message}</p>}
+    </dl>
+  );
+}
+
+export function DegradedState({
+  title,
+  body,
+  stage,
+  errorType,
+  message,
+  children,
+  testId = "state-degraded",
+}: {
+  title: string;
+  body: string;
+  stage?: string | null;
+  errorType?: string | null;
+  message?: string | null;
+  children?: React.ReactNode;
+  testId?: string;
+}) {
+  return (
+    <StateBlock
+      title={title}
+      body={body}
+      tone="warn"
+      testId={testId}
+      liveRole="alert"
+    >
+      <FailureDetails stage={stage} errorType={errorType} message={message} />
+      {children}
+    </StateBlock>
   );
 }
 
@@ -145,22 +215,9 @@ export function ErrorState({
       body={ar.error.body}
       tone="bad"
       testId="state-failed"
+      liveRole="alert"
     >
-      <dl className="space-y-1 text-xs">
-        {stage && (
-          <div className="flex gap-2">
-            <dt className="font-semibold">{ar.error.stageLabel}:</dt>
-            <dd className="id-mono">{stage}</dd>
-          </div>
-        )}
-        {errorType && (
-          <div className="flex gap-2">
-            <dt className="font-semibold">{ar.error.typeLabel}:</dt>
-            <dd className="id-mono">{errorType}</dd>
-          </div>
-        )}
-        {message && <p className="mt-1 text-rose-900">{message}</p>}
-      </dl>
+      <FailureDetails stage={stage} errorType={errorType} message={message} />
     </StateBlock>
   );
 }

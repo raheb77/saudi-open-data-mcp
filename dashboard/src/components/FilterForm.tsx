@@ -60,53 +60,68 @@ export function FilterForm({
         onApply();
       }}
     >
-      <legend className="text-sm font-medium text-ink-700">
-        {ar.query.filtersLabel}
-      </legend>
+      <fieldset className="flex flex-col gap-3">
+        <legend className="text-sm font-medium text-ink-700">
+          {ar.query.filtersLabel}
+        </legend>
 
-      <div className="flex flex-col gap-2">
-        {filters.length === 0 && (
-          <p className="text-xs text-ink-500">—</p>
-        )}
-        {filters.map((row, index) => {
-          const rowId = filterRowIdentity(row, index);
-          return (
-            <div key={rowId} className="flex flex-wrap items-center gap-2">
-              <input
-                aria-label={ar.query.keyPlaceholder}
-                dir="ltr"
-                placeholder={ar.query.keyPlaceholder}
-                value={row.key}
-                onChange={(event) => update(rowId, { key: event.target.value })}
-                className="id-mono w-44 rounded-md border border-ink-300 px-2 py-1 text-sm"
-              />
-              <span className="text-ink-500">=</span>
-              <input
-                aria-label={ar.query.valuePlaceholder}
-                dir="ltr"
-                placeholder={ar.query.valuePlaceholder}
-                value={row.value}
-                onChange={(event) => update(rowId, { value: event.target.value })}
-                className="id-mono w-56 rounded-md border border-ink-300 px-2 py-1 text-sm"
-              />
-              <button
-                type="button"
-                onClick={() => remove(rowId)}
-                className="text-xs text-rose-700 hover:underline"
+        <div className="flex flex-col gap-2">
+          {filters.length === 0 && (
+            <p className="text-xs text-ink-500">—</p>
+          )}
+          {filters.map((row, index) => {
+            const rowId = filterRowIdentity(row, index);
+            const rowLabelId = `${rowId}-label`;
+            return (
+              <div
+                key={rowId}
+                role="group"
+                aria-labelledby={rowLabelId}
+                className="flex flex-wrap items-center gap-2"
               >
-                {ar.query.removeFilter}
-              </button>
-            </div>
-          );
-        })}
-        <button
-          type="button"
-          onClick={add}
-          className="self-start text-xs font-medium text-ink-700 hover:underline"
-        >
-          + {ar.query.addFilter}
-        </button>
-      </div>
+                <span id={rowLabelId} className="sr-only">
+                  {ar.query.filterRowLabel} {index + 1}
+                </span>
+                <input
+                  aria-label={ar.query.keyPlaceholder}
+                  aria-describedby={rowLabelId}
+                  dir="ltr"
+                  placeholder={ar.query.keyPlaceholder}
+                  value={row.key}
+                  onChange={(event) => update(rowId, { key: event.target.value })}
+                  className="id-mono w-44 rounded-md border border-ink-300 px-2 py-1 text-sm"
+                />
+                <span className="text-ink-500">=</span>
+                <input
+                  aria-label={ar.query.valuePlaceholder}
+                  aria-describedby={rowLabelId}
+                  dir="ltr"
+                  placeholder={ar.query.valuePlaceholder}
+                  value={row.value}
+                  onChange={(event) => update(rowId, { value: event.target.value })}
+                  className="id-mono w-56 rounded-md border border-ink-300 px-2 py-1 text-sm"
+                />
+                <button
+                  type="button"
+                  aria-label={`${ar.query.removeFilter} ${index + 1}`}
+                  aria-describedby={rowLabelId}
+                  onClick={() => remove(rowId)}
+                  className="text-xs text-rose-700 hover:underline"
+                >
+                  {ar.query.removeFilter}
+                </button>
+              </div>
+            );
+          })}
+          <button
+            type="button"
+            onClick={add}
+            className="self-start text-xs font-medium text-ink-700 hover:underline"
+          >
+            + {ar.query.addFilter}
+          </button>
+        </div>
+      </fieldset>
 
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-sm text-ink-700">

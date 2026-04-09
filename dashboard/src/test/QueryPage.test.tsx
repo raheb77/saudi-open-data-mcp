@@ -228,6 +228,10 @@ describe("QueryPage", () => {
 
     expect(await screen.findByTestId("result-table")).toBeInTheDocument();
     expect(screen.getByTestId("metadata-strip")).toBeInTheDocument();
+    expect(screen.getByTestId("query-health-degraded")).toBeInTheDocument();
+    expect(
+      screen.getByText("تعذّر تحميل سياق الصحة والحداثة لهذا الاستعلام."),
+    ).toBeInTheDocument();
     expect(screen.queryByText(ar.meta.schemaVersion)).not.toBeInTheDocument();
     expect(screen.queryByText(ar.meta.snapshotAge)).not.toBeInTheDocument();
   });

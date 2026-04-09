@@ -141,7 +141,7 @@ describe("SystemStatusPage", () => {
     expect(screen.getAllByText("sama-pos-weekly").length).toBeGreaterThan(0);
   });
 
-  it("renders a top-level failure state when a live status surface fails validation", async () => {
+  it("keeps healthy sections visible when one live status section fails", async () => {
     getReadinessMock.mockRejectedValue(
       new DashboardApiError(
         "validation",
@@ -154,11 +154,13 @@ describe("SystemStatusPage", () => {
 
     render(<SystemStatusPage />);
 
-    expect(await screen.findByTestId("state-failed")).toBeInTheDocument();
+    expect(await screen.findByTestId("status-page-degraded")).toBeInTheDocument();
     expect(screen.getByText("تعذّر التحقق من حمولة الجاهزية الحية.")).toBeInTheDocument();
+    expect(screen.getByText("ملخص عدّادات التحديث")).toBeInTheDocument();
+    expect(screen.getAllByText("sama-pos-weekly").length).toBeGreaterThan(0);
   });
 
-  it("retries after a top-level status-page failure", async () => {
+  it("retries after a section-level status failure", async () => {
     getReadinessMock
       .mockRejectedValueOnce(
         new DashboardApiError(
@@ -176,11 +178,16 @@ describe("SystemStatusPage", () => {
 
     render(<SystemStatusPage />);
 
-    expect(await screen.findByTestId("state-failed")).toBeInTheDocument();
+    expect(await screen.findByTestId("status-page-degraded")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "أعد المحاولة" }));
 
     await waitFor(() =>
       expect(screen.getAllByText("sama-pos-weekly").length).toBeGreaterThan(0),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("status-page-degraded"),
+      ).not.toBeInTheDocument(),
     );
     expect(getReadinessMock).toHaveBeenCalledTimes(2);
   });

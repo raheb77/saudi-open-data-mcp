@@ -69,7 +69,7 @@ describe("FilterForm", () => {
       target: { value: "-100.5" },
     });
 
-    fireEvent.click(screen.getAllByRole("button", { name: "احذف" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "احذف 1" }));
 
     expect(screen.getAllByLabelText("اسم الحقل")).toHaveLength(1);
     expect(screen.getByLabelText("اسم الحقل")).toHaveValue(
@@ -78,5 +78,19 @@ describe("FilterForm", () => {
     expect(screen.getByLabelText("القيمة")).toHaveValue("-100.5");
     expect(screen.getByLabelText("اسم الحقل")).toHaveAttribute("dir", "ltr");
     expect(screen.getByLabelText("القيمة")).toHaveAttribute("dir", "ltr");
+  });
+
+  it("adds row-specific accessible delete labels for screen-reader clarity", () => {
+    render(<FilterFormHarness />);
+
+    fireEvent.click(screen.getByRole("button", { name: /\+ أضف مرشحًا/ }));
+    fireEvent.click(screen.getByRole("button", { name: /\+ أضف مرشحًا/ }));
+
+    expect(
+      screen.getByRole("button", { name: "احذف 1" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "احذف 2" }),
+    ).toBeInTheDocument();
   });
 });

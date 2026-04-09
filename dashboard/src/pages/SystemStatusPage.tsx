@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { HealthCard } from "../components/HealthCard";
 import {
+  DegradedState,
   ErrorState,
   LoadingState,
   MissingState,
@@ -29,82 +30,77 @@ interface SourceHealthCardData {
   error: DashboardApiError | null;
 }
 
-type StatusPageState =
+type SectionState<T> =
   | { kind: "loading" }
   | { kind: "failed"; error: DashboardApiError }
-  | {
-      kind: "ready";
-      readiness: ReadinessReport;
-      observability: ObservabilitySummary;
-      healthCards: SourceHealthCardData[];
-    };
+  | { kind: "ready"; data: T };
+
+interface StatusPageState {
+  kind: "loading" | "ready";
+  readiness: SectionState<ReadinessReport>;
+  observability: SectionState<ObservabilitySummary>;
+  healthCards: SectionState<SourceHealthCardData[]>;
+}
+
+function makeLoadingState(): StatusPageState {
+  return {
+    kind: "loading",
+    readiness: { kind: "loading" },
+    observability: { kind: "loading" },
+    healthCards: { kind: "loading" },
+  };
+}
 
 export function SystemStatusPage() {
-  const [state, setState] = useState<StatusPageState>({ kind: "loading" });
+  const [state, setState] = useState<StatusPageState>(makeLoadingState());
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
-    setState({ kind: "loading" });
+    setState(makeLoadingState());
 
     void (async () => {
-      try {
-        const [readiness, observability, datasets] = await Promise.all([
-          getReadiness(controller.signal),
-          getObservability(controller.signal),
-          listDatasets(controller.signal),
-        ]);
+      const [readiness, observability, healthCards] = await Promise.allSettled([
+        getReadiness(controller.signal),
+        getObservability(controller.signal),
+        loadHealthCards(controller.signal),
+      ]);
 
-        const healthCards = await Promise.all(
-          datasets.map(async (catalog) => {
-            try {
-              return {
-                catalog,
-                health: await getDatasetHealthResult(
-                  catalog.dataset_id,
-                  catalog.source,
-                  controller.signal,
-                ),
-                error: null,
-              } satisfies SourceHealthCardData;
-            } catch (error) {
-              return {
-                catalog,
-                health: null,
-                error: asDashboardApiError(
-                  error,
-                  "status_health",
-                  "تعذّر تحميل حالة هذه المجموعة.",
-                ),
-              } satisfies SourceHealthCardData;
-            }
-          }),
-        );
-
-        if (!controller.signal.aborted) {
-          setState({
-            kind: "ready",
+      if (!controller.signal.aborted) {
+        setState({
+          kind: "ready",
+          readiness: toSectionState(
             readiness,
+            "status_readiness",
+            "تعذّر تحميل قسم الجاهزية من النواة الحية.",
+          ),
+          observability: toSectionState(
             observability,
+            "status_observability",
+            "تعذّر تحميل مورد المراقبة الحية.",
+          ),
+          healthCards: toSectionState(
             healthCards,
-          });
-        }
-      } catch (error) {
-        if (!controller.signal.aborted) {
-          setState({
-            kind: "failed",
-            error: asDashboardApiError(
-              error,
-              "status_page",
-              "تعذّر تحميل صفحة حالة النظام من النواة الحية.",
-            ),
-          });
-        }
+            "status_sources",
+            "تعذّر تحميل فهرس المجموعات أو حالة المصادر.",
+          ),
+        });
       }
     })();
 
     return () => controller.abort();
   }, [reloadToken]);
+
+  const failedSections =
+    state.kind === "ready"
+      ? [
+          state.readiness.kind === "failed" ? ar.status.readiness.title : null,
+          state.observability.kind === "failed"
+            ? ar.status.observability.title
+            : null,
+          state.healthCards.kind === "failed" ? ar.status.sources.title : null,
+        ].filter((entry) => entry !== null)
+      : [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -119,36 +115,158 @@ export function SystemStatusPage() {
 
       {state.kind === "loading" && <LoadingState />}
 
-      {state.kind === "failed" && (
-        <section className="flex flex-col gap-3">
-          {state.error.kind === "unauthorized" ? (
-            <UnauthorizedState />
-          ) : (
-            <ErrorState
-              stage={state.error.stage}
-              errorType={state.error.name}
-              message={state.error.message}
-            />
-          )}
-          <button
-            type="button"
-            onClick={() => setReloadToken((value) => value + 1)}
-            className="self-start rounded-md border border-ink-300 bg-white px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-ink-100"
-          >
-            {ar.app.retry}
-          </button>
-        </section>
-      )}
-
       {state.kind === "ready" && (
         <>
-          <ReadinessPanel report={state.readiness} />
-          <MaterializationPanel observability={state.observability} />
-          <SourcesPanel cards={state.healthCards} />
-          <CountersPanel observability={state.observability} />
+          {failedSections.length > 0 && (
+            <DegradedState
+              title={ar.status.partialDegradation.title}
+              body={ar.status.partialDegradation.body}
+              testId="status-page-degraded"
+            >
+              <p className="text-xs font-medium text-amber-900">
+                {ar.status.partialDegradation.affectedSections}
+              </p>
+              <ul className="mt-1 list-disc space-y-1 ps-5 text-xs text-amber-900">
+                {failedSections.map((entry) => (
+                  <li key={entry}>{entry}</li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                onClick={() => setReloadToken((value) => value + 1)}
+                className="mt-3 self-start rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100"
+              >
+                {ar.app.retry}
+              </button>
+            </DegradedState>
+          )}
+
+          {state.readiness.kind === "ready" ? (
+            <ReadinessPanel report={state.readiness.data} />
+          ) : (
+            <SectionFailurePanel
+              headingId="readiness-heading"
+              title={ar.status.readiness.title}
+              summary={ar.status.description}
+              error={
+                state.readiness.kind === "failed" ? state.readiness.error : null
+              }
+            />
+          )}
+
+          {state.observability.kind === "ready" ? (
+            <>
+              <MaterializationPanel observability={state.observability.data} />
+              <CountersPanel observability={state.observability.data} />
+            </>
+          ) : (
+            <SectionFailurePanel
+              headingId="observability-heading"
+              title={ar.status.observability.title}
+              summary={ar.status.observability.summary}
+              error={
+                state.observability.kind === "failed"
+                  ? state.observability.error
+                  : null
+              }
+            />
+          )}
+
+          {state.healthCards.kind === "ready" ? (
+            <SourcesPanel cards={state.healthCards.data} />
+          ) : (
+            <SectionFailurePanel
+              headingId="sources-heading"
+              title={ar.status.sources.title}
+              summary={ar.status.sources.summary}
+              error={
+                state.healthCards.kind === "failed"
+                  ? state.healthCards.error
+                  : null
+              }
+            />
+          )}
         </>
       )}
     </div>
+  );
+}
+
+async function loadHealthCards(
+  signal: AbortSignal,
+): Promise<SourceHealthCardData[]> {
+  const datasets = await listDatasets(signal);
+  return Promise.all(
+    datasets.map(async (catalog) => {
+      try {
+        return {
+          catalog,
+          health: await getDatasetHealthResult(
+            catalog.dataset_id,
+            catalog.source,
+            signal,
+          ),
+          error: null,
+        } satisfies SourceHealthCardData;
+      } catch (error) {
+        return {
+          catalog,
+          health: null,
+          error: asDashboardApiError(
+            error,
+            "status_health",
+            "تعذّر تحميل حالة هذه المجموعة.",
+          ),
+        } satisfies SourceHealthCardData;
+      }
+    }),
+  );
+}
+
+function toSectionState<T>(
+  result: PromiseSettledResult<T>,
+  stage: string,
+  fallbackMessage: string,
+): SectionState<T> {
+  if (result.status === "fulfilled") {
+    return { kind: "ready", data: result.value };
+  }
+
+  return {
+    kind: "failed",
+    error: asDashboardApiError(result.reason, stage, fallbackMessage),
+  };
+}
+
+function SectionFailurePanel({
+  headingId,
+  title,
+  summary,
+  error,
+}: {
+  headingId: string;
+  title: string;
+  summary: string;
+  error: DashboardApiError | null;
+}) {
+  return (
+    <section className="flex flex-col gap-3" aria-labelledby={headingId}>
+      <header className="flex flex-col">
+        <h3 id={headingId} className="text-sm font-semibold text-ink-900">
+          {title}
+        </h3>
+        <p className="text-xs text-ink-500">{summary}</p>
+      </header>
+      {error?.kind === "unauthorized" ? (
+        <UnauthorizedState />
+      ) : (
+        <ErrorState
+          stage={error?.stage}
+          errorType={error?.name}
+          message={error?.message}
+        />
+      )}
+    </section>
   );
 }
 

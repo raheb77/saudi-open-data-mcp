@@ -9,6 +9,7 @@ import {
 import { MetadataStrip } from "../components/MetadataStrip";
 import { ResultTable } from "../components/ResultTable";
 import {
+  DegradedState,
   EmptyState,
   ErrorState,
   LimitedState,
@@ -62,6 +63,7 @@ export function QueryPage() {
   const [appliedLimit, setAppliedLimit] = useState<number | null>(100);
   const [queryState, setQueryState] = useState<QueryState>({ kind: "loading" });
   const [health, setHealth] = useState<DatasetHealthLookupResult | null>(null);
+  const [healthError, setHealthError] = useState<DashboardApiError | null>(null);
   const [catalogReloadToken, setCatalogReloadToken] = useState(0);
 
   useEffect(() => {
@@ -117,11 +119,13 @@ export function QueryPage() {
   useEffect(() => {
     if (!datasetId || !selectedCatalogEntry) {
       setHealth(null);
+      setHealthError(null);
       return;
     }
 
     const controller = new AbortController();
     setHealth(null);
+    setHealthError(null);
     void (async () => {
       try {
         const nextHealth = await getDatasetHealthResult(
@@ -132,9 +136,17 @@ export function QueryPage() {
         if (!controller.signal.aborted) {
           setHealth(nextHealth);
         }
-      } catch {
+      } catch (error) {
         if (!controller.signal.aborted) {
           setHealth(null);
+          setHealthError(
+            new DashboardApiError(
+              "validation",
+              "query_health",
+              "تعذّر تحميل سياق الصحة والحداثة لهذا الاستعلام.",
+              { cause: error },
+            ),
+          );
         }
       }
     })();
@@ -193,6 +205,10 @@ export function QueryPage() {
   }
 
   const freshness = health?.freshness ?? null;
+  const showHealthDegradation =
+    queryState.kind === "ready" &&
+    queryState.result.status !== "failed" &&
+    healthError;
 
   function handleExport() {
     if (queryState.kind !== "ready") {
@@ -279,6 +295,17 @@ export function QueryPage() {
                     ? formatAge(freshness.snapshot_age_seconds)
                     : null
                 }
+              />
+            )}
+
+            {showHealthDegradation && (
+              <DegradedState
+                title={ar.query.auxiliaryContext.title}
+                body={ar.query.auxiliaryContext.body}
+                stage={healthError.stage}
+                errorType={healthError.name}
+                message={healthError.message}
+                testId="query-health-degraded"
               />
             )}
 
