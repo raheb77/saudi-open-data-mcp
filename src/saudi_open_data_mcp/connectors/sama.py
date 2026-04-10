@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import http.client
+import socket
+import ssl
 from typing import Any
 from urllib.parse import urlparse
 
@@ -19,6 +23,11 @@ class SAMAConnector(Connector):
 
     source_name = "sama"
     approved_base_url = "https://www.sama.gov.sa"
+    fallback_request_headers = {
+        "Accept": "*/*",
+        "Connection": "close",
+        "User-Agent": "saudi-open-data-mcp/0.1",
+    }
     approved_page_paths = frozenset(
         {
             "/en-US/FinExc/Pages/Currency.aspx",
@@ -119,12 +128,107 @@ class SAMAConnector(Connector):
     async def _send_request(self, url: str, dataset_locator: str) -> httpx.Response:
         """Send a timeout-aware request to the approved SAMA URL with bounded retries."""
 
-        return await self.execute_get_with_retries(
-            client=self._client,
-            url=url,
-            dataset_id=dataset_locator,
-            source_label="SAMA",
+        timeout = self.build_timeout()
+
+        async def send_with(client_instance: httpx.AsyncClient) -> httpx.Response:
+            try:
+                return await client_instance.get(
+                    url,
+                    follow_redirects=True,
+                    timeout=timeout,
+                )
+            except httpx.RequestError as exc:
+                if not self._should_use_standard_library_fallback(exc):
+                    raise
+                return await self._send_request_via_standard_library(
+                    url=url,
+                    timeout_seconds=self.request_policy.timeout_seconds,
+                )
+
+        if self._client is not None:
+            return await self.execute_request_with_retries(
+                lambda: send_with(self._client),
+                dataset_id=dataset_locator,
+                source_label="SAMA",
+            )
+
+        async with self.build_async_client() as managed_client:
+            return await self.execute_request_with_retries(
+                lambda: send_with(managed_client),
+                dataset_id=dataset_locator,
+                source_label="SAMA",
+            )
+
+    def _should_use_standard_library_fallback(self, error: httpx.RequestError) -> bool:
+        """Return whether the current transport error should try the SAMA fallback."""
+
+        return isinstance(error, (httpx.ReadError, httpx.RemoteProtocolError))
+
+    async def _send_request_via_standard_library(
+        self,
+        *,
+        url: str,
+        timeout_seconds: float,
+    ) -> httpx.Response:
+        """Use a minimal HTTPS fallback when the current transport is rejected by SAMA."""
+
+        request = httpx.Request("GET", url)
+        try:
+            return await asyncio.to_thread(
+                self._send_request_via_standard_library_sync,
+                url=url,
+                timeout_seconds=timeout_seconds,
+                request=request,
+            )
+        except httpx.RequestError:
+            raise
+
+    def _send_request_via_standard_library_sync(
+        self,
+        *,
+        url: str,
+        timeout_seconds: float,
+        request: httpx.Request,
+    ) -> httpx.Response:
+        """Send one direct HTTPS request using the standard library."""
+
+        parsed = urlparse(url)
+        host = parsed.netloc
+        path = parsed.path or "/"
+        if parsed.query:
+            path = f"{path}?{parsed.query}"
+
+        connection = http.client.HTTPSConnection(
+            host,
+            timeout=timeout_seconds,
+            context=ssl.create_default_context(),
         )
+        try:
+            connection.request(
+                "GET",
+                path,
+                headers=self.fallback_request_headers,
+            )
+            response = connection.getresponse()
+            body = response.read()
+            return httpx.Response(
+                status_code=response.status,
+                headers=list(response.getheaders()),
+                content=body,
+                request=request,
+            )
+        except (socket.timeout, TimeoutError) as exc:
+            raise httpx.ReadTimeout(
+                "SAMA standard-library fallback timed out",
+                request=request,
+            ) from exc
+        except (http.client.HTTPException, OSError, ssl.SSLError) as exc:
+            raise httpx.ReadError(
+                "SAMA standard-library fallback failed",
+                request=request,
+            ) from exc
+        finally:
+            connection.close()
 
     def _build_raw_payload(self, dataset_locator: str, response: httpx.Response) -> RawPayload:
         """Convert an HTTP response into a typed raw payload."""

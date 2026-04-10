@@ -112,6 +112,93 @@ async def test_unapproved_page_locator_is_rejected() -> None:
 
 
 @pytest.mark.asyncio
+async def test_transport_disconnect_uses_standard_library_fallback() -> None:
+    class DisconnectingAsyncClient:
+        async def get(
+            self,
+            url: str,
+            *,
+            follow_redirects: bool,
+            timeout: httpx.Timeout,
+        ) -> httpx.Response:
+            raise httpx.RemoteProtocolError(
+                "Server disconnected without sending a response.",
+                request=httpx.Request("GET", url),
+            )
+
+    class FallbackConnector(SAMAConnector):
+        def __init__(self) -> None:
+            super().__init__(client=DisconnectingAsyncClient())
+            self.fallback_urls: list[str] = []
+
+        def _send_request_via_standard_library_sync(
+            self,
+            *,
+            url: str,
+            timeout_seconds: float,
+            request: httpx.Request,
+        ) -> httpx.Response:
+            self.fallback_urls.append(url)
+            return httpx.Response(
+                200,
+                headers={"content-type": "text/html; charset=utf-8"},
+                text="<html><body>official weekly pos page</body></html>",
+                request=request,
+            )
+
+    connector = FallbackConnector()
+
+    payload = await connector.fetch_dataset_payload(POS_PAGE_LOCATOR)
+
+    assert connector.fallback_urls == [_page_url(POS_PAGE_LOCATOR)]
+    assert payload.content["url"] == _page_url(POS_PAGE_LOCATOR)
+    assert payload.content["content_type"] == "text/html"
+    assert "official weekly pos page" in payload.content["body"]
+
+
+@pytest.mark.asyncio
+async def test_connect_error_does_not_use_standard_library_fallback() -> None:
+    class ConnectingAsyncClient:
+        async def get(
+            self,
+            url: str,
+            *,
+            follow_redirects: bool,
+            timeout: httpx.Timeout,
+        ) -> httpx.Response:
+            raise httpx.ConnectError(
+                "dns failed",
+                request=httpx.Request("GET", url),
+            )
+
+    class RecordingConnector(SAMAConnector):
+        def __init__(self) -> None:
+            super().__init__(
+                client=ConnectingAsyncClient(),
+                request_policy=RequestPolicy(timeout_seconds=0.1, max_retries=0),
+            )
+            self.used_fallback = False
+
+        def _send_request_via_standard_library_sync(
+            self,
+            *,
+            url: str,
+            timeout_seconds: float,
+            request: httpx.Request,
+        ) -> httpx.Response:
+            self.used_fallback = True
+            raise AssertionError("fallback should not be used for connect errors")
+
+    connector = RecordingConnector()
+
+    with pytest.raises(SourceUnavailableError) as exc_info:
+        await connector.fetch_dataset_payload(POS_PAGE_LOCATOR)
+
+    assert exc_info.value.message == "SAMA source request failed"
+    assert connector.used_fallback is False
+
+
+@pytest.mark.asyncio
 @respx.mock
 async def test_timeout_maps_to_source_timeout_error() -> None:
     respx.get(_report_url()).mock(side_effect=httpx.ReadTimeout("timed out"))
