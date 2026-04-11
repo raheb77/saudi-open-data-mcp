@@ -143,6 +143,43 @@ def _deposits_core_json() -> dict[str, list[dict[str, object]]]:
     }
 
 
+def _exchange_rates_current_bundle_json() -> dict[str, object]:
+    return {
+        "results_page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+        "current_date_text": "21/03/2026",
+        "total_results_count": 2,
+        "pages": [
+            {
+                "page_number": 1,
+                "page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                "body": """
+                    <html><body>
+                      <select name="ctl00$ctl50$ctl00$ddlCurrencies">
+                        <option selected="selected" value="-1">All</option>
+                        <option value="USD=">US DOLLAR</option>
+                        <option value="EUR=">EURO</option>
+                      </select>
+                      <span id="ctl00_ctl50_ctl00_lblItemsCount">Number of result is 2</span>
+                      <table class="tableCurrency grid" id="ctl00_ctl50_ctl00_dgResults">
+                        <tr class="headerstyle gridhead">
+                          <td>Currency Against S.R</td>
+                          <td>Closing Price</td>
+                          <td>Last Updated Date</td>
+                        </tr>
+                        <tr>
+                          <td>US DOLLAR</td><td>3.750000</td><td>21/03/2026</td>
+                        </tr>
+                        <tr>
+                          <td>EURO</td><td>4.050000</td><td>21/03/2026</td>
+                        </tr>
+                      </table>
+                    </body></html>
+                """,
+            }
+        ],
+    }
+
+
 def _repo_rate_html() -> str:
     return """
         <html><body>
@@ -171,6 +208,9 @@ class _SAMAConnectorSpy:
         self.calls.append(dataset_id)
         if dataset_id == "report.aspx?cid=55":
             body: object = _deposits_core_json()
+            content_type = "application/json"
+        elif dataset_id == "/en-US/FinExc/Pages/Currency.aspx":
+            body = _exchange_rates_current_bundle_json()
             content_type = "application/json"
         elif dataset_id == "/en-US/Indices/Pages/POS.aspx":
             body = _pos_weekly_report_bundle_json()
@@ -236,6 +276,7 @@ async def test_materialize_hot_set_persists_wave_one_tier_a_snapshots(tmp_path: 
     )
     assert connector.calls == [
         "/en-US/Indices/Pages/POS.aspx",
+        "/en-US/FinExc/Pages/Currency.aspx",
         "/en-US/Indices/Pages/WeeklyMoneySupply.aspx",
         "/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
         "/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
@@ -257,6 +298,11 @@ async def test_materialize_hot_set_persists_wave_one_tier_a_snapshots(tmp_path: 
     assert results_by_id["sama-pos-weekly"].failure_stage is None
     assert results_by_id["sama-pos-weekly"].degradation_reason is None
     assert results_by_id["sama-pos-weekly"].limitations == ()
+    assert (
+        results_by_id["sama-exchange-rates-current"].normalization_status
+        is NormalizationPipelineStatus.RECORD_DERIVABLE
+    )
+    assert results_by_id["sama-exchange-rates-current"].limitations == ()
     assert (
         results_by_id["sama-deposits-core"].normalization_status
         is NormalizationPipelineStatus.RECORD_DERIVABLE
@@ -313,6 +359,7 @@ async def test_materialize_hot_set_can_include_optional_pos_by_city_without_refe
     assert connector.calls.count("/en-US/Indices/Pages/POS.aspx") == 1
     assert set(connector.calls) == {
         "/en-US/Indices/Pages/POS.aspx",
+        "/en-US/FinExc/Pages/Currency.aspx",
         "/en-US/Indices/Pages/WeeklyMoneySupply.aspx",
         "/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
         "/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
@@ -325,6 +372,11 @@ async def test_materialize_hot_set_can_include_optional_pos_by_city_without_refe
         is NormalizationPipelineStatus.RECORD_DERIVABLE
     )
     assert results_by_id["sama-pos-weekly"].limitations == ()
+    assert (
+        results_by_id["sama-exchange-rates-current"].normalization_status
+        is NormalizationPipelineStatus.RECORD_DERIVABLE
+    )
+    assert results_by_id["sama-exchange-rates-current"].limitations == ()
     assert (
         results_by_id["sama-money-supply-weekly"].normalization_status
         is NormalizationPipelineStatus.RECORD_DERIVABLE

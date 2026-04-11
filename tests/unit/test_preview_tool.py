@@ -219,30 +219,41 @@ def _deposits_core_json() -> dict[str, list[dict[str, object]]]:
     }
 
 
-def _exchange_rates_current_html() -> str:
-    return """
-        <html><body>
-          <p>As of 2026-03-21</p>
-          <table>
-            <caption>Current Exchange Rates</caption>
-            <tr>
-              <th>Currency</th>
-              <th>Buy Rate (SAR)</th>
-              <th>Sell Rate (SAR)</th>
-            </tr>
-            <tr>
-              <td>USD - US Dollar</td>
-              <td>3.7500</td>
-              <td>3.7600</td>
-            </tr>
-            <tr>
-              <td>EUR - Euro</td>
-              <td>4.0500</td>
-              <td>4.0600</td>
-            </tr>
-          </table>
-        </body></html>
-    """
+def _exchange_rates_current_bundle_json() -> dict[str, object]:
+    return {
+        "results_page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+        "current_date_text": "21/03/2026",
+        "total_results_count": 2,
+        "pages": [
+            {
+                "page_number": 1,
+                "page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                "body": """
+                    <html><body>
+                      <select name="ctl00$ctl50$ctl00$ddlCurrencies">
+                        <option selected="selected" value="-1">All</option>
+                        <option value="USD=">US DOLLAR</option>
+                        <option value="EUR=">EURO</option>
+                      </select>
+                      <span id="ctl00_ctl50_ctl00_lblItemsCount">Number of result is 2</span>
+                      <table class="tableCurrency grid" id="ctl00_ctl50_ctl00_dgResults">
+                        <tr class="headerstyle gridhead">
+                          <td>Currency Against S.R</td>
+                          <td>Closing Price</td>
+                          <td>Last Updated Date</td>
+                        </tr>
+                        <tr>
+                          <td>US DOLLAR</td><td>3.750000</td><td>21/03/2026</td>
+                        </tr>
+                        <tr>
+                          <td>EURO</td><td>4.050000</td><td>21/03/2026</td>
+                        </tr>
+                      </table>
+                    </body></html>
+                """,
+            }
+        ],
+    }
 
 
 def _repo_rate_html() -> str:
@@ -683,8 +694,8 @@ async def test_sama_exchange_rates_current_fresh_snapshot_is_served_as_queryable
         store,
         locator="/en-US/FinExc/Pages/Currency.aspx",
         modified_at=datetime(2026, 3, 21, 12, 0, tzinfo=UTC),
-        body=_exchange_rates_current_html(),
-        content_type="text/html",
+        body=_exchange_rates_current_bundle_json(),
+        content_type="application/json",
     )
     tool = DatasetPreviewTool(
         repository,
@@ -705,7 +716,7 @@ async def test_sama_exchange_rates_current_fresh_snapshot_is_served_as_queryable
     assert len(result.records) == 2
     assert result.records[0].fields["currency_code"] == "USD"
     assert result.records[0].fields["quote_currency_code"] == "SAR"
-    assert result.records[0].fields["buy_rate_sar"] == 3.75
+    assert result.records[0].fields["closing_rate_sar"] == 3.75
 
 
 @pytest.mark.asyncio

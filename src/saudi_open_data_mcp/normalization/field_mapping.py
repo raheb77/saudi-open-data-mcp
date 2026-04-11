@@ -22,7 +22,9 @@ from .sama_deposits_core import (
 )
 from .sama_exchange_rates_current import (
     SAMA_EXCHANGE_RATES_CURRENT_HTML_TABLE_LIMITATION,
+    SAMA_EXCHANGE_RATES_CURRENT_JSON_BUNDLE_LIMITATION,
     extract_sama_exchange_rates_current_rows_from_html,
+    extract_sama_exchange_rates_current_rows_from_json,
 )
 from .sama_money_supply_weekly import (
     SAMA_MONEY_SUPPLY_WEEKLY_HTML_TABLE_LIMITATION,
@@ -341,6 +343,21 @@ _STRUCTURED_EXTRACTOR_REGISTRY: dict[
         limitations=(
             TEXT_HTML_EXTRACTION_LIMITATION,
             SAMA_POLICY_RATE_HTML_LIMITATION,
+        ),
+    ),
+    (
+        "sama",
+        "sama-exchange-rates-current",
+        MappingBodyKind.JSON,
+    ): _StructuredExtractorRegistration(
+        extractor=partial(
+            _run_json_body_rows_extractor,
+            extractor=extract_sama_exchange_rates_current_rows_from_json,
+        ),
+        accepted_body_types=(dict,),
+        limitations=(
+            JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
+            SAMA_EXCHANGE_RATES_CURRENT_JSON_BUNDLE_LIMITATION,
         ),
     ),
     (

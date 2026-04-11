@@ -323,26 +323,24 @@ SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_CONTRACTS: tuple[CanonicalDatasetContract, ...
         ),
         measures=(
             _measure(
-                "buy_rate_sar",
+                "closing_rate_sar",
                 type=CanonicalFieldType.DECIMAL,
-                description="Bank buy rate quoted in Saudi Riyals per currency unit.",
-                unit="SAR",
-            ),
-            _measure(
-                "sell_rate_sar",
-                type=CanonicalFieldType.DECIMAL,
-                description="Bank sell rate quoted in Saudi Riyals per currency unit.",
+                description=(
+                    "Published closing exchange rate quoted in Saudi Riyals "
+                    "per currency unit."
+                ),
                 unit="SAR",
             ),
         ),
         structure_note=(
-            "Current exchange rates remain a daily current-quote snapshot surface. "
-            "The canonical contract does not claim an authoritative intraday timestamp "
+            "Current exchange rates remain a daily published closing-price snapshot "
+            "surface backed by the current SAMA currency page. The canonical contract "
+            "does not claim buy/sell quotes or an authoritative intraday timestamp "
             "beyond the published as-of date."
         ),
         intended_analytical_uses=(
-            "Answer daily FX quote lookups by non-SAR currency on a SAR-quoted basis.",
-            "Compare buy/sell spreads across currencies and across stored daily snapshots.",
+            "Answer daily FX closing-rate lookups by non-SAR currency on a SAR-quoted basis.",
+            "Compare published closing-price levels across currencies and stored daily snapshots.",
         ),
     ),
     CanonicalDatasetContract(

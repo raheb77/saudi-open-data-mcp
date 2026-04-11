@@ -28,6 +28,10 @@ WAVE_1_TIER_A_EXPECTATIONS = {
         "/en-US/Indices/Pages/POS.aspx",
         UpdateFrequency.WEEKLY,
     ),
+    "sama-exchange-rates-current": (
+        "/en-US/FinExc/Pages/Currency.aspx",
+        UpdateFrequency.DAILY,
+    ),
     "sama-money-supply-weekly": (
         "/en-US/Indices/Pages/WeeklyMoneySupply.aspx",
         UpdateFrequency.WEEKLY,

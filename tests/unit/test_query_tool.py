@@ -165,30 +165,41 @@ def _deposits_core_json() -> dict[str, list[dict[str, object]]]:
     }
 
 
-def _exchange_rates_current_html() -> str:
-    return """
-        <html><body>
-          <p>As of 2026-03-21</p>
-          <table>
-            <caption>Current Exchange Rates</caption>
-            <tr>
-              <th>Currency</th>
-              <th>Buy Rate (SAR)</th>
-              <th>Sell Rate (SAR)</th>
-            </tr>
-            <tr>
-              <td>USD - US Dollar</td>
-              <td>3.7500</td>
-              <td>3.7600</td>
-            </tr>
-            <tr>
-              <td>EUR - Euro</td>
-              <td>4.0500</td>
-              <td>4.0600</td>
-            </tr>
-          </table>
-        </body></html>
-    """
+def _exchange_rates_current_bundle_json() -> dict[str, object]:
+    return {
+        "results_page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+        "current_date_text": "21/03/2026",
+        "total_results_count": 2,
+        "pages": [
+            {
+                "page_number": 1,
+                "page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                "body": """
+                    <html><body>
+                      <select name="ctl00$ctl50$ctl00$ddlCurrencies">
+                        <option selected="selected" value="-1">All</option>
+                        <option value="USD=">US DOLLAR</option>
+                        <option value="EUR=">EURO</option>
+                      </select>
+                      <span id="ctl00_ctl50_ctl00_lblItemsCount">Number of result is 2</span>
+                      <table class="tableCurrency grid" id="ctl00_ctl50_ctl00_dgResults">
+                        <tr class="headerstyle gridhead">
+                          <td>Currency Against S.R</td>
+                          <td>Closing Price</td>
+                          <td>Last Updated Date</td>
+                        </tr>
+                        <tr>
+                          <td>US DOLLAR</td><td>3.750000</td><td>21/03/2026</td>
+                        </tr>
+                        <tr>
+                          <td>EURO</td><td>4.050000</td><td>21/03/2026</td>
+                        </tr>
+                      </table>
+                    </body></html>
+                """,
+            }
+        ],
+    }
 
 
 def _repo_rate_html() -> str:
@@ -1076,10 +1087,13 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_exchange_rat
         update_frequency=UpdateFrequency.DAILY,
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=(
-            "Current canonical extraction covers supported daily quote tables with "
-            "an explicit as-of date.",
+            "Current canonical extraction covers supported latest-date closing-price "
+            "pages from the official SAMA currency surface.",
         ),
-        known_issues=("Only supported currency/buy/sell table shapes are normalized.",),
+        known_issues=(
+            "Only supported paginated latest-date rows with resolvable currency codes "
+            "are normalized.",
+        ),
     )
     tool = DatasetQueryTool(repository, snapshot_store)
 
@@ -1091,8 +1105,8 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_exchange_rat
             content={
                 "url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
                 "status_code": 200,
-                "content_type": "text/html",
-                "body": _exchange_rates_current_html(),
+                "content_type": "application/json",
+                "body": _exchange_rates_current_bundle_json(),
             },
         )
     )
@@ -1115,16 +1129,15 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_exchange_rat
     assert result.matched_records[0].fields == {
         "as_of_date": "2026-03-21",
         "currency_code": "EUR",
-        "currency_name": "Euro",
+        "currency_name": "EURO",
         "quote_currency_code": "SAR",
         "quote_currency_name": "Saudi Riyal",
-        "buy_rate_sar": 4.05,
-        "sell_rate_sar": 4.06,
+        "closing_rate_sar": 4.05,
         "source_locator": "/en-US/FinExc/Pages/Currency.aspx",
         "source_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
-        "source_currency_text": "EUR - Euro",
-        "source_as_of_text": "As of 2026-03-21",
-        "source_table_title": "Current Exchange Rates",
+        "source_currency_text": "EURO",
+        "source_last_updated_date_text": "21/03/2026",
+        "source_page_number": 1,
     }
 
 

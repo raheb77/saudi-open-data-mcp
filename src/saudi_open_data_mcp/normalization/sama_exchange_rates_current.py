@@ -1,167 +1,162 @@
-"""Dataset-specific HTML extraction for the canonical SAMA current exchange-rates contract."""
+"""Dataset-specific extraction for the SAMA current exchange-rates surface."""
 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date, datetime
-from html.parser import HTMLParser
+from html import unescape
 from typing import Any
 
 SAMA_EXCHANGE_RATES_CURRENT_HTML_TABLE_LIMITATION = (
     "sama_exchange_rates_current_html_requires_supported_daily_quote_table"
 )
+SAMA_EXCHANGE_RATES_CURRENT_JSON_BUNDLE_LIMITATION = (
+    "sama_exchange_rates_current_json_requires_supported_current_quote_bundle"
+)
 
 _HEADER_NORMALIZATION_PATTERN = re.compile(r"[^a-z0-9]+")
+_CURRENCY_KEY_NORMALIZATION_PATTERN = re.compile(r"[^A-Z0-9]+")
 _NUMBER_CLEANUP_PATTERN = re.compile(r"[^0-9.\-]+")
-_AS_OF_TEXT_PATTERN = re.compile(
-    r"\b(?:as of|updated on|date)\s*:?\s*([A-Za-z0-9,\-\/ ]+)",
+_TAG_PATTERN = re.compile(r"<[^>]+>")
+_ATTR_PATTERN = re.compile(
+    r"""([A-Za-z_:][-A-Za-z0-9_:.]*)
+        (?:\s*=\s*
+            (?:
+                "([^"]*)"
+                |'([^']*)'
+                |([^\s>]+)
+            )
+        )?
+    """,
+    flags=re.VERBOSE,
+)
+_TABLE_PATTERN = re.compile(
+    r"<table\b(?P<attrs>[^>]*)>(?P<body>.*?)</table>",
+    flags=re.IGNORECASE | re.DOTALL,
+)
+_ROW_PATTERN = re.compile(
+    r"<tr\b(?P<attrs>[^>]*)>(?P<body>.*?)</tr>",
+    flags=re.IGNORECASE | re.DOTALL,
+)
+_CELL_PATTERN = re.compile(
+    r"<t(?P<tag>[dh])\b(?P<attrs>[^>]*)>(?P<body>.*?)</t[dh]>",
+    flags=re.IGNORECASE | re.DOTALL,
+)
+_SELECT_PATTERN = re.compile(
+    r"<select\b(?P<attrs>[^>]*)>(?P<body>.*?)</select>",
+    flags=re.IGNORECASE | re.DOTALL,
+)
+_OPTION_PATTERN = re.compile(
+    r"<option\b(?P<attrs>[^>]*)>(?P<body>.*?)</option>",
+    flags=re.IGNORECASE | re.DOTALL,
+)
+_RESULTS_COUNT_PATTERN = re.compile(
+    r"Number of result is\s*(?P<count>\d+)",
     flags=re.IGNORECASE,
 )
-_COMBINED_CURRENCY_PATTERN = re.compile(
-    r"^\s*([A-Z]{3})\s*(?:-|–|—|\(|:)?\s*([A-Za-z][A-Za-z .\-()]+?)\s*\)?\s*$"
-)
 _DATE_FORMATS = (
-    "%Y-%m-%d",
     "%d/%m/%Y",
+    "%Y-%m-%d",
     "%d-%m-%Y",
     "%d %b %Y",
     "%d %B %Y",
     "%d %b, %Y",
     "%d %B, %Y",
 )
-_CURRENCY_HEADER_ALIASES = frozenset(
-    {
-        "currency",
-        "quoted currency",
-        "foreign currency",
-    }
+_EXPECTED_HEADER_CELLS = (
+    "currency against s r",
+    "closing price",
+    "last updated date",
 )
-_CURRENCY_CODE_HEADER_ALIASES = frozenset(
-    {
-        "currency code",
-        "code",
-        "ccy code",
-    }
-)
-_CURRENCY_NAME_HEADER_ALIASES = frozenset(
-    {
-        "currency name",
-        "name",
-        "currency description",
-    }
-)
-_BUY_RATE_HEADER_ALIASES = frozenset(
-    {
-        "buy",
-        "buy rate",
-        "buy rate sar",
-        "buy sar",
-    }
-)
-_SELL_RATE_HEADER_ALIASES = frozenset(
-    {
-        "sell",
-        "sell rate",
-        "sell rate sar",
-        "sell sar",
-    }
-)
-
-
-@dataclass(slots=True)
-class _ParsedRow:
-    cells: list[str] = field(default_factory=list)
-    has_header_cells: bool = False
-
-
-@dataclass(slots=True)
-class _ParsedTable:
-    caption: str | None = None
-    rows: list[_ParsedRow] = field(default_factory=list)
-
-
-class _HTMLTableParser(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self.tables: list[_ParsedTable] = []
-        self.visible_text: list[str] = []
-        self._current_table: _ParsedTable | None = None
-        self._current_row: _ParsedRow | None = None
-        self._current_cell_chunks: list[str] | None = None
-        self._current_caption_chunks: list[str] | None = None
-        self._in_cell = False
-        self._in_caption = False
-        self._cell_is_header = False
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        del attrs
-        if tag == "table":
-            self._current_table = _ParsedTable()
-            return
-
-        if self._current_table is None:
-            return
-
-        if tag == "caption":
-            self._in_caption = True
-            self._current_caption_chunks = []
-        elif tag == "tr":
-            self._current_row = _ParsedRow()
-        elif tag in {"th", "td"} and self._current_row is not None:
-            self._in_cell = True
-            self._cell_is_header = tag == "th"
-            self._current_cell_chunks = []
-
-    def handle_data(self, data: str) -> None:
-        text = " ".join(data.split())
-        if not text:
-            return
-
-        self.visible_text.append(text)
-        if self._in_caption and self._current_caption_chunks is not None:
-            self._current_caption_chunks.append(text)
-        elif self._in_cell and self._current_cell_chunks is not None:
-            self._current_cell_chunks.append(text)
-
-    def handle_endtag(self, tag: str) -> None:
-        if tag == "table":
-            if self._current_table is not None and self._current_table.rows:
-                self.tables.append(self._current_table)
-            self._current_table = None
-            return
-
-        if self._current_table is None:
-            return
-
-        if tag == "caption":
-            if self._current_caption_chunks:
-                self._current_table.caption = " ".join(self._current_caption_chunks).strip()
-            self._current_caption_chunks = None
-            self._in_caption = False
-        elif tag in {"th", "td"} and self._current_row is not None:
-            value = ""
-            if self._current_cell_chunks:
-                value = " ".join(self._current_cell_chunks).strip()
-            self._current_row.cells.append(value)
-            if self._cell_is_header:
-                self._current_row.has_header_cells = True
-            self._current_cell_chunks = None
-            self._cell_is_header = False
-            self._in_cell = False
-        elif tag == "tr":
-            if self._current_row is not None and any(
-                cell.strip() for cell in self._current_row.cells
-            ):
-                self._current_table.rows.append(self._current_row)
-            self._current_row = None
 
 
 @dataclass(frozen=True, slots=True)
-class _CurrencyRow:
-    currency_code: str
-    currency_name: str
-    source_currency_text: str
+class _PageRecord:
+    fields: dict[str, Any]
+    as_of_date: date
+
+
+@dataclass(frozen=True, slots=True)
+class _ParsedPage:
+    records: tuple[_PageRecord, ...]
+    total_results_count: int | None
+    has_pager: bool
+
+
+def extract_sama_exchange_rates_current_rows_from_json(
+    body: dict[str, Any],
+    *,
+    source_locator: str,
+    source_url: str,
+) -> list[dict[str, Any]] | None:
+    """Extract canonical current quote rows from a connector-built page bundle."""
+
+    pages = body.get("pages")
+    if not isinstance(pages, list) or not pages:
+        return None
+
+    bundle_date = _resolve_bundle_date(body.get("current_date_text"))
+    expected_total = _resolve_expected_total(body.get("total_results_count"))
+    combined_rows: list[dict[str, Any]] = []
+    seen_currency_codes: set[str] = set()
+    seen_page_numbers: set[int] = set()
+
+    for index, page_entry in enumerate(pages, start=1):
+        if not isinstance(page_entry, dict):
+            return None
+
+        page_number = page_entry.get("page_number", index)
+        if not isinstance(page_number, int) or page_number <= 0:
+            return None
+        if page_number in seen_page_numbers:
+            return None
+        seen_page_numbers.add(page_number)
+
+        page_html = page_entry.get("body")
+        if not isinstance(page_html, str):
+            return None
+
+        page_url = page_entry.get("page_url")
+        if page_url is not None and not isinstance(page_url, str):
+            return None
+
+        parsed_page = _parse_supported_quote_page(
+            html=page_html,
+            source_locator=source_locator,
+            source_url=source_url,
+            page_url=page_url or source_url,
+            page_number=page_number,
+        )
+        if parsed_page is None or not parsed_page.records:
+            return None
+
+        if expected_total is None:
+            expected_total = parsed_page.total_results_count
+        elif (
+            parsed_page.total_results_count is not None
+            and parsed_page.total_results_count != expected_total
+        ):
+            return None
+
+        for record in parsed_page.records:
+            if bundle_date is None:
+                bundle_date = record.as_of_date
+            elif record.as_of_date != bundle_date:
+                return None
+
+            currency_code = record.fields["currency_code"]
+            if currency_code in seen_currency_codes:
+                return None
+            seen_currency_codes.add(currency_code)
+            combined_rows.append(record.fields)
+
+    if expected_total is None or expected_total != len(combined_rows):
+        return None
+    if bundle_date is None:
+        return None
+
+    return combined_rows
 
 
 def extract_sama_exchange_rates_current_rows_from_html(
@@ -170,184 +165,205 @@ def extract_sama_exchange_rates_current_rows_from_html(
     source_locator: str,
     source_url: str,
 ) -> list[dict[str, Any]] | None:
-    """Extract canonical current exchange-rate rows from a supported HTML table."""
+    """Extract canonical current quote rows from one complete supported HTML page."""
 
-    parser = _HTMLTableParser()
-    parser.feed(html)
-    as_of = _resolve_as_of_date(parser.visible_text)
-    if as_of is None:
+    parsed_page = _parse_supported_quote_page(
+        html=html,
+        source_locator=source_locator,
+        source_url=source_url,
+        page_url=source_url,
+        page_number=None,
+    )
+    if parsed_page is None or not parsed_page.records:
+        return None
+    if parsed_page.has_pager:
+        return None
+    if (
+        parsed_page.total_results_count is not None
+        and parsed_page.total_results_count != len(parsed_page.records)
+    ):
         return None
 
-    as_of_date, source_as_of_text = as_of
-    for table in parser.tables:
-        extracted_rows = _extract_table_rows(
-            table=table,
-            as_of_date=as_of_date,
-            source_as_of_text=source_as_of_text,
-            source_locator=source_locator,
-            source_url=source_url,
-        )
-        if extracted_rows:
-            return extracted_rows
+    expected_date = parsed_page.records[0].as_of_date
+    if any(record.as_of_date != expected_date for record in parsed_page.records):
+        return None
 
+    return [record.fields for record in parsed_page.records]
+
+
+def _parse_supported_quote_page(
+    *,
+    html: str,
+    source_locator: str,
+    source_url: str,
+    page_url: str,
+    page_number: int | None,
+) -> _ParsedPage | None:
+    option_mapping = _extract_currency_option_mapping(html)
+    if not option_mapping:
+        return None
+
+    table_html = _resolve_results_table_html(html)
+    if table_html is None:
+        return None
+
+    total_results_count = _extract_total_results_count(html)
+    records: list[_PageRecord] = []
+    has_pager = False
+    header_seen = False
+
+    for row_match in _ROW_PATTERN.finditer(table_html):
+        row_attrs = _parse_html_attributes(row_match.group("attrs"))
+        row_html = row_match.group("body")
+        cells = _extract_row_cells(row_html)
+        if not cells:
+            continue
+
+        normalized_header = tuple(_normalize_header(cell) for cell in cells[:3])
+        if normalized_header == _EXPECTED_HEADER_CELLS:
+            header_seen = True
+            continue
+
+        if _is_pager_row(row_attrs=row_attrs, row_html=row_html, cells=cells):
+            has_pager = True
+            continue
+
+        if not header_seen or len(cells) < 3:
+            continue
+
+        source_currency_text = cells[0]
+        closing_price_text = cells[1]
+        source_last_updated_date_text = cells[2]
+        currency_code = option_mapping.get(_normalize_currency_key(source_currency_text))
+        if currency_code is None:
+            return None
+
+        try:
+            as_of_date = _parse_date_text(source_last_updated_date_text)
+            closing_rate_sar = _parse_decimal_text(closing_price_text)
+        except ValueError:
+            return None
+
+        fields: dict[str, Any] = {
+            "as_of_date": as_of_date.isoformat(),
+            "currency_code": currency_code,
+            "currency_name": source_currency_text,
+            "quote_currency_code": "SAR",
+            "quote_currency_name": "Saudi Riyal",
+            "closing_rate_sar": closing_rate_sar,
+            "source_locator": source_locator,
+            "source_url": source_url,
+            "source_currency_text": source_currency_text,
+            "source_last_updated_date_text": source_last_updated_date_text,
+        }
+        if page_number is not None:
+            fields["source_page_number"] = page_number
+        if page_url != source_url:
+            fields["source_page_url"] = page_url
+
+        records.append(_PageRecord(fields=fields, as_of_date=as_of_date))
+
+    if not header_seen or not records:
+        return None
+
+    return _ParsedPage(
+        records=tuple(records),
+        total_results_count=total_results_count,
+        has_pager=has_pager,
+    )
+
+
+def _extract_currency_option_mapping(html: str) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+
+    for select_match in _SELECT_PATTERN.finditer(html):
+        select_attrs = _parse_html_attributes(select_match.group("attrs"))
+        select_name = str(select_attrs.get("name", "")).casefold()
+        if "ddlcurrencies" not in select_name:
+            continue
+
+        for option_match in _OPTION_PATTERN.finditer(select_match.group("body")):
+            option_attrs = _parse_html_attributes(option_match.group("attrs"))
+            code = _parse_currency_code(str(option_attrs.get("value", "")))
+            if code is None:
+                continue
+
+            display_name = _clean_html_text(option_match.group("body"))
+            if not display_name:
+                continue
+
+            key = _normalize_currency_key(display_name)
+            existing = mapping.get(key)
+            if existing is not None and existing != code:
+                return {}
+            mapping[key] = code
+
+        if mapping:
+            return mapping
+
+    return {}
+
+
+def _resolve_results_table_html(html: str) -> str | None:
+    for table_match in _TABLE_PATTERN.finditer(html):
+        attrs = _parse_html_attributes(table_match.group("attrs"))
+        table_id = str(attrs.get("id", ""))
+        table_class = str(attrs.get("class", ""))
+        if "dgResults" in table_id or "tableCurrency" in table_class:
+            return table_match.group("body")
     return None
 
 
-def _extract_table_rows(
+def _extract_row_cells(row_html: str) -> list[str]:
+    cells: list[str] = []
+    for cell_match in _CELL_PATTERN.finditer(row_html):
+        cells.append(_clean_html_text(cell_match.group("body")))
+    return cells
+
+
+def _is_pager_row(
     *,
-    table: _ParsedTable,
-    as_of_date: date,
-    source_as_of_text: str,
-    source_locator: str,
-    source_url: str,
-) -> list[dict[str, Any]]:
-    header_row_index = next(
-        (index for index, row in enumerate(table.rows) if row.has_header_cells),
-        None,
-    )
-    if header_row_index is None:
-        return []
-
-    header_mapping = _resolve_header_mapping(table.rows[header_row_index].cells)
-    if header_mapping is None:
-        return []
-
-    extracted_rows: list[dict[str, Any]] = []
-    for row in table.rows[header_row_index + 1 :]:
-        if not any(cell.strip() for cell in row.cells):
-            continue
-        record = _extract_record(
-            row_cells=row.cells,
-            header_mapping=header_mapping,
-            as_of_date=as_of_date,
-            source_as_of_text=source_as_of_text,
-            source_locator=source_locator,
-            source_url=source_url,
-            source_table_title=table.caption,
-        )
-        if record is None:
-            return []
-        extracted_rows.append(record)
-
-    return extracted_rows
+    row_attrs: dict[str, str | bool],
+    row_html: str,
+    cells: list[str],
+) -> bool:
+    row_class = str(row_attrs.get("class", "")).casefold()
+    if "pagerstyle" in row_class:
+        return True
+    if "javascript:__doPostBack".casefold() in unescape(row_html).casefold():
+        return True
+    if len(cells) == 1:
+        for cell_match in _CELL_PATTERN.finditer(row_html):
+            cell_attrs = _parse_html_attributes(cell_match.group("attrs"))
+            if "colspan" in cell_attrs:
+                return True
+    return False
 
 
-def _resolve_header_mapping(headers: list[str]) -> dict[str, int] | None:
-    mapping: dict[str, int] = {}
-
-    for index, header in enumerate(headers):
-        normalized = _normalize_header(header)
-        if normalized in _CURRENCY_HEADER_ALIASES and "currency" not in mapping:
-            mapping["currency"] = index
-        elif normalized in _CURRENCY_CODE_HEADER_ALIASES and "currency_code" not in mapping:
-            mapping["currency_code"] = index
-        elif normalized in _CURRENCY_NAME_HEADER_ALIASES and "currency_name" not in mapping:
-            mapping["currency_name"] = index
-        elif normalized in _BUY_RATE_HEADER_ALIASES and "buy_rate_sar" not in mapping:
-            mapping["buy_rate_sar"] = index
-        elif normalized in _SELL_RATE_HEADER_ALIASES and "sell_rate_sar" not in mapping:
-            mapping["sell_rate_sar"] = index
-
-    has_currency_identity = "currency" in mapping or {
-        "currency_code",
-        "currency_name",
-    }.issubset(mapping)
-    if not has_currency_identity:
+def _extract_total_results_count(html: str) -> int | None:
+    match = _RESULTS_COUNT_PATTERN.search(_clean_html_text(html))
+    if match is None:
         return None
-    if "buy_rate_sar" not in mapping or "sell_rate_sar" not in mapping:
+    return int(match.group("count"))
+
+
+def _resolve_bundle_date(value: Any) -> date | None:
+    if value is None:
         return None
-
-    return mapping
-
-
-def _extract_record(
-    *,
-    row_cells: list[str],
-    header_mapping: dict[str, int],
-    as_of_date: date,
-    source_as_of_text: str,
-    source_locator: str,
-    source_url: str,
-    source_table_title: str | None,
-) -> dict[str, Any] | None:
-    currency = _extract_currency_identity(row_cells, header_mapping)
-    if currency is None:
+    if not isinstance(value, str):
         return None
-
     try:
-        buy_rate_sar = _parse_decimal_text(_row_value(row_cells, header_mapping["buy_rate_sar"]))
-        sell_rate_sar = _parse_decimal_text(_row_value(row_cells, header_mapping["sell_rate_sar"]))
+        return _parse_date_text(value)
     except ValueError:
         return None
 
-    record: dict[str, Any] = {
-        "as_of_date": as_of_date.isoformat(),
-        "currency_code": currency.currency_code,
-        "currency_name": currency.currency_name,
-        "quote_currency_code": "SAR",
-        "quote_currency_name": "Saudi Riyal",
-        "buy_rate_sar": buy_rate_sar,
-        "sell_rate_sar": sell_rate_sar,
-        "source_locator": source_locator,
-        "source_url": source_url,
-        "source_currency_text": currency.source_currency_text,
-        "source_as_of_text": source_as_of_text,
-    }
-    if source_table_title:
-        record["source_table_title"] = source_table_title
-    return record
 
-
-def _extract_currency_identity(
-    row_cells: list[str],
-    header_mapping: dict[str, int],
-) -> _CurrencyRow | None:
-    if "currency" in header_mapping:
-        source_text = _row_value(row_cells, header_mapping["currency"])
-        return _parse_combined_currency_text(source_text)
-
-    try:
-        code = _row_value(row_cells, header_mapping["currency_code"]).strip().upper()
-        name = _row_value(row_cells, header_mapping["currency_name"]).strip()
-    except (IndexError, KeyError):
+def _resolve_expected_total(value: Any) -> int | None:
+    if value is None:
         return None
-
-    if not re.fullmatch(r"[A-Z]{3}", code) or not name:
+    if not isinstance(value, int) or value < 1:
         return None
-    return _CurrencyRow(
-        currency_code=code,
-        currency_name=name,
-        source_currency_text=f"{code} - {name}",
-    )
-
-
-def _parse_combined_currency_text(value: str) -> _CurrencyRow | None:
-    match = _COMBINED_CURRENCY_PATTERN.match(value.strip())
-    if match is None:
-        return None
-
-    code = match.group(1).upper()
-    name = match.group(2).strip(" -()")
-    if not name:
-        return None
-    return _CurrencyRow(
-        currency_code=code,
-        currency_name=name,
-        source_currency_text=value.strip(),
-    )
-
-
-def _resolve_as_of_date(visible_text: list[str]) -> tuple[date, str] | None:
-    for text in visible_text:
-        match = _AS_OF_TEXT_PATTERN.search(text)
-        if match is None:
-            continue
-        candidate = match.group(1).strip()
-        try:
-            return _parse_date_text(candidate), text.strip()
-        except ValueError:
-            continue
-    return None
+    return value
 
 
 def _parse_date_text(value: str) -> date:
@@ -366,15 +382,35 @@ def _parse_decimal_text(value: str) -> float:
     return float(cleaned)
 
 
-def _row_value(row_cells: list[str], index: int) -> str:
-    if index >= len(row_cells):
-        raise ValueError("row does not include the expected column")
-    value = row_cells[index].strip()
-    if not value:
-        raise ValueError("row cell is empty")
-    return value
+def _parse_currency_code(value: str) -> str | None:
+    cleaned = re.sub(r"[^A-Z]", "", value.upper())
+    if len(cleaned) != 3:
+        return None
+    return cleaned
+
+
+def _clean_html_text(fragment: str) -> str:
+    text = unescape(_TAG_PATTERN.sub(" ", fragment)).replace("\xa0", " ")
+    return " ".join(text.split())
+
+
+def _parse_html_attributes(fragment: str) -> dict[str, str | bool]:
+    attributes: dict[str, str | bool] = {}
+    for match in _ATTR_PATTERN.finditer(fragment):
+        name = match.group(1).casefold()
+        value = match.group(2) or match.group(3) or match.group(4)
+        attributes[name] = value if value is not None else True
+    return attributes
 
 
 def _normalize_header(value: str) -> str:
     normalized = _HEADER_NORMALIZATION_PATTERN.sub(" ", value.strip().casefold()).strip()
+    return normalized
+
+
+def _normalize_currency_key(value: str) -> str:
+    normalized = _CURRENCY_KEY_NORMALIZATION_PATTERN.sub(
+        " ",
+        value.upper().strip(),
+    ).strip()
     return normalized

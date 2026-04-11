@@ -51,6 +51,111 @@ def _pos_reports_page_html() -> str:
     """
 
 
+def _exchange_rates_landing_page_html() -> str:
+    return """
+        <html><body>
+          <form method="post" action="./Currency.aspx" id="aspnetForm">
+            <input type="hidden" name="__VIEWSTATE" value="landing-viewstate" />
+            <input type="hidden" name="__EVENTVALIDATION" value="landing-validation" />
+            <select name="ctl00$ctl50$ctl00$ddlCurrencies">
+              <option selected="selected" value="-1">All</option>
+              <option value="USD=">US DOLLAR</option>
+              <option value="EUR=">EURO</option>
+              <option value="JPY=">JAPANESE YEN</option>
+            </select>
+            <input
+              name="ctl00$ctl50$ctl00$txtDatePicker"
+              type="text"
+              value=""
+            />
+            <input
+              type="submit"
+              name="ctl00$ctl50$ctl00$btnSearch"
+              value="Search"
+            />
+            <span id="ctl00_ctl50_ctl00_lblItemsCount">Number of result is 138511</span>
+            <table class="tableCurrency grid" id="ctl00_ctl50_ctl00_dgResults">
+              <tr class="headerstyle gridhead">
+                <td>Currency Against S.R</td><td>Closing Price</td><td>Last Updated Date</td>
+              </tr>
+              <tr>
+                <td>US DOLLAR</td><td>3.750000</td><td>21/03/2026</td>
+              </tr>
+              <tr class="AlternatingGridStyle gridalter">
+                <td>EURO</td><td>4.050000</td><td>21/03/2026</td>
+              </tr>
+              <tr class="PagerStyle" align="center">
+                <td colspan="3">
+                  <span>1</span>&nbsp;
+                  <a href="javascript:__doPostBack('next','')">2</a>
+                </td>
+              </tr>
+            </table>
+          </form>
+        </body></html>
+    """
+
+
+def _exchange_rates_results_page_html(
+    *,
+    viewstate: str,
+    rows: list[tuple[str, str, str]],
+    total_results_count: int,
+    pager_links: list[tuple[str, str]] = [],
+) -> str:
+    pager_html = ""
+    if pager_links:
+        links = "&nbsp;".join(
+            f"<a href=\"javascript:__doPostBack('{target}','')\">{label}</a>"
+            for label, target in pager_links
+        )
+        pager_html = (
+            '<tr class="PagerStyle" align="center">'
+            f"<td colspan=\"3\">{links}</td>"
+            "</tr>"
+        )
+    rows_html = "".join(
+        f"<tr><td>{currency}</td><td>{rate}</td><td>{date_text}</td></tr>"
+        for currency, rate, date_text in rows
+    )
+    return f"""
+        <html><body>
+          <form method="post" action="./Currency.aspx" id="aspnetForm">
+            <input type="hidden" name="__VIEWSTATE" value="{viewstate}" />
+            <input type="hidden" name="__EVENTVALIDATION" value="{viewstate}-validation" />
+            <select name="ctl00$ctl50$ctl00$ddlCurrencies">
+              <option selected="selected" value="-1">All</option>
+              <option value="USD=">US DOLLAR</option>
+              <option value="EUR=">EURO</option>
+              <option value="JPY=">JAPANESE YEN</option>
+            </select>
+            <input
+              name="ctl00$ctl50$ctl00$txtDatePicker"
+              type="text"
+              value="21/03/2026"
+            />
+            <input
+              type="submit"
+              name="ctl00$ctl50$ctl00$btnSearch"
+              value="Search"
+            />
+            <span id="ctl00_ctl50_ctl00_lblItemsCount">
+              Number of result is {total_results_count}
+            </span>
+            <table class="tableCurrency grid" id="ctl00_ctl50_ctl00_dgResults">
+              <tr class="headerstyle gridhead">
+                <td>Currency Against S.R</td>
+                <td>Closing Price</td>
+                <td>Last Updated Date</td>
+              </tr>
+              {rows_html}
+              {pager_html}
+            </table>
+          </form>
+        </body></html>
+    """
+
+
 def _build_text_pdf_bytes(lines: list[str]) -> bytes:
     def _escape_pdf_text(value: str) -> str:
         return value.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
@@ -267,21 +372,102 @@ async def test_fetch_dataset_payload_fails_when_any_pos_pdf_cannot_be_extracted(
 @pytest.mark.asyncio
 @respx.mock
 async def test_fetch_dataset_payload_allows_approved_exchange_rates_page_locator() -> None:
-    route = respx.get(_page_url(EXCHANGE_RATES_PAGE_LOCATOR)).mock(
+    landing_route = respx.get(_page_url(EXCHANGE_RATES_PAGE_LOCATOR)).mock(
         return_value=httpx.Response(
             200,
-            text="<html><body>official exchange rates page</body></html>",
+            text=_exchange_rates_landing_page_html(),
             headers={"content-type": "text/html; charset=utf-8"},
         )
+    )
+    search_route = respx.post(_page_url(EXCHANGE_RATES_PAGE_LOCATOR)).mock(
+        side_effect=[
+            httpx.Response(
+                200,
+                text=_exchange_rates_results_page_html(
+                    viewstate="search-viewstate",
+                    rows=[
+                        ("US DOLLAR", "3.750000", "21/03/2026"),
+                        ("EURO", "4.050000", "21/03/2026"),
+                    ],
+                    total_results_count=3,
+                    pager_links=[("2", "page-2-target")],
+                ),
+                headers={"content-type": "text/html; charset=utf-8"},
+            ),
+            httpx.Response(
+                200,
+                text=_exchange_rates_results_page_html(
+                    viewstate="page-2-viewstate",
+                    rows=[("JAPANESE YEN", "0.025300", "21/03/2026")],
+                    total_results_count=3,
+                ),
+                headers={"content-type": "text/html; charset=utf-8"},
+            ),
+        ]
     )
     connector = SAMAConnector()
 
     payload = await connector.fetch_dataset_payload(EXCHANGE_RATES_PAGE_LOCATOR)
 
-    assert route.called
+    assert landing_route.called
+    assert search_route.called
     assert payload.dataset_id == EXCHANGE_RATES_PAGE_LOCATOR
     assert payload.content["url"] == _page_url(EXCHANGE_RATES_PAGE_LOCATOR)
-    assert payload.content["content_type"] == "text/html"
+    assert payload.content["content_type"] == "application/json"
+    assert payload.content["body"]["current_date_text"] == "21/03/2026"
+    assert payload.content["body"]["total_results_count"] == 3
+    assert len(payload.content["body"]["pages"]) == 2
+    posted_bodies = [
+        call.request.content.decode("utf-8") for call in search_route.calls
+    ]
+    assert "ctl00%24ctl50%24ctl00%24txtDatePicker=21%2F03%2F2026" in posted_bodies[0]
+    assert "__EVENTTARGET=page-2-target" in posted_bodies[1]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fetch_dataset_payload_fails_when_exchange_pages_drift_outside_latest_date(
+) -> None:
+    respx.get(_page_url(EXCHANGE_RATES_PAGE_LOCATOR)).mock(
+        return_value=httpx.Response(
+            200,
+            text=_exchange_rates_landing_page_html(),
+            headers={"content-type": "text/html; charset=utf-8"},
+        )
+    )
+    respx.post(_page_url(EXCHANGE_RATES_PAGE_LOCATOR)).mock(
+        side_effect=[
+            httpx.Response(
+                200,
+                text=_exchange_rates_results_page_html(
+                    viewstate="search-viewstate",
+                    rows=[
+                        ("US DOLLAR", "3.750000", "21/03/2026"),
+                        ("EURO", "4.050000", "21/03/2026"),
+                    ],
+                    total_results_count=3,
+                    pager_links=[("2", "page-2-target")],
+                ),
+                headers={"content-type": "text/html; charset=utf-8"},
+            ),
+            httpx.Response(
+                200,
+                text=_exchange_rates_results_page_html(
+                    viewstate="page-2-viewstate",
+                    rows=[("JAPANESE YEN", "0.025300", "20/03/2026")],
+                    total_results_count=3,
+                ),
+                headers={"content-type": "text/html; charset=utf-8"},
+            ),
+        ]
+    )
+    connector = SAMAConnector()
+
+    with pytest.raises(
+        InvalidSourceResponseError,
+        match="pagination drifted outside the latest date",
+    ):
+        await connector.fetch_dataset_payload(EXCHANGE_RATES_PAGE_LOCATOR)
 
 
 @pytest.mark.asyncio
@@ -303,13 +489,16 @@ async def test_unapproved_page_locator_is_rejected() -> None:
 @pytest.mark.asyncio
 async def test_transport_disconnect_uses_standard_library_fallback() -> None:
     class DisconnectingAsyncClient:
-        async def get(
+        async def request(
             self,
+            method: str,
             url: str,
             *,
+            data: dict[str, str] | None,
             follow_redirects: bool,
             timeout: httpx.Timeout,
         ) -> httpx.Response:
+            del method, data, follow_redirects, timeout
             raise httpx.RemoteProtocolError(
                 "Server disconnected without sending a response.",
                 request=httpx.Request("GET", url),
@@ -326,7 +515,10 @@ async def test_transport_disconnect_uses_standard_library_fallback() -> None:
             url: str,
             timeout_seconds: float,
             request: httpx.Request,
+            method: str,
+            form_data: dict[str, str] | None,
         ) -> httpx.Response:
+            del timeout_seconds, method, form_data
             self.fallback_urls.append(url)
             if url == _page_url(POS_PAGE_LOCATOR):
                 return httpx.Response(

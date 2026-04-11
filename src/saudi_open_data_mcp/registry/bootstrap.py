@@ -7,6 +7,7 @@ from .repository import RegistryRepository
 
 WAVE_1_HOT_SET_TIER_A_DATASET_IDS: tuple[str, ...] = (
     "sama-pos-weekly",
+    "sama-exchange-rates-current",
     "sama-money-supply-weekly",
     "sama-repo-rate",
     "sama-reverse-repo-rate",
@@ -121,12 +122,12 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         update_frequency=UpdateFrequency.DAILY,
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=(
-            "This canonical dataset normalizes supported daily quote tables from the "
-            "official current exchange-rates page.",
+            "This canonical dataset normalizes the latest published closing-price rows "
+            "from the official SAMA current exchange-rates page.",
         ),
         known_issues=(
-            "Only supported quote tables with an explicit as-of date and buy/sell "
-            "rate columns are normalized.",
+            "Only supported paginated results for the latest published date with "
+            "resolvable currency codes and explicit closing-price rows are normalized.",
         ),
     ),
     DatasetDescriptor(

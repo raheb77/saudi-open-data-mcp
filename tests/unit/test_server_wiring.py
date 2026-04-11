@@ -31,6 +31,7 @@ from saudi_open_data_mcp.tools.preview import DatasetPreviewResult, PreviewStatu
 
 REPORT_LOCATOR = "report.aspx?cid=55"
 POS_PAGE_LOCATOR = "/en-US/Indices/Pages/POS.aspx"
+EXCHANGE_RATES_PAGE_LOCATOR = "/en-US/FinExc/Pages/Currency.aspx"
 WEEKLY_MONEY_SUPPLY_PAGE_LOCATOR = "/en-US/Indices/Pages/WeeklyMoneySupply.aspx"
 REPO_RATE_PAGE_LOCATOR = "/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx"
 REVERSE_REPO_RATE_PAGE_LOCATOR = "/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx"
@@ -66,6 +67,113 @@ def _pos_reports_page_html() -> str:
           <a
             href="https://www.sama.gov.sa/en-US/Indices/POS_EN/Weekly_Points_of_Sale_Transactions_Report_28-Mar-2026.pdf"
           >28 Mar</a>
+        </body></html>
+    """
+
+
+def _exchange_rates_landing_page_html() -> str:
+    return """
+        <html><body>
+          <form method="post" action="./Currency.aspx" id="aspnetForm">
+            <input type="hidden" name="__VIEWSTATE" value="landing-viewstate" />
+            <input type="hidden" name="__EVENTVALIDATION" value="landing-validation" />
+            <select name="ctl00$ctl50$ctl00$ddlCurrencies">
+              <option selected="selected" value="-1">All</option>
+              <option value="USD=">US DOLLAR</option>
+              <option value="EUR=">EURO</option>
+              <option value="JPY=">JAPANESE YEN</option>
+            </select>
+            <input
+              name="ctl00$ctl50$ctl00$txtDatePicker"
+              type="text"
+              value=""
+            />
+            <input
+              type="submit"
+              name="ctl00$ctl50$ctl00$btnSearch"
+              value="Search"
+            />
+            <span id="ctl00_ctl50_ctl00_lblItemsCount">Number of result is 138511</span>
+            <table class="tableCurrency grid" id="ctl00_ctl50_ctl00_dgResults">
+              <tr class="headerstyle gridhead">
+                <td>Currency Against S.R</td>
+                <td>Closing Price</td>
+                <td>Last Updated Date</td>
+              </tr>
+              <tr>
+                <td>US DOLLAR</td><td>3.750000</td><td>21/03/2026</td>
+              </tr>
+              <tr class="AlternatingGridStyle gridalter">
+                <td>EURO</td><td>4.050000</td><td>21/03/2026</td>
+              </tr>
+              <tr class="PagerStyle" align="center">
+                <td colspan="3">
+                  <span>1</span>&nbsp;
+                  <a href="javascript:__doPostBack('page-2-target','')">2</a>
+                </td>
+              </tr>
+            </table>
+          </form>
+        </body></html>
+    """
+
+
+def _exchange_rates_results_page_html(
+    *,
+    viewstate: str,
+    rows: list[tuple[str, str, str]],
+    total_results_count: int,
+    pager_links: list[tuple[str, str]] | None = None,
+) -> str:
+    pager_html = ""
+    if pager_links:
+        links = "&nbsp;".join(
+            f"<a href=\"javascript:__doPostBack('{target}','')\">{label}</a>"
+            for label, target in pager_links
+        )
+        pager_html = (
+            '<tr class="PagerStyle" align="center">'
+            f"<td colspan=\"3\">{links}</td>"
+            "</tr>"
+        )
+    rows_html = "".join(
+        f"<tr><td>{currency}</td><td>{rate}</td><td>{date_text}</td></tr>"
+        for currency, rate, date_text in rows
+    )
+    return f"""
+        <html><body>
+          <form method="post" action="./Currency.aspx" id="aspnetForm">
+            <input type="hidden" name="__VIEWSTATE" value="{viewstate}" />
+            <input type="hidden" name="__EVENTVALIDATION" value="{viewstate}-validation" />
+            <select name="ctl00$ctl50$ctl00$ddlCurrencies">
+              <option selected="selected" value="-1">All</option>
+              <option value="USD=">US DOLLAR</option>
+              <option value="EUR=">EURO</option>
+              <option value="JPY=">JAPANESE YEN</option>
+            </select>
+            <input
+              name="ctl00$ctl50$ctl00$txtDatePicker"
+              type="text"
+              value="21/03/2026"
+            />
+            <input
+              type="submit"
+              name="ctl00$ctl50$ctl00$btnSearch"
+              value="Search"
+            />
+            <span id="ctl00_ctl50_ctl00_lblItemsCount">
+              Number of result is {total_results_count}
+            </span>
+            <table class="tableCurrency grid" id="ctl00_ctl50_ctl00_dgResults">
+              <tr class="headerstyle gridhead">
+                <td>Currency Against S.R</td>
+                <td>Closing Price</td>
+                <td>Last Updated Date</td>
+              </tr>
+              {rows_html}
+              {pager_html}
+            </table>
+          </form>
         </body></html>
     """
 
@@ -371,6 +479,39 @@ async def test_server_materialize_hot_set_persists_wave_one_safe_subset(
             headers={"content-type": "text/html; charset=utf-8"},
         )
     )
+    exchange_landing_route = respx.get(_page_url(EXCHANGE_RATES_PAGE_LOCATOR)).mock(
+        return_value=httpx.Response(
+            200,
+            text=_exchange_rates_landing_page_html(),
+            headers={"content-type": "text/html; charset=utf-8"},
+        )
+    )
+    exchange_search_route = respx.post(_page_url(EXCHANGE_RATES_PAGE_LOCATOR)).mock(
+        side_effect=[
+            httpx.Response(
+                200,
+                text=_exchange_rates_results_page_html(
+                    viewstate="search-viewstate",
+                    rows=[
+                        ("US DOLLAR", "3.750000", "21/03/2026"),
+                        ("EURO", "4.050000", "21/03/2026"),
+                    ],
+                    total_results_count=3,
+                    pager_links=[("2", "page-2-target")],
+                ),
+                headers={"content-type": "text/html; charset=utf-8"},
+            ),
+            httpx.Response(
+                200,
+                text=_exchange_rates_results_page_html(
+                    viewstate="page-2-viewstate",
+                    rows=[("JAPANESE YEN", "0.025300", "21/03/2026")],
+                    total_results_count=3,
+                ),
+                headers={"content-type": "text/html; charset=utf-8"},
+            ),
+        ]
+    )
     repo_route = respx.get(_page_url(REPO_RATE_PAGE_LOCATOR)).mock(
         return_value=httpx.Response(
             200,
@@ -416,6 +557,8 @@ async def test_server_materialize_hot_set_persists_wave_one_safe_subset(
     assert pos_route.called
     assert pos_pdf_latest_route.called
     assert pos_pdf_older_route.called
+    assert exchange_landing_route.called
+    assert exchange_search_route.called
     assert weekly_money_route.called
     assert repo_route.called
     assert reverse_repo_route.called
@@ -593,12 +736,14 @@ async def test_server_lifespan_can_trigger_tier_a_background_refresh(
 
     assert connector.calls == [
         POS_PAGE_LOCATOR,
+        EXCHANGE_RATES_PAGE_LOCATOR,
         WEEKLY_MONEY_SUPPLY_PAGE_LOCATOR,
         REPO_RATE_PAGE_LOCATOR,
         REVERSE_REPO_RATE_PAGE_LOCATOR,
         REPORT_LOCATOR,
     ]
     assert snapshot_store.snapshot_exists("sama", POS_PAGE_LOCATOR)
+    assert snapshot_store.snapshot_exists("sama", EXCHANGE_RATES_PAGE_LOCATOR)
     assert snapshot_store.snapshot_exists("sama", WEEKLY_MONEY_SUPPLY_PAGE_LOCATOR)
     assert snapshot_store.snapshot_exists("sama", REPO_RATE_PAGE_LOCATOR)
     assert snapshot_store.snapshot_exists("sama", REVERSE_REPO_RATE_PAGE_LOCATOR)

@@ -23,6 +23,7 @@ from saudi_open_data_mcp.normalization.sama_deposits_core import (
 )
 from saudi_open_data_mcp.normalization.sama_exchange_rates_current import (
     SAMA_EXCHANGE_RATES_CURRENT_HTML_TABLE_LIMITATION,
+    SAMA_EXCHANGE_RATES_CURRENT_JSON_BUNDLE_LIMITATION,
 )
 from saudi_open_data_mcp.normalization.sama_money_supply_weekly import (
     SAMA_MONEY_SUPPLY_WEEKLY_HTML_TABLE_LIMITATION,
@@ -485,7 +486,139 @@ def test_sama_money_supply_weekly_html_without_supported_table_remains_limited()
     )
 
 
-def test_sama_exchange_rates_current_html_can_map_to_structured_quote_rows() -> None:
+def test_sama_exchange_rates_current_json_bundle_can_map_to_realistic_quote_rows() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/FinExc/Pages/Currency.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {
+                "results_page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                "current_date_text": "21/03/2026",
+                "total_results_count": 3,
+                "pages": [
+                    {
+                        "page_number": 1,
+                        "page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                        "body": """
+                            <html><body>
+                              <select name="ctl00$ctl50$ctl00$ddlCurrencies">
+                                <option selected="selected" value="-1">All</option>
+                                <option value="USD=">US DOLLAR</option>
+                                <option value="EUR=">EURO</option>
+                                <option value="JPY=">JAPANESE YEN</option>
+                              </select>
+                              <span id="ctl00_ctl50_ctl00_lblItemsCount">
+                                Number of result is 3
+                              </span>
+                              <table class="tableCurrency grid" id="ctl00_ctl50_ctl00_dgResults">
+                                <tr class="headerstyle gridhead">
+                                  <td>Currency Against S.R</td>
+                                  <td>Closing Price</td>
+                                  <td>Last Updated Date</td>
+                                </tr>
+                                <tr>
+                                  <td>US DOLLAR</td><td>3.750000</td><td>21/03/2026</td>
+                                </tr>
+                                <tr class="AlternatingGridStyle gridalter">
+                                  <td>EURO</td><td>4.050000</td><td>21/03/2026</td>
+                                </tr>
+                                <tr class="PagerStyle" align="center">
+                                  <td colspan="3"><span>1</span></td>
+                                </tr>
+                              </table>
+                            </body></html>
+                        """,
+                    },
+                    {
+                        "page_number": 2,
+                        "page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                        "body": """
+                            <html><body>
+                              <select name="ctl00$ctl50$ctl00$ddlCurrencies">
+                                <option selected="selected" value="-1">All</option>
+                                <option value="USD=">US DOLLAR</option>
+                                <option value="EUR=">EURO</option>
+                                <option value="JPY=">JAPANESE YEN</option>
+                              </select>
+                              <span id="ctl00_ctl50_ctl00_lblItemsCount">
+                                Number of result is 3
+                              </span>
+                              <table class="tableCurrency grid" id="ctl00_ctl50_ctl00_dgResults">
+                                <tr class="headerstyle gridhead">
+                                  <td>Currency Against S.R</td>
+                                  <td>Closing Price</td>
+                                  <td>Last Updated Date</td>
+                                </tr>
+                                <tr>
+                                  <td>JAPANESE YEN</td><td>0.025300</td><td>21/03/2026</td>
+                                </tr>
+                              </table>
+                            </body></html>
+                        """,
+                    },
+                ],
+            },
+        },
+    )
+
+    result = get_field_mapping(
+        raw_payload,
+        canonical_dataset_id="sama-exchange-rates-current",
+    )
+
+    assert result.body_kind is MappingBodyKind.JSON
+    assert result.record_extraction_shape is RecordExtractionShape.ROWS_OBJECT_LIST
+    assert result.can_derive_records is True
+    assert result.limitations == ()
+    assert result.canonical_fields["structured_body"] == {
+        "rows": [
+            {
+                "as_of_date": "2026-03-21",
+                "currency_code": "USD",
+                "currency_name": "US DOLLAR",
+                "quote_currency_code": "SAR",
+                "quote_currency_name": "Saudi Riyal",
+                "closing_rate_sar": 3.75,
+                "source_locator": "/en-US/FinExc/Pages/Currency.aspx",
+                "source_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                "source_currency_text": "US DOLLAR",
+                "source_last_updated_date_text": "21/03/2026",
+                "source_page_number": 1,
+            },
+            {
+                "as_of_date": "2026-03-21",
+                "currency_code": "EUR",
+                "currency_name": "EURO",
+                "quote_currency_code": "SAR",
+                "quote_currency_name": "Saudi Riyal",
+                "closing_rate_sar": 4.05,
+                "source_locator": "/en-US/FinExc/Pages/Currency.aspx",
+                "source_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                "source_currency_text": "EURO",
+                "source_last_updated_date_text": "21/03/2026",
+                "source_page_number": 1,
+            },
+            {
+                "as_of_date": "2026-03-21",
+                "currency_code": "JPY",
+                "currency_name": "JAPANESE YEN",
+                "quote_currency_code": "SAR",
+                "quote_currency_name": "Saudi Riyal",
+                "closing_rate_sar": 0.0253,
+                "source_locator": "/en-US/FinExc/Pages/Currency.aspx",
+                "source_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                "source_currency_text": "JAPANESE YEN",
+                "source_last_updated_date_text": "21/03/2026",
+                "source_page_number": 2,
+            },
+        ]
+    }
+
+
+def test_sama_exchange_rates_current_html_without_full_pagination_remains_limited() -> None:
     raw_payload = RawPayload(
         source="sama",
         dataset_id="/en-US/FinExc/Pages/Currency.aspx",
@@ -495,82 +628,31 @@ def test_sama_exchange_rates_current_html_can_map_to_structured_quote_rows() -> 
             "content_type": "text/html",
             "body": """
                 <html><body>
-                  <p>As of 2026-03-21</p>
-                  <table>
-                    <caption>Current Exchange Rates</caption>
-                    <tr>
-                      <th>Currency</th>
-                      <th>Buy Rate (SAR)</th>
-                      <th>Sell Rate (SAR)</th>
+                  <select name="ctl00$ctl50$ctl00$ddlCurrencies">
+                    <option selected="selected" value="-1">All</option>
+                    <option value="USD=">US DOLLAR</option>
+                    <option value="EUR=">EURO</option>
+                  </select>
+                  <span id="ctl00_ctl50_ctl00_lblItemsCount">Number of result is 27</span>
+                  <table class="tableCurrency grid" id="ctl00_ctl50_ctl00_dgResults">
+                    <tr class="headerstyle gridhead">
+                      <td>Currency Against S.R</td><td>Closing Price</td><td>Last Updated Date</td>
                     </tr>
                     <tr>
-                      <td>USD - US Dollar</td>
-                      <td>3.7500</td>
-                      <td>3.7600</td>
+                      <td>US DOLLAR</td><td>3.750000</td><td>21/03/2026</td>
                     </tr>
-                    <tr>
-                      <td>EUR - Euro</td>
-                      <td>4.0500</td>
-                      <td>4.0600</td>
+                    <tr class="AlternatingGridStyle gridalter">
+                      <td>EURO</td><td>4.050000</td><td>21/03/2026</td>
+                    </tr>
+                    <tr class="PagerStyle" align="center">
+                      <td colspan="3">
+                        <span>1</span>&nbsp;
+                        <a href="javascript:__doPostBack('next','')">2</a>
+                      </td>
                     </tr>
                   </table>
                 </body></html>
             """,
-        },
-    )
-
-    result = get_field_mapping(
-        raw_payload,
-        canonical_dataset_id="sama-exchange-rates-current",
-    )
-
-    assert result.body_kind is MappingBodyKind.HTML
-    assert result.record_extraction_shape is RecordExtractionShape.ROWS_OBJECT_LIST
-    assert result.can_derive_records is True
-    assert result.limitations == ()
-    assert result.canonical_fields["structured_body"] == {
-        "rows": [
-            {
-                "as_of_date": "2026-03-21",
-                "currency_code": "USD",
-                "currency_name": "US Dollar",
-                "quote_currency_code": "SAR",
-                "quote_currency_name": "Saudi Riyal",
-                "buy_rate_sar": 3.75,
-                "sell_rate_sar": 3.76,
-                "source_locator": "/en-US/FinExc/Pages/Currency.aspx",
-                "source_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
-                "source_currency_text": "USD - US Dollar",
-                "source_as_of_text": "As of 2026-03-21",
-                "source_table_title": "Current Exchange Rates",
-            },
-            {
-                "as_of_date": "2026-03-21",
-                "currency_code": "EUR",
-                "currency_name": "Euro",
-                "quote_currency_code": "SAR",
-                "quote_currency_name": "Saudi Riyal",
-                "buy_rate_sar": 4.05,
-                "sell_rate_sar": 4.06,
-                "source_locator": "/en-US/FinExc/Pages/Currency.aspx",
-                "source_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
-                "source_currency_text": "EUR - Euro",
-                "source_as_of_text": "As of 2026-03-21",
-                "source_table_title": "Current Exchange Rates",
-            },
-        ]
-    }
-
-
-def test_sama_exchange_rates_current_html_without_supported_quote_table_remains_limited() -> None:
-    raw_payload = RawPayload(
-        source="sama",
-        dataset_id="/en-US/FinExc/Pages/Currency.aspx",
-        content={
-            "url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
-            "status_code": 200,
-            "content_type": "text/html",
-            "body": "<html><body><p>Current Exchange Rates</p></body></html>",
         },
     )
 
@@ -585,6 +667,63 @@ def test_sama_exchange_rates_current_html_without_supported_quote_table_remains_
     assert result.limitations == (
         "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
         SAMA_EXCHANGE_RATES_CURRENT_HTML_TABLE_LIMITATION,
+    )
+
+
+def test_sama_exchange_rates_current_json_bundle_with_unmapped_currency_remains_limited() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/FinExc/Pages/Currency.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {
+                "results_page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                "current_date_text": "21/03/2026",
+                "total_results_count": 1,
+                "pages": [
+                    {
+                        "page_number": 1,
+                        "page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                        "body": """
+                            <html><body>
+                              <select name="ctl00$ctl50$ctl00$ddlCurrencies">
+                                <option selected="selected" value="-1">All</option>
+                                <option value="USD=">US DOLLAR</option>
+                              </select>
+                              <span id="ctl00_ctl50_ctl00_lblItemsCount">
+                                Number of result is 1
+                              </span>
+                              <table class="tableCurrency grid" id="ctl00_ctl50_ctl00_dgResults">
+                                <tr class="headerstyle gridhead">
+                                  <td>Currency Against S.R</td>
+                                  <td>Closing Price</td>
+                                  <td>Last Updated Date</td>
+                                </tr>
+                                <tr>
+                                  <td>UNKNOWN CURRENCY</td><td>1.234500</td><td>21/03/2026</td>
+                                </tr>
+                              </table>
+                            </body></html>
+                        """,
+                    }
+                ],
+            },
+        },
+    )
+
+    result = get_field_mapping(
+        raw_payload,
+        canonical_dataset_id="sama-exchange-rates-current",
+    )
+
+    assert result.body_kind is MappingBodyKind.JSON
+    assert result.can_derive_records is False
+    assert result.record_extraction_shape is RecordExtractionShape.NONE
+    assert result.limitations == (
+        JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
+        SAMA_EXCHANGE_RATES_CURRENT_JSON_BUNDLE_LIMITATION,
     )
 
 

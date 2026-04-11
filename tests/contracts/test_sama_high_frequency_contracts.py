@@ -65,7 +65,7 @@ EXPECTED_CONTRACT_SUMMARIES = {
             "quote_currency_code",
             "quote_currency_name",
         ),
-        "measures": ("buy_rate_sar", "sell_rate_sar"),
+        "measures": ("closing_rate_sar",),
     },
     "sama-repo-rate": {
         "record_shape": CanonicalRecordShape.TIME_SERIES_OBSERVATION,
@@ -142,8 +142,8 @@ def test_sama_exchange_rates_current_contract_makes_daily_snapshot_scope_explici
     contract = get_canonical_dataset_contract("sama-exchange-rates-current")
 
     assert contract.structure_note is not None
-    assert "daily current-quote snapshot" in contract.structure_note
-    assert "does not claim an authoritative intraday timestamp" in contract.structure_note
+    assert "daily published closing-price snapshot" in contract.structure_note
+    assert "does not claim buy/sell quotes" in contract.structure_note
 
 
 @pytest.mark.parametrize(
@@ -306,30 +306,43 @@ def test_sama_exchange_rates_current_enriched_sample_matches_declared_contract_d
         content={
             "url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
             "status_code": 200,
-            "content_type": "text/html",
-            "body": """
-                <html><body>
-                  <p>As of 2026-03-21</p>
-                  <table>
-                    <caption>Current Exchange Rates</caption>
-                    <tr>
-                      <th>Currency</th>
-                      <th>Buy Rate (SAR)</th>
-                      <th>Sell Rate (SAR)</th>
-                    </tr>
-                    <tr>
-                      <td>USD - US Dollar</td>
-                      <td>3.7500</td>
-                      <td>3.7600</td>
-                    </tr>
-                    <tr>
-                      <td>EUR - Euro</td>
-                      <td>4.0500</td>
-                      <td>4.0600</td>
-                    </tr>
-                  </table>
-                </body></html>
-            """,
+            "content_type": "application/json",
+            "body": {
+                "results_page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                "current_date_text": "21/03/2026",
+                "total_results_count": 2,
+                "pages": [
+                    {
+                        "page_number": 1,
+                        "page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                        "body": """
+                            <html><body>
+                              <select name="ctl00$ctl50$ctl00$ddlCurrencies">
+                                <option selected="selected" value="-1">All</option>
+                                <option value="USD=">US DOLLAR</option>
+                                <option value="EUR=">EURO</option>
+                              </select>
+                              <span id="ctl00_ctl50_ctl00_lblItemsCount">
+                                Number of result is 2
+                              </span>
+                              <table class="tableCurrency grid" id="ctl00_ctl50_ctl00_dgResults">
+                                <tr class="headerstyle gridhead">
+                                  <td>Currency Against S.R</td>
+                                  <td>Closing Price</td>
+                                  <td>Last Updated Date</td>
+                                </tr>
+                                <tr>
+                                  <td>US DOLLAR</td><td>3.750000</td><td>21/03/2026</td>
+                                </tr>
+                                <tr>
+                                  <td>EURO</td><td>4.050000</td><td>21/03/2026</td>
+                                </tr>
+                              </table>
+                            </body></html>
+                        """,
+                    }
+                ],
+            },
         },
     )
 
