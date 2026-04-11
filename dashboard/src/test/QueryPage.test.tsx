@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ar } from "../i18n/ar";
@@ -234,6 +234,64 @@ describe("QueryPage", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(ar.meta.schemaVersion)).not.toBeInTheDocument();
     expect(screen.queryByText(ar.meta.snapshotAge)).not.toBeInTheDocument();
+  });
+
+  it("surfaces analyst-facing result context with compact stats, filters, and export controls", async () => {
+    listDatasetsMock.mockResolvedValue([
+      makeCatalogEntry(
+        "stats-gov-sa-cpi-headline-monthly",
+        "stats-gov-sa",
+        "مؤشر أسعار المستهلك",
+      ),
+    ]);
+    getDatasetHealthResultMock.mockResolvedValue(
+      makeHealthResult("stats-gov-sa-cpi-headline-monthly", "stats-gov-sa"),
+    );
+    getDatasetQueryResultMock.mockResolvedValue({
+      ...makeQueryResult(
+        "stats-gov-sa-cpi-headline-monthly",
+        "stats-gov-sa",
+      ),
+      applied_filters: {
+        observation_month: "2025-12",
+        inflation_series_code: "headline_cpi_all_items",
+      },
+      total_records_before_filter: 42,
+      limit: 25,
+      matched_records: [
+        {
+          dataset_id: "stats-gov-sa-cpi-headline-monthly",
+          source: "stats-gov-sa",
+          record_index: 1,
+          fields: {
+            observation_month: "2025-12",
+            inflation_series_code: "headline_cpi_all_items",
+            inflation_series_name: "Headline CPI",
+            yoy_rate_percent: 2.1,
+            mom_rate_percent: 0.1,
+            release_date: "2026-01-15",
+          },
+        },
+      ],
+    });
+
+    renderQueryPage("/query?dataset=stats-gov-sa-cpi-headline-monthly");
+
+    const summary = await screen.findByTestId("query-result-summary");
+    const exportControls = screen.getByTestId("query-export-controls");
+
+    expect(within(summary).getByText(ar.query.resultOverviewTitle)).toBeInTheDocument();
+    expect(within(summary).getByText("42")).toBeInTheDocument();
+    expect(within(summary).getByText("25")).toBeInTheDocument();
+    expect(within(summary).getByText(ar.query.appliedFilters)).toBeInTheDocument();
+    expect(within(summary).getByText("observation_month")).toBeInTheDocument();
+    expect(within(summary).getByText("headline_cpi_all_items")).toBeInTheDocument();
+    expect(
+      within(exportControls).getByText(ar.query.exportCurrentTitle),
+    ).toBeInTheDocument();
+    expect(
+      within(exportControls).getByRole("button", { name: ar.query.export }),
+    ).toBeInTheDocument();
   });
 
   it("surfaces a validation-stage query failure as an explicit page error state", async () => {

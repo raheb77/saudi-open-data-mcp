@@ -9,14 +9,35 @@ export const FIELD_LABELS: Record<string, string> = {
   transaction_count: "عدد العمليات",
   transaction_value_sar: "قيمة العمليات (ريال)",
   average_ticket_sar: "متوسط العملية (ريال)",
+  // Inflation
+  observation_month: "شهر الرصد",
+  inflation_series_code: "رمز سلسلة التضخم",
+  inflation_series_name: "اسم سلسلة التضخم",
+  yoy_rate_percent: "التغير السنوي (٪)",
+  mom_rate_percent: "التغير الشهري (٪)",
   // GDP
   observation_quarter: "الربع",
   gdp_series_code: "رمز السلسلة",
   gdp_series_name: "اسم السلسلة",
   release_date: "تاريخ الإصدار",
   value_percent: "القيمة (٪)",
+  // Labor
+  labor_series_code: "رمز سلسلة العمل",
+  labor_series_name: "اسم سلسلة العمل",
+  // Generic
+  value: "القيمة",
   // MoF
   fiscal_series_code: "رمز السلسلة المالية",
   fiscal_series_name: "اسم السلسلة المالية",
   value_sar_bn: "القيمة (مليار ريال)",
+  // Provenance
+  source_release_title: "عنوان الإصدار",
+  source_release_url: "رابط الإصدار",
+  source_report_url: "رابط التقرير",
+  source_url: "رابط المصدر",
+  source_release_date_text: "تاريخ الإصدار النصي",
+  source_locator: "محدد المصدر",
+  source_series_name: "اسم السلسلة في المصدر",
+  source_observation_month_text: "الشهر كما ورد في المصدر",
+  source_summary_text: "ملخص المصدر",
 };
