@@ -34,7 +34,9 @@ from .sama_policy_rates import (
 )
 from .sama_pos_weekly import (
     SAMA_POS_WEEKLY_HTML_TABLE_LIMITATION,
+    SAMA_POS_WEEKLY_JSON_REPORT_BUNDLE_LIMITATION,
     extract_sama_pos_weekly_rows_from_html,
+    extract_sama_pos_weekly_rows_from_json,
 )
 from .stats_gov_sa_cpi_headline_monthly import (
     STATS_GOV_SA_CPI_HEADLINE_MONTHLY_HTML_LIMITATION,
@@ -258,6 +260,21 @@ _STRUCTURED_EXTRACTOR_REGISTRY: dict[
         limitations=(
             JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
             MOF_BUDGET_BALANCE_QUARTERLY_JSON_LIMITATION,
+        ),
+    ),
+    (
+        "sama",
+        "sama-pos-weekly",
+        MappingBodyKind.JSON,
+    ): _StructuredExtractorRegistration(
+        extractor=partial(
+            _run_json_body_rows_extractor,
+            extractor=extract_sama_pos_weekly_rows_from_json,
+        ),
+        accepted_body_types=(dict,),
+        limitations=(
+            JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
+            SAMA_POS_WEEKLY_JSON_REPORT_BUNDLE_LIMITATION,
         ),
     ),
     (

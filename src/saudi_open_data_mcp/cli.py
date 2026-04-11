@@ -278,13 +278,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command in {"query", "export"}:
         config = _load_config_or_exit(parser)
         app = _create_server_or_exit(parser, config)
+        dataset_id = _resolve_dataset_id_argument_or_exit(
+            parser,
+            positional_dataset_id=args.dataset_id,
+            option_dataset_id=args.dataset_id_option,
+        )
         filters = _parse_filter_arguments_or_exit(parser, args.filter)
         payload = asyncio.run(
             _invoke_tool_payload(
                 app,
                 tool_name="query_dataset",
                 arguments={
-                    "dataset_id": args.dataset_id,
+                    "dataset_id": dataset_id,
                     "filters": filters or None,
                     "limit": args.limit,
                 },
@@ -296,7 +301,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 _invoke_tool_payload(
                     app,
                     tool_name="dataset_health",
-                    arguments={"dataset_id": args.dataset_id},
+                    arguments={"dataset_id": dataset_id},
                 )
             )
             _write_query_export_artifact_or_exit(
@@ -382,7 +387,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _add_dataset_query_arguments(subparser: argparse.ArgumentParser) -> None:
     """Add the shared dataset query argument set used by query/export commands."""
 
-    subparser.add_argument("dataset_id", help="Exact canonical dataset_id.")
+    subparser.add_argument("dataset_id", nargs="?", help="Exact canonical dataset_id.")
+    subparser.add_argument(
+        "--dataset-id",
+        dest="dataset_id_option",
+        default=None,
+        help="Exact canonical dataset_id.",
+    )
     subparser.add_argument(
         "--filter",
         action="append",
@@ -476,6 +487,24 @@ def _parse_filter_arguments(
         parsed_filters[normalized_key] = _parse_filter_value(raw_value)
 
     return parsed_filters
+
+
+def _resolve_dataset_id_argument_or_exit(
+    parser: argparse.ArgumentParser,
+    *,
+    positional_dataset_id: str | None,
+    option_dataset_id: str | None,
+) -> str:
+    """Resolve the shared dataset-id arguments for query/export commands."""
+
+    if positional_dataset_id and option_dataset_id:
+        parser.error("provide either dataset_id or --dataset-id, not both")
+
+    dataset_id = option_dataset_id or positional_dataset_id
+    if dataset_id is None:
+        parser.error("dataset_id is required")
+
+    return dataset_id
 
 
 def _parse_filter_value(raw_value: str) -> str | int | float | bool | None:

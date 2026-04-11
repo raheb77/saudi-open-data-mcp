@@ -15,6 +15,7 @@ from saudi_open_data_mcp import server as server_module
 from saudi_open_data_mcp.config import RuntimeConfig, TierARefreshConfig
 from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.connectors.resolver import SourceConnectorResolver
+from saudi_open_data_mcp.connectors.sama import SAMAConnector
 from saudi_open_data_mcp.observability import get_metrics
 from saudi_open_data_mcp.registry.bootstrap import (
     INITIAL_DATASET_DESCRIPTORS,
@@ -50,6 +51,23 @@ def _data_gov_sa_preview_url() -> str:
 
 def _page_url(locator: str) -> str:
     return f"https://www.sama.gov.sa{locator}"
+
+
+def _pos_report_url(name: str) -> str:
+    return f"https://www.sama.gov.sa/en-US/Indices/POS_EN/{name}"
+
+
+def _pos_reports_page_html() -> str:
+    return """
+        <html><body>
+          <a
+            href="https://www.sama.gov.sa/en-US/Indices/POS_EN/Weekly_Points_of_Sale_Transactions_Report_04-Apr-2026.pdf"
+          >04 Apr</a>
+          <a
+            href="https://www.sama.gov.sa/en-US/Indices/POS_EN/Weekly_Points_of_Sale_Transactions_Report_28-Mar-2026.pdf"
+          >28 Mar</a>
+        </body></html>
+    """
 
 
 def _runtime_config(tmp_path: Path) -> RuntimeConfig:
@@ -301,12 +319,45 @@ async def test_server_registers_current_mcp_surface(
 @respx.mock
 async def test_server_materialize_hot_set_persists_wave_one_safe_subset(
     tmp_path: Path,
+    monkeypatch,
 ) -> None:
     pos_route = respx.get(_page_url(POS_PAGE_LOCATOR)).mock(
         return_value=httpx.Response(
             200,
-            text="<html><body>official weekly pos page</body></html>",
+            text=_pos_reports_page_html(),
             headers={"content-type": "text/html; charset=utf-8"},
+        )
+    )
+    pos_pdf_latest_route = respx.get(
+        _pos_report_url("Weekly_Points_of_Sale_Transactions_Report_04-Apr-2026.pdf")
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            content=(
+                "Weekly Points of Sale Transactions Table 1: By Activities "
+                "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
+                "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26 "
+                "Total 226,928 16,149,247 223,899 14,793,365 "
+                "219,827 12,969,718 246,506 14,707,441 12.1 13.4 "
+                "Table 2.1: By Cities"
+            ).encode("utf-8"),
+            headers={"content-type": "application/pdf"},
+        )
+    )
+    pos_pdf_older_route = respx.get(
+        _pos_report_url("Weekly_Points_of_Sale_Transactions_Report_28-Mar-2026.pdf")
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            content=(
+                "Weekly Points of Sale Transactions Table 1: By Activities "
+                "1 Mar,26 - 7 Mar,26 8 Mar,26 - 14 Mar,26 "
+                "15 Mar,26 - 21 Mar,26 22 Mar,26 - 28 Mar,26 "
+                "Total 210,100 13,000,000 226,928 16,149,247 "
+                "223,899 14,793,365 219,827 12,969,718 -1.8 -12.3 "
+                "Table 2.1: By Cities"
+            ).encode("utf-8"),
+            headers={"content-type": "application/pdf"},
         )
     )
     weekly_money_route = respx.get(_page_url(WEEKLY_MONEY_SUPPLY_PAGE_LOCATOR)).mock(
@@ -337,6 +388,11 @@ async def test_server_materialize_hot_set_persists_wave_one_safe_subset(
             headers={"content-type": "application/json"},
         )
     )
+    monkeypatch.setattr(
+        SAMAConnector,
+        "_extract_pdf_text",
+        staticmethod(lambda pdf_bytes, *, dataset_id: pdf_bytes.decode("utf-8")),
+    )
     app = create_server(_runtime_config(tmp_path))
     tools = await app.get_tools()
 
@@ -354,6 +410,8 @@ async def test_server_materialize_hot_set_persists_wave_one_safe_subset(
         item["dataset_id"] for item in result.structured_content["results"]
     ] == list(WAVE_1_HOT_SET_TIER_A_DATASET_IDS)
     assert pos_route.called
+    assert pos_pdf_latest_route.called
+    assert pos_pdf_older_route.called
     assert weekly_money_route.called
     assert repo_route.called
     assert reverse_repo_route.called

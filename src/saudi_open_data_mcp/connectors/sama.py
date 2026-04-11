@@ -4,17 +4,27 @@ from __future__ import annotations
 
 import asyncio
 import http.client
+import re
 import socket
 import ssl
+from io import BytesIO
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
+from pypdf import PdfReader
 
 from .base import Connector, RawPayload, RawPayloadSnapshotWriter, RequestPolicy
 from .errors import (
     InvalidSourceResponseError,
     SourceAccessPolicyViolationError,
+)
+
+_POS_PAGE_PATH = "/en-US/Indices/Pages/POS.aspx"
+_POS_REPORTS_PREFIX = "/en-US/Indices/POS_EN/"
+_POS_REPORT_LINK_PATTERN = re.compile(
+    r"""href=(?:"|')(?P<href>(?:https://www\.sama\.gov\.sa)?/en-US/Indices/POS_EN/[^"']+\.pdf)(?:"|')""",
+    flags=re.IGNORECASE,
 )
 
 
@@ -57,8 +67,14 @@ class SAMAConnector(Connector):
 
         dataset_locator = dataset_id
         source_url = self._build_source_url(dataset_locator)
-        response = await self._send_request(source_url, dataset_locator)
-        payload = self._build_raw_payload(dataset_locator, response)
+        if urlparse(source_url).path == _POS_PAGE_PATH:
+            payload = await self._fetch_pos_report_bundle(
+                dataset_locator=dataset_locator,
+                source_url=source_url,
+            )
+        else:
+            response = await self._send_request(source_url, dataset_locator)
+            payload = self._build_raw_payload(dataset_locator, response)
 
         if self.snapshot_store is not None:
             self.snapshot_store.write_snapshot(payload)
@@ -240,6 +256,162 @@ class SAMAConnector(Connector):
             dataset_id=dataset_locator,
             content=content,
         )
+
+    async def _fetch_pos_report_bundle(
+        self,
+        *,
+        dataset_locator: str,
+        source_url: str,
+    ) -> RawPayload:
+        """Fetch the POS reports page and the approved linked report PDFs."""
+
+        page_response = await self._send_request(source_url, dataset_locator)
+        page_content = self._build_html_response_content(dataset_locator, page_response)
+        report_urls = self._extract_pos_report_pdf_urls(
+            html=page_content["body"],
+            dataset_locator=dataset_locator,
+        )
+
+        reports = []
+        for report_url in report_urls:
+            report_response = await self._send_request(report_url, dataset_locator)
+            report_body = self._build_pdf_text_response_content(
+                dataset_locator,
+                report_response,
+            )
+            reports.append(
+                {
+                    "report_url": report_body["url"],
+                    "report_text": report_body["body"],
+                }
+            )
+
+        return RawPayload(
+            source=self.source_name,
+            dataset_id=dataset_locator,
+            content={
+                "url": page_content["url"],
+                "status_code": page_content["status_code"],
+                "content_type": "application/json",
+                "body": {
+                    "reports_page_url": page_content["url"],
+                    "reports": reports,
+                },
+            },
+        )
+
+    def _extract_pos_report_pdf_urls(self, *, html: str, dataset_locator: str) -> tuple[str, ...]:
+        """Extract approved POS report PDF URLs from the reports page HTML."""
+
+        discovered_urls: list[str] = []
+        seen_urls: set[str] = set()
+        approved_parts = urlparse(self.approved_base_url)
+
+        for match in _POS_REPORT_LINK_PATTERN.finditer(html):
+            href = match.group("href")
+            candidate = href
+            if candidate.startswith("/"):
+                candidate = f"{self.approved_base_url}{candidate}"
+
+            approved_url = self.ensure_approved_url(candidate)
+            candidate_parts = urlparse(approved_url)
+            if (
+                candidate_parts.scheme != approved_parts.scheme
+                or candidate_parts.netloc != approved_parts.netloc
+                or not candidate_parts.path.startswith(_POS_REPORTS_PREFIX)
+                or candidate_parts.query
+                or candidate_parts.fragment
+            ):
+                continue
+
+            if approved_url in seen_urls:
+                continue
+
+            seen_urls.add(approved_url)
+            discovered_urls.append(approved_url)
+
+        if not discovered_urls:
+            raise InvalidSourceResponseError(
+                source_name=self.source_name,
+                dataset_id=dataset_locator,
+                message="SAMA POS page did not expose approved POS report PDF links",
+            )
+
+        return tuple(discovered_urls)
+
+    def _build_html_response_content(
+        self,
+        dataset_locator: str,
+        response: httpx.Response,
+    ) -> dict[str, Any]:
+        """Build a raw HTML response body for a supported SAMA page."""
+
+        content_type = response.headers.get("content-type", "").split(";", maxsplit=1)[0].strip()
+        if content_type.lower() != "text/html":
+            raise InvalidSourceResponseError(
+                source_name=self.source_name,
+                dataset_id=dataset_locator,
+                message="SAMA page responses must return HTML content",
+            )
+
+        body = response.text
+        if not body.strip():
+            raise InvalidSourceResponseError(
+                source_name=self.source_name,
+                dataset_id=dataset_locator,
+                message="SAMA page returned an empty response body",
+            )
+
+        return {
+            "url": str(response.url),
+            "status_code": response.status_code,
+            "content_type": content_type,
+            "body": body,
+        }
+
+    def _build_pdf_text_response_content(
+        self,
+        dataset_locator: str,
+        response: httpx.Response,
+    ) -> dict[str, Any]:
+        """Build extracted text content for an approved SAMA POS report PDF."""
+
+        content_type = response.headers.get("content-type", "").split(";", maxsplit=1)[0].strip()
+        if content_type.lower() != "application/pdf":
+            raise InvalidSourceResponseError(
+                source_name=self.source_name,
+                dataset_id=dataset_locator,
+                message="SAMA POS report links must return PDF content",
+            )
+
+        body = self._extract_pdf_text(response.content, dataset_id=dataset_locator)
+        if not body.strip():
+            raise InvalidSourceResponseError(
+                source_name=self.source_name,
+                dataset_id=dataset_locator,
+                message="SAMA POS report PDF did not expose extractable text",
+            )
+
+        return {
+            "url": str(response.url),
+            "status_code": response.status_code,
+            "content_type": content_type,
+            "body": body,
+        }
+
+    @staticmethod
+    def _extract_pdf_text(pdf_bytes: bytes, *, dataset_id: str) -> str:
+        """Extract text from an approved SAMA POS report PDF."""
+
+        try:
+            reader = PdfReader(BytesIO(pdf_bytes))
+            return "\n".join(page.extract_text() or "" for page in reader.pages)
+        except Exception as exc:
+            raise InvalidSourceResponseError(
+                source_name="sama",
+                dataset_id=dataset_id,
+                message="SAMA POS report PDF text extraction failed",
+            ) from exc
 
     def _build_response_content(
         self,

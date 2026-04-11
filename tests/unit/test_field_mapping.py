@@ -8,6 +8,7 @@ from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.normalization import field_mapping as field_mapping_module
 from saudi_open_data_mcp.normalization.errors import UnknownNormalizationSourceError
 from saudi_open_data_mcp.normalization.field_mapping import (
+    JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
     FieldMappingResult,
     MappingBodyKind,
     RawResponseMetadata,
@@ -31,6 +32,7 @@ from saudi_open_data_mcp.normalization.sama_policy_rates import (
 )
 from saudi_open_data_mcp.normalization.sama_pos_weekly import (
     SAMA_POS_WEEKLY_HTML_TABLE_LIMITATION,
+    SAMA_POS_WEEKLY_JSON_REPORT_BUNDLE_LIMITATION,
 )
 from saudi_open_data_mcp.normalization.stats_gov_sa_cpi_headline_monthly import (
     STATS_GOV_SA_CPI_HEADLINE_MONTHLY_HTML_LIMITATION,
@@ -171,6 +173,93 @@ def test_sama_pos_weekly_html_without_supported_table_remains_limited() -> None:
     assert result.limitations == (
         "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
         SAMA_POS_WEEKLY_HTML_TABLE_LIMITATION,
+    )
+
+
+def test_sama_pos_weekly_json_report_bundle_can_map_to_structured_weekly_rows() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/Indices/Pages/POS.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {
+                "reports_page_url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+                "reports": [
+                    {
+                        "report_url": (
+                            "https://www.sama.gov.sa/en-US/Indices/POS_EN/"
+                            "Weekly_Points_of_Sale_Transactions_Report_04-Apr-2026.pdf"
+                        ),
+                        "report_text": (
+                            "Weekly Points of Sale Transactions Table 1: By Activities "
+                            "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
+                            "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26 "
+                            "Total 226,928 16,149,247 223,899 14,793,365 "
+                            "219,827 12,969,718 246,506 14,707,441 12.1 13.4 "
+                            "Table 2.1: By Cities"
+                        ),
+                    }
+                ],
+            },
+        },
+    )
+
+    result = get_field_mapping(raw_payload, canonical_dataset_id="sama-pos-weekly")
+
+    assert result.body_kind is MappingBodyKind.JSON
+    assert result.record_extraction_shape is RecordExtractionShape.ROWS_OBJECT_LIST
+    assert result.can_derive_records is True
+    assert result.limitations == ()
+    rows = result.canonical_fields["structured_body"]["rows"]
+    assert len(rows) == 4
+    assert rows[-1] == {
+        "week_start_date": "2026-03-29",
+        "week_end_date": "2026-04-04",
+        "transaction_count": 246506000,
+        "transaction_value_sar": 14707441000.0,
+        "average_ticket_sar": 59.66,
+        "source_locator": "/en-US/Indices/Pages/POS.aspx",
+        "source_url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+        "source_period_text": "29 Mar,26 - 04 Apr,26",
+        "source_table_title": "Table 1: By Activities",
+        "source_report_url": (
+            "https://www.sama.gov.sa/en-US/Indices/POS_EN/"
+            "Weekly_Points_of_Sale_Transactions_Report_04-Apr-2026.pdf"
+        ),
+        "source_release_title": "Weekly Points of Sale Transactions",
+    }
+
+
+def test_sama_pos_weekly_json_bundle_without_supported_report_text_remains_limited() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/Indices/Pages/POS.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {
+                "reports_page_url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+                "reports": [
+                    {
+                        "report_url": "https://www.sama.gov.sa/report.pdf",
+                        "report_text": "",
+                    }
+                ],
+            },
+        },
+    )
+
+    result = get_field_mapping(raw_payload, canonical_dataset_id="sama-pos-weekly")
+
+    assert result.body_kind is MappingBodyKind.JSON
+    assert result.can_derive_records is False
+    assert result.record_extraction_shape is RecordExtractionShape.NONE
+    assert result.limitations == (
+        JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
+        SAMA_POS_WEEKLY_JSON_REPORT_BUNDLE_LIMITATION,
     )
 
 

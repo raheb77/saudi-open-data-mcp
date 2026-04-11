@@ -1,4 +1,4 @@
-"""Dataset-specific HTML extraction for the canonical SAMA POS weekly contract."""
+"""Dataset-specific extraction for the canonical SAMA POS weekly contract."""
 
 from __future__ import annotations
 
@@ -11,11 +11,27 @@ from typing import Any
 SAMA_POS_WEEKLY_HTML_TABLE_LIMITATION = (
     "sama_pos_weekly_html_requires_supported_weekly_summary_table"
 )
+SAMA_POS_WEEKLY_JSON_REPORT_BUNDLE_LIMITATION = (
+    "sama_pos_weekly_json_requires_supported_report_text_bundle"
+)
 
 _HEADER_NORMALIZATION_PATTERN = re.compile(r"[^a-z0-9]+")
 _NUMBER_CLEANUP_PATTERN = re.compile(r"[^0-9.\-]+")
 _INTEGER_CLEANUP_PATTERN = re.compile(r"[^0-9\-]+")
 _PERIOD_SEPARATOR_PATTERN = re.compile(r"\s+(?:to|-|–|—)\s+")
+_WHITESPACE_PATTERN = re.compile(r"\s+")
+_TABLE_1_SECTION_PATTERN = re.compile(
+    r"Table\s*1\s*:\s*By\s*Activities(?P<section>.*?)(?:Table\s*2(?:\.1)?\s*:|Note:|ملاحظة|$)",
+    re.IGNORECASE,
+)
+_TABLE_1_PERIOD_PATTERN = re.compile(
+    r"\d{1,2}\s+[A-Za-z]{3},\d{2,4}\s*-\s*\d{1,2}\s+[A-Za-z]{3},\d{2,4}",
+    re.IGNORECASE,
+)
+_TOTAL_ROW_PATTERN = re.compile(r"(?:\bTotal\b|الإجمالي)\s+(?P<metrics>.*)$", re.IGNORECASE)
+_REPORT_NUMBER_PATTERN = re.compile(r"\(?[0-9][0-9,]*(?:\.\d+)?\)?")
+_TABLE_1_TITLE = "Table 1: By Activities"
+_POS_RELEASE_TITLE = "Weekly Points of Sale Transactions"
 
 _WEEK_START_HEADER_ALIASES = frozenset(
     {
@@ -66,6 +82,8 @@ _DATE_FORMATS = (
     "%Y-%m-%d",
     "%d/%m/%Y",
     "%d-%m-%Y",
+    "%d %b,%y",
+    "%d %B,%y",
     "%d %b %Y",
     "%d %B %Y",
     "%d %b, %Y",
@@ -182,6 +200,45 @@ def extract_sama_pos_weekly_rows_from_html(
     return None
 
 
+def extract_sama_pos_weekly_rows_from_json(
+    *,
+    body: dict[str, Any],
+    source_locator: str,
+    source_url: str,
+) -> list[dict[str, Any]] | None:
+    """Extract weekly POS rows from a supported POS report text bundle."""
+
+    reports = body.get("reports")
+    if not isinstance(reports, list):
+        return None
+
+    extracted_rows: list[dict[str, Any]] = []
+    seen_periods: set[tuple[str, str]] = set()
+
+    for report in reports:
+        if not isinstance(report, dict):
+            continue
+
+        report_rows = _extract_records_from_report_bundle(
+            report=report,
+            source_locator=source_locator,
+            source_url=source_url,
+        )
+        if report_rows is None:
+            continue
+
+        for record in report_rows:
+            period_key = (record["week_start_date"], record["week_end_date"])
+            if period_key in seen_periods:
+                continue
+
+            seen_periods.add(period_key)
+            extracted_rows.append(record)
+
+    extracted_rows.sort(key=lambda row: (row["week_start_date"], row["week_end_date"]))
+    return extracted_rows or None
+
+
 def _extract_table_rows(
     *,
     table: _ParsedTable,
@@ -295,6 +352,67 @@ def _extract_record(
     return record
 
 
+def _extract_records_from_report_bundle(
+    *,
+    report: dict[str, Any],
+    source_locator: str,
+    source_url: str,
+) -> list[dict[str, Any]] | None:
+    report_url = report.get("report_url")
+    report_text = report.get("report_text")
+    if not isinstance(report_url, str) or not isinstance(report_text, str):
+        return None
+
+    normalized_text = _normalize_text(report_text)
+    if not normalized_text:
+        return None
+
+    table_1_section = _extract_table_1_section(normalized_text)
+    if table_1_section is None:
+        return None
+
+    periods = _extract_table_1_periods(table_1_section)
+    if not periods:
+        return None
+
+    numbers = _extract_total_row_numbers(table_1_section)
+    expected_measure_count = len(periods) * 2
+    if len(numbers) < expected_measure_count:
+        return None
+
+    numbers = numbers[:expected_measure_count]
+    records: list[dict[str, Any]] = []
+    for period_index, period_text in enumerate(periods):
+        start_date, end_date = _parse_period_range(period_text)
+        metric_index = period_index * 2
+        transaction_count_thousand = _parse_decimal_text(numbers[metric_index])
+        transaction_value_thousand = _parse_decimal_text(numbers[metric_index + 1])
+        transaction_count = int(round(transaction_count_thousand * 1000))
+        transaction_value_sar = round(transaction_value_thousand * 1000, 2)
+        records.append(
+            {
+                "week_start_date": start_date.isoformat(),
+                "week_end_date": end_date.isoformat(),
+                "transaction_count": transaction_count,
+                "transaction_value_sar": transaction_value_sar,
+                "average_ticket_sar": round(
+                    transaction_value_sar / transaction_count,
+                    2,
+                )
+                if transaction_count
+                else 0.0,
+                "source_locator": source_locator,
+                "source_url": source_url,
+                "source_period_text": period_text,
+                "source_table_title": _TABLE_1_TITLE,
+                "source_report_url": report_url,
+                "source_release_title": _POS_RELEASE_TITLE,
+            }
+        )
+
+    return records
+
+
 def _row_value(
     row_cells: list[str],
     header_mapping: dict[str, int],
@@ -311,6 +429,37 @@ def _row_value(
 def _normalize_header(text: str) -> str:
     normalized = _HEADER_NORMALIZATION_PATTERN.sub(" ", text.lower()).strip()
     return " ".join(normalized.split())
+
+
+def _normalize_text(value: str) -> str:
+    return _WHITESPACE_PATTERN.sub(" ", value).strip()
+
+
+def _extract_table_1_section(normalized_text: str) -> str | None:
+    match = _TABLE_1_SECTION_PATTERN.search(normalized_text)
+    if match is None:
+        return None
+    return match.group("section").strip()
+
+
+def _extract_table_1_periods(table_1_section: str) -> list[str]:
+    periods: list[str] = []
+    for match in _TABLE_1_PERIOD_PATTERN.finditer(table_1_section):
+        normalized_period = _normalize_period_text(match.group(0))
+        if normalized_period not in periods:
+            periods.append(normalized_period)
+    return periods
+
+
+def _extract_total_row_numbers(table_1_section: str) -> list[str]:
+    match = _TOTAL_ROW_PATTERN.search(table_1_section)
+    if match is None:
+        return []
+    return _REPORT_NUMBER_PATTERN.findall(match.group("metrics"))
+
+
+def _normalize_period_text(value: str) -> str:
+    return " ".join(value.split())
 
 
 def _parse_period_range(period_text: str) -> tuple[date, date]:

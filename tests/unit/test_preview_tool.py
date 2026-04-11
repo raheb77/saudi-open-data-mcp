@@ -151,6 +151,28 @@ def _pos_weekly_html() -> str:
     """
 
 
+def _pos_weekly_report_bundle_json() -> dict[str, object]:
+    return {
+        "reports_page_url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+        "reports": [
+            {
+                "report_url": (
+                    "https://www.sama.gov.sa/en-US/Indices/POS_EN/"
+                    "Weekly_Points_of_Sale_Transactions_Report_04-Apr-2026.pdf"
+                ),
+                "report_text": (
+                    "Weekly Points of Sale Transactions Table 1: By Activities "
+                    "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
+                    "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26 "
+                    "Total 226,928 16,149,247 223,899 14,793,365 "
+                    "219,827 12,969,718 246,506 14,707,441 12.1 13.4 "
+                    "Table 2.1: By Cities"
+                ),
+            }
+        ],
+    }
+
+
 def _money_supply_weekly_html() -> str:
     return """
         <html><body>
@@ -521,6 +543,47 @@ async def test_sama_pos_weekly_fresh_snapshot_is_served_as_queryable_html_previe
     assert result.records[0].fields["week_end_date"] == "2026-03-07"
     assert result.records[0].fields["transaction_count"] == 1234
     assert result.records[0].fields["transaction_value_sar"] == 246800.0
+
+
+@pytest.mark.asyncio
+async def test_sama_pos_weekly_fresh_snapshot_is_served_as_queryable_report_bundle_preview(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(
+        tmp_path,
+        dataset_id="sama-pos-weekly",
+        source_locator="/en-US/Indices/Pages/POS.aspx",
+        update_frequency=UpdateFrequency.WEEKLY,
+    )
+    store = _snapshot_store(tmp_path)
+    _write_snapshot_with_mtime(
+        store,
+        locator="/en-US/Indices/Pages/POS.aspx",
+        modified_at=datetime(2026, 4, 5, 12, 0, tzinfo=UTC),
+        body=_pos_weekly_report_bundle_json(),
+        content_type="application/json",
+    )
+    tool = DatasetPreviewTool(
+        repository,
+        SourceConnectorResolver({"sama": _ConnectorSpy([])}),
+        snapshot_store=store,
+    )
+
+    result = await tool.preview_dataset(
+        "sama-pos-weekly",
+        reference_time=datetime(2026, 4, 6, 12, 0, tzinfo=UTC),
+    )
+
+    assert result.status is PreviewStatus.RECORD_DERIVABLE
+    assert result.resolution_outcome is PreviewResolutionOutcome.SERVE_LOCAL
+    assert result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT
+    assert result.freshness_status is SnapshotFreshnessStatus.FRESH
+    assert result.limitations == ()
+    assert len(result.records) == 4
+    assert result.records[-1].fields["week_start_date"] == "2026-03-29"
+    assert result.records[-1].fields["week_end_date"] == "2026-04-04"
+    assert result.records[-1].fields["transaction_count"] == 246506000
+    assert result.records[-1].fields["transaction_value_sar"] == 14707441000.0
 
 
 @pytest.mark.asyncio

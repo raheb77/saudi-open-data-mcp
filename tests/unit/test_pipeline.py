@@ -101,6 +101,51 @@ def test_sama_pos_weekly_html_with_canonical_dataset_id_produces_queryable_recor
     assert result.records[0].fields["transaction_value_sar"] == 246800.0
 
 
+def test_sama_pos_weekly_json_report_bundle_produces_queryable_records() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/Indices/Pages/POS.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {
+                "reports_page_url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+                "reports": [
+                    {
+                        "report_url": (
+                            "https://www.sama.gov.sa/en-US/Indices/POS_EN/"
+                            "Weekly_Points_of_Sale_Transactions_Report_04-Apr-2026.pdf"
+                        ),
+                        "report_text": (
+                            "Weekly Points of Sale Transactions Table 1: By Activities "
+                            "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
+                            "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26 "
+                            "Total 226,928 16,149,247 223,899 14,793,365 "
+                            "219,827 12,969,718 246,506 14,707,441 12.1 13.4 "
+                            "Table 2.1: By Cities"
+                        ),
+                    }
+                ],
+            },
+        },
+    )
+
+    result = NormalizationPipeline().normalize(
+        raw_payload,
+        canonical_dataset_id="sama-pos-weekly",
+    )
+
+    assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
+    assert result.failure is None
+    assert len(result.records) == 4
+    assert result.records[0].dataset_id == "/en-US/Indices/Pages/POS.aspx"
+    assert result.records[-1].fields["week_start_date"] == "2026-03-29"
+    assert result.records[-1].fields["week_end_date"] == "2026-04-04"
+    assert result.records[-1].fields["transaction_count"] == 246506000
+    assert result.records[-1].fields["transaction_value_sar"] == 14707441000.0
+
+
 def test_sama_money_supply_weekly_html_produces_time_series_records() -> None:
     raw_payload = RawPayload(
         source="sama",

@@ -33,6 +33,23 @@ def _page_url(locator: str) -> str:
     return f"https://www.sama.gov.sa{locator}"
 
 
+def _pos_report_url(name: str) -> str:
+    return f"https://www.sama.gov.sa/en-US/Indices/POS_EN/{name}"
+
+
+def _pos_reports_page_html() -> str:
+    return """
+        <html><body>
+          <a
+            href="https://www.sama.gov.sa/en-US/Indices/POS_EN/Weekly_Points_of_Sale_Transactions_Report_28-Mar-2026.pdf"
+          >28 Mar</a>
+          <a
+            href="https://www.sama.gov.sa/en-US/Indices/POS_EN/Weekly_Points_of_Sale_Transactions_Report_21-Mar-2026.pdf"
+          >21 Mar</a>
+        </body></html>
+    """
+
+
 @pytest.mark.asyncio
 @respx.mock
 async def test_fetch_dataset_payload_returns_raw_payload() -> None:
@@ -58,21 +75,48 @@ async def test_fetch_dataset_payload_returns_raw_payload() -> None:
 @pytest.mark.asyncio
 @respx.mock
 async def test_fetch_dataset_payload_allows_approved_wave_one_page_locator() -> None:
-    route = respx.get(_page_url(POS_PAGE_LOCATOR)).mock(
+    respx.get(_page_url(POS_PAGE_LOCATOR)).mock(
         return_value=httpx.Response(
             200,
-            text="<html><body>official weekly pos page</body></html>",
+            text=_pos_reports_page_html(),
             headers={"content-type": "text/html; charset=utf-8"},
         )
     )
+    respx.get(
+        _pos_report_url("Weekly_Points_of_Sale_Transactions_Report_28-Mar-2026.pdf")
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            content=b"report-28",
+            headers={"content-type": "application/pdf"},
+        )
+    )
+    respx.get(
+        _pos_report_url("Weekly_Points_of_Sale_Transactions_Report_21-Mar-2026.pdf")
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            content=b"report-21",
+            headers={"content-type": "application/pdf"},
+        )
+    )
     connector = SAMAConnector()
+    connector._extract_pdf_text = staticmethod(  # type: ignore[method-assign]
+        lambda pdf_bytes, *, dataset_id: pdf_bytes.decode("utf-8") + f"::{dataset_id}"
+    )
 
     payload = await connector.fetch_dataset_payload(POS_PAGE_LOCATOR)
 
-    assert route.called
     assert payload.dataset_id == POS_PAGE_LOCATOR
     assert payload.content["url"] == _page_url(POS_PAGE_LOCATOR)
-    assert payload.content["content_type"] == "text/html"
+    assert payload.content["content_type"] == "application/json"
+    reports = cast(list[dict[str, str]], payload.content["body"]["reports"])
+    assert [report["report_url"] for report in reports] == [
+        _pos_report_url("Weekly_Points_of_Sale_Transactions_Report_28-Mar-2026.pdf"),
+        _pos_report_url("Weekly_Points_of_Sale_Transactions_Report_21-Mar-2026.pdf"),
+    ]
+    assert reports[0]["report_text"] == f"report-28::{POS_PAGE_LOCATOR}"
+    assert reports[1]["report_text"] == f"report-21::{POS_PAGE_LOCATOR}"
 
 
 @pytest.mark.asyncio
@@ -139,21 +183,36 @@ async def test_transport_disconnect_uses_standard_library_fallback() -> None:
             request: httpx.Request,
         ) -> httpx.Response:
             self.fallback_urls.append(url)
+            if url == _page_url(POS_PAGE_LOCATOR):
+                return httpx.Response(
+                    200,
+                    headers={"content-type": "text/html; charset=utf-8"},
+                    text=_pos_reports_page_html(),
+                    request=request,
+                )
             return httpx.Response(
                 200,
-                headers={"content-type": "text/html; charset=utf-8"},
-                text="<html><body>official weekly pos page</body></html>",
+                headers={"content-type": "application/pdf"},
+                content=b"report-pdf",
                 request=request,
             )
 
     connector = FallbackConnector()
+    connector._extract_pdf_text = staticmethod(  # type: ignore[method-assign]
+        lambda pdf_bytes, *, dataset_id: pdf_bytes.decode("utf-8") + f"::{dataset_id}"
+    )
 
     payload = await connector.fetch_dataset_payload(POS_PAGE_LOCATOR)
 
-    assert connector.fallback_urls == [_page_url(POS_PAGE_LOCATOR)]
+    assert connector.fallback_urls == [
+        _page_url(POS_PAGE_LOCATOR),
+        _pos_report_url("Weekly_Points_of_Sale_Transactions_Report_28-Mar-2026.pdf"),
+        _pos_report_url("Weekly_Points_of_Sale_Transactions_Report_21-Mar-2026.pdf"),
+    ]
     assert payload.content["url"] == _page_url(POS_PAGE_LOCATOR)
-    assert payload.content["content_type"] == "text/html"
-    assert "official weekly pos page" in payload.content["body"]
+    assert payload.content["content_type"] == "application/json"
+    reports = cast(list[dict[str, str]], payload.content["body"]["reports"])
+    assert reports[0]["report_text"] == f"report-pdf::{POS_PAGE_LOCATOR}"
 
 
 @pytest.mark.asyncio

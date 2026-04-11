@@ -276,8 +276,8 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         update_frequency=UpdateFrequency.WEEKLY,
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=(
-            "This canonical dataset normalizes supported weekly summary tables "
-            "from the official POS page.",
+            "This canonical dataset normalizes supported weekly summary content "
+            "from the official POS report bundle linked from the official POS page.",
             "This descriptor intentionally shares the same SAMA page locator as "
             "sama-pos-by-city.",
         ),

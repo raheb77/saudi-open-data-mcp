@@ -13,7 +13,6 @@ import pytest
 from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.connectors.resolver import SourceConnectorResolver
 from saudi_open_data_mcp.normalization.pipeline import NormalizationPipelineStatus
-from saudi_open_data_mcp.normalization.validators import TEXT_HTML_LIMITATION
 from saudi_open_data_mcp.observability import get_metrics
 from saudi_open_data_mcp.registry.bootstrap import (
     WAVE_1_HOT_SET_OPTIONAL_DATASET_IDS,
@@ -65,6 +64,28 @@ def _pos_weekly_html() -> str:
           </table>
         </body></html>
     """
+
+
+def _pos_weekly_report_bundle_json() -> dict[str, object]:
+    return {
+        "reports_page_url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+        "reports": [
+            {
+                "report_url": (
+                    "https://www.sama.gov.sa/en-US/Indices/POS_EN/"
+                    "Weekly_Points_of_Sale_Transactions_Report_04-Apr-2026.pdf"
+                ),
+                "report_text": (
+                    "Weekly Points of Sale Transactions Table 1: By Activities "
+                    "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
+                    "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26 "
+                    "Total 226,928 16,149,247 223,899 14,793,365 "
+                    "219,827 12,969,718 246,506 14,707,441 12.1 13.4 "
+                    "Table 2.1: By Cities"
+                ),
+            }
+        ],
+    }
 
 
 def _money_supply_weekly_html() -> str:
@@ -147,8 +168,8 @@ class _SAMAConnectorSpy:
             body: object = _deposits_core_json()
             content_type = "application/json"
         elif dataset_id == "/en-US/Indices/Pages/POS.aspx":
-            body = _pos_weekly_html()
-            content_type = "text/html"
+            body = _pos_weekly_report_bundle_json()
+            content_type = "application/json"
         elif dataset_id == "/en-US/Indices/Pages/WeeklyMoneySupply.aspx":
             body = _money_supply_weekly_html()
             content_type = "text/html"
@@ -319,7 +340,9 @@ async def test_materialize_hot_set_can_include_optional_pos_by_city_without_refe
         results_by_id["sama-pos-by-city"].degradation_reason
         is ResultDegradationReason.NORMALIZATION_LIMITED
     )
-    assert results_by_id["sama-pos-by-city"].limitations == (TEXT_HTML_LIMITATION,)
+    assert results_by_id["sama-pos-by-city"].limitations == (
+        "json_body_requires_supported_object_list_shape_for_record_normalization",
+    )
 
 
 @pytest.mark.asyncio

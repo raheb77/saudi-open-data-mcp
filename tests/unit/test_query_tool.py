@@ -72,6 +72,42 @@ def _pos_weekly_html() -> str:
     """
 
 
+def _pos_weekly_report_bundle_json() -> dict[str, object]:
+    return {
+        "reports_page_url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+        "reports": [
+            {
+                "report_url": (
+                    "https://www.sama.gov.sa/en-US/Indices/POS_EN/"
+                    "Weekly_Points_of_Sale_Transactions_Report_04-Apr-2026.pdf"
+                ),
+                "report_text": (
+                    "Weekly Points of Sale Transactions Table 1: By Activities "
+                    "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
+                    "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26 "
+                    "Total 226,928 16,149,247 223,899 14,793,365 "
+                    "219,827 12,969,718 246,506 14,707,441 12.1 13.4 "
+                    "Table 2.1: By Cities"
+                ),
+            },
+            {
+                "report_url": (
+                    "https://www.sama.gov.sa/en-US/Indices/POS_EN/"
+                    "Weekly_Points_of_Sale_Transactions_Report_28-Mar-2026.pdf"
+                ),
+                "report_text": (
+                    "Weekly Points of Sale Transactions Table 1: By Activities "
+                    "1 Mar,26 - 7 Mar,26 8 Mar,26 - 14 Mar,26 "
+                    "15 Mar,26 - 21 Mar,26 22 Mar,26 - 28 Mar,26 "
+                    "Total 210,100 13,000,000 226,928 16,149,247 "
+                    "223,899 14,793,365 219,827 12,969,718 -1.8 -12.3 "
+                    "Table 2.1: By Cities"
+                ),
+            },
+        ],
+    }
+
+
 def _money_supply_weekly_html() -> str:
     return """
         <html><body>
@@ -508,6 +544,66 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_pos_weekly_h
         "source_url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
         "source_period_text": "2026-03-08 to 2026-03-14",
         "source_table_title": "Weekly POS Summary",
+    }
+
+
+def test_query_dataset_returns_queryable_canonical_records_for_sama_pos_weekly_report_bundle(
+    tmp_path: Path,
+) -> None:
+    repository = RegistryRepository(tmp_path / "registry.sqlite")
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    descriptor = DatasetDescriptor(
+        dataset_id="sama-pos-weekly",
+        source="sama",
+        source_locator="/en-US/Indices/Pages/POS.aspx",
+        title="POS Weekly",
+        description="Official weekly point-of-sale reporting published by SAMA.",
+        schema_version="0.1.0",
+        update_frequency=UpdateFrequency.WEEKLY,
+        health_status=DatasetHealthStatus.UNKNOWN,
+        caveats=("PDF-backed extraction covers the supported weekly summary table only.",),
+        known_issues=("City-level tables remain outside this canonical contract.",),
+    )
+    tool = DatasetQueryTool(repository, snapshot_store)
+
+    repository.upsert_dataset(descriptor)
+    snapshot_store.write_snapshot(
+        RawPayload(
+            source="sama",
+            dataset_id=descriptor.source_locator,
+            content={
+                "url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+                "status_code": 200,
+                "content_type": "application/json",
+                "body": _pos_weekly_report_bundle_json(),
+            },
+        )
+    )
+
+    result = tool.query_dataset(
+        descriptor.dataset_id,
+        filters={"week_end_date": "2026-04-04"},
+    )
+
+    assert result.status is DatasetQueryStatus.SUCCESS
+    assert result.total_records_before_filter == 5
+    assert result.applied_filters == {"week_end_date": "2026-04-04"}
+    assert len(result.matched_records) == 1
+    assert result.matched_records[0].fields == {
+        "week_start_date": "2026-03-29",
+        "week_end_date": "2026-04-04",
+        "transaction_count": 246506000,
+        "transaction_value_sar": 14707441000.0,
+        "average_ticket_sar": 59.66,
+        "source_locator": "/en-US/Indices/Pages/POS.aspx",
+        "source_url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+        "source_period_text": "29 Mar,26 - 04 Apr,26",
+        "source_table_title": "Table 1: By Activities",
+        "source_report_url": (
+            "https://www.sama.gov.sa/en-US/Indices/POS_EN/"
+            "Weekly_Points_of_Sale_Transactions_Report_04-Apr-2026.pdf"
+        ),
+        "source_release_title": "Weekly Points of Sale Transactions",
     }
 
 

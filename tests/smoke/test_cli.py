@@ -212,6 +212,7 @@ def test_cli_query_parses_scalar_filters_and_limit(
     exit_code = cli_module.main(
         [
             "query",
+            "--dataset-id",
             "stats-gov-sa-cpi-headline-monthly",
             "--filter",
             "observation_month=2026-01",
@@ -241,6 +242,16 @@ def test_cli_query_parses_scalar_filters_and_limit(
     ]
     captured = capsys.readouterr()
     assert json.loads(captured.out)["status"] == "success"
+
+
+def test_cli_query_rejects_positional_and_flag_dataset_id_together(capsys) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        cli_module.main(["query", "sama-pos-weekly", "--dataset-id", "sama-pos-weekly"])
+
+    assert excinfo.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "provide either dataset_id or --dataset-id, not both" in captured.err
 
 
 def test_cli_health_invokes_health_tool(
