@@ -4,6 +4,7 @@ import { FIELD_LABELS } from "../lib/fieldLabels";
 import { formatCellValue } from "../lib/format";
 import {
   buildResultTableColumns,
+  getExpandableTextClampClass,
   shouldRenderExpandableText,
   type ResultTableColumn,
 } from "../lib/resultTablePresentation";
@@ -114,7 +115,14 @@ function ResultTableCell({
         href={value}
         target="_blank"
         rel="noreferrer"
-        className="id-mono block max-w-[11rem] truncate rounded-md bg-white px-2 py-1 text-sky-700 underline decoration-sky-300 underline-offset-2 ring-1 ring-inset ring-ink-200 hover:text-sky-900 sm:max-w-[14rem] xl:max-w-[16rem]"
+        className={[
+          "id-mono block truncate text-sky-700 underline decoration-sky-200 underline-offset-2 hover:text-sky-900",
+          column.isSecondary || column.kind === "provenance-primary"
+            ? "max-w-[8.5rem] text-[0.72rem] sm:max-w-[10rem] xl:max-w-[12rem]"
+            : "max-w-[10rem] text-xs sm:max-w-[12rem] xl:max-w-[14rem]",
+        ]
+          .filter(Boolean)
+          .join(" ")}
         title={value}
       >
         {value}
@@ -123,7 +131,7 @@ function ResultTableCell({
   }
 
   if (typeof value === "string" && shouldRenderExpandableText(column.key, value)) {
-    return <ExpandableTextCell secondary={column.isSecondary} value={value} />;
+    return <ExpandableTextCell column={column} value={value} />;
   }
 
   const formattedValue = formatCellValue(value);
@@ -139,23 +147,29 @@ function ResultTableCell({
 }
 
 function ExpandableTextCell({
-  secondary,
+  column,
   value,
 }: {
-  secondary: boolean;
+  column: ResultTableColumn;
   value: string;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const clampClass = getExpandableTextClampClass(column);
+  const isProvenance =
+    column.kind === "provenance-primary" || column.kind === "provenance-secondary";
 
   return (
-    <div className="flex max-w-[12rem] flex-col gap-1 sm:max-w-[16rem] xl:max-w-[20rem]">
+    <div className="flex max-w-[9rem] flex-col gap-1 sm:max-w-[11rem] xl:max-w-[13rem]">
       <span
         className={[
-          "rounded-md border border-ink-200 px-2.5 py-2 whitespace-pre-wrap break-words leading-6",
-          expanded ? "" : "cell-clamp-3",
-          secondary
-            ? "bg-ink-50 text-xs text-ink-600"
-            : "bg-white text-sm text-ink-800",
+          "whitespace-pre-wrap break-words",
+          expanded
+            ? "rounded-md border border-ink-200 bg-white/80 px-2 py-1.5 leading-5"
+            : `${clampClass} leading-5`,
+          column.isSecondary || isProvenance
+            ? "text-[0.72rem] text-ink-600"
+            : "text-xs text-ink-700",
+          column.isTechnicalToken ? "id-mono" : "",
         ]
           .filter(Boolean)
           .join(" ")}
@@ -168,7 +182,7 @@ function ExpandableTextCell({
         type="button"
         aria-expanded={expanded}
         onClick={() => setExpanded((current) => !current)}
-        className="self-start text-xs font-medium text-ink-600 underline decoration-dotted underline-offset-2 hover:text-ink-900"
+        className="self-start text-[0.72rem] font-medium text-ink-500 underline decoration-dotted underline-offset-2 hover:text-ink-900"
       >
         {expanded ? ar.query.table.showLess : ar.query.table.showMore}
       </button>
@@ -178,8 +192,10 @@ function ExpandableTextCell({
 
 function getHeaderClassName(column: ResultTableColumn): string {
   return [
-    "sticky top-0 z-10 bg-ink-100 px-3 py-2 text-start text-xs font-semibold align-top",
-    column.isSecondary ? "text-ink-600" : "text-ink-700",
+    "sticky top-0 z-10 bg-ink-100 px-3 py-2 text-start font-semibold align-top",
+    column.isSecondary || column.kind === "provenance-primary"
+      ? "text-[0.72rem] text-ink-500"
+      : "text-xs text-ink-700",
     getWidthClassName(column),
   ]
     .filter(Boolean)
@@ -200,8 +216,13 @@ function getCellClassName(
     isNumericLike || column.kind === "time" || column.kind === "release"
       ? "num-latn"
       : "",
-    column.isSecondary || column.kind === "provenance-primary"
-      ? "bg-ink-50/70"
+    column.kind === "provenance-primary"
+      ? "bg-ink-50/55"
+      : column.isSecondary
+        ? "bg-ink-50/75"
+        : "",
+    column.kind === "long-text"
+      ? "border-s border-ink-100"
       : "",
   ]
     .filter(Boolean)
@@ -218,8 +239,8 @@ function getValueClassName(column: ResultTableColumn): string {
       ? "whitespace-nowrap font-medium"
       : "",
     column.kind === "series-name" ? "font-medium text-ink-900" : "",
-    column.kind === "provenance-primary" ? "text-sm text-ink-700" : "",
-    column.isSecondary ? "text-xs text-ink-600" : "",
+    column.kind === "provenance-primary" ? "text-xs leading-5 text-ink-700" : "",
+    column.isSecondary ? "text-[0.72rem] leading-5 text-ink-600" : "",
     column.isTechnicalToken ? "id-mono text-xs" : "",
   ]
     .filter(Boolean)
@@ -237,11 +258,11 @@ function getWidthClassName(column: ResultTableColumn): string {
     case "series-name":
       return "min-w-[14rem]";
     case "provenance-primary":
-      return "min-w-[12rem]";
+      return "min-w-[9rem]";
     case "provenance-secondary":
-      return "min-w-[10rem]";
+      return "min-w-[8rem]";
     case "long-text":
-      return "min-w-[12rem]";
+      return "min-w-[9rem]";
     default:
       return "";
   }

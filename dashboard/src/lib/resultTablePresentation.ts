@@ -155,15 +155,40 @@ export function shouldRenderExpandableText(fieldName: string, value: string): bo
     return true;
   }
 
-  if (fieldName === "source_release_title" && normalized.length > 80) {
+  if (fieldName === "source_release_title" && normalized.length > 60) {
     return true;
   }
 
-  if (PRIMARY_PROVENANCE_FIELDS.has(fieldName) && normalized.length > 100) {
+  if (
+    !LINK_FIELDS.has(fieldName) &&
+    PRIMARY_PROVENANCE_FIELDS.has(fieldName) &&
+    normalized.length > 90
+  ) {
+    return true;
+  }
+
+  if (
+    !LINK_FIELDS.has(fieldName) &&
+    SECONDARY_PROVENANCE_FIELDS.has(fieldName) &&
+    normalized.length > 72
+  ) {
     return true;
   }
 
   return normalized.includes("\n") || normalized.length > 140;
+}
+
+export function getExpandableTextClampClass(
+  column: ResultTableColumn,
+): "cell-clamp-1" | "cell-clamp-2" {
+  switch (column.kind) {
+    case "provenance-secondary":
+      return "cell-clamp-1";
+    case "long-text":
+    case "provenance-primary":
+    default:
+      return "cell-clamp-2";
+  }
 }
 
 function getResultTableColumnKind(fieldName: string): ResultTableColumnKind {

@@ -82,9 +82,11 @@ describe("ResultTable", () => {
       "href",
       "https://www.stats.gov.sa/en/w/news/155",
     );
+    expect(link.className).not.toContain("ring-1");
 
     const toggle = screen.getByRole("button", { name: ar.query.table.showMore });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText(summaryText).className).toContain("cell-clamp-2");
 
     fireEvent.click(toggle);
 

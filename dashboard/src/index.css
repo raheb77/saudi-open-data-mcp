@@ -29,6 +29,20 @@
 }
 
 @layer utilities {
+  .cell-clamp-1 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    overflow: hidden;
+  }
+
+  .cell-clamp-2 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+
   .cell-clamp-3 {
     display: -webkit-box;
     -webkit-box-orient: vertical;
