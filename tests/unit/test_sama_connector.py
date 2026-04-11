@@ -17,6 +17,7 @@ from saudi_open_data_mcp.connectors.errors import (
     SourceUnavailableError,
 )
 from saudi_open_data_mcp.connectors.sama import SAMAConnector
+from saudi_open_data_mcp.normalization.field_mapping import get_field_mapping
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 
 REPORT_LOCATOR = "report.aspx?cid=55"
@@ -48,6 +49,54 @@ def _pos_reports_page_html() -> str:
           >21 Mar</a>
         </body></html>
     """
+
+
+def _build_text_pdf_bytes(lines: list[str]) -> bytes:
+    def _escape_pdf_text(value: str) -> str:
+        return value.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+    content_lines = ["BT", "/F1 10 Tf", "14 TL", "72 720 Td"]
+    for index, line in enumerate(lines):
+        if index:
+            content_lines.append("T*")
+        content_lines.append(f"({_escape_pdf_text(line)}) Tj")
+    content_lines.append("ET")
+    content = "\n".join(content_lines).encode("latin-1")
+
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        (
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>"
+        ),
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Length "
+        + str(len(content)).encode("ascii")
+        + b" >>\nstream\n"
+        + content
+        + b"\nendstream",
+    ]
+
+    pdf_bytes = bytearray(b"%PDF-1.4\n")
+    offsets: list[int] = [0]
+    for index, obj in enumerate(objects, start=1):
+        offsets.append(len(pdf_bytes))
+        pdf_bytes.extend(f"{index} 0 obj\n".encode("ascii"))
+        pdf_bytes.extend(obj)
+        pdf_bytes.extend(b"\nendobj\n")
+
+    xref_offset = len(pdf_bytes)
+    pdf_bytes.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    pdf_bytes.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        pdf_bytes.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+    pdf_bytes.extend(b"trailer\n")
+    pdf_bytes.extend(f"<< /Size {len(objects) + 1} /Root 1 0 R >>\n".encode("ascii"))
+    pdf_bytes.extend(b"startxref\n")
+    pdf_bytes.extend(f"{xref_offset}\n".encode("ascii"))
+    pdf_bytes.extend(b"%%EOF\n")
+    return bytes(pdf_bytes)
 
 
 @pytest.mark.asyncio
@@ -117,6 +166,102 @@ async def test_fetch_dataset_payload_allows_approved_wave_one_page_locator() -> 
     ]
     assert reports[0]["report_text"] == f"report-28::{POS_PAGE_LOCATOR}"
     assert reports[1]["report_text"] == f"report-21::{POS_PAGE_LOCATOR}"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fetch_dataset_payload_round_trips_realistic_pos_pdf_text_into_queryable_rows(
+) -> None:
+    pdf_bytes = _build_text_pdf_bytes(
+        [
+            "Weekly Points of Sale Transactions",
+            "Table 1: By Activities",
+            "Value of Transactions: In Thousand",
+            "Number of Transactions: In Thousand",
+            "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26",
+            "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26",
+            "Total 226,928 16,149,247 223,899 14,793,365",
+            "219,827 12,969,718 246,506 14,707,441 12.1 13.4",
+            "Table 2.1: By Cities",
+        ]
+    )
+    respx.get(_page_url(POS_PAGE_LOCATOR)).mock(
+        return_value=httpx.Response(
+            200,
+            text="""
+                <html><body>
+                  <a href="https://www.sama.gov.sa/en-US/Indices/POS_EN/Weekly.pdf">Latest</a>
+                </body></html>
+            """,
+            headers={"content-type": "text/html; charset=utf-8"},
+        )
+    )
+    respx.get("https://www.sama.gov.sa/en-US/Indices/POS_EN/Weekly.pdf").mock(
+        return_value=httpx.Response(
+            200,
+            content=pdf_bytes,
+            headers={"content-type": "application/pdf"},
+        )
+    )
+    connector = SAMAConnector()
+
+    payload = await connector.fetch_dataset_payload(POS_PAGE_LOCATOR)
+    result = get_field_mapping(payload, canonical_dataset_id="sama-pos-weekly")
+
+    assert result.can_derive_records is True
+    rows = result.canonical_fields["structured_body"]["rows"]
+    assert len(rows) == 4
+    assert rows[-1]["week_start_date"] == "2026-03-29"
+    assert rows[-1]["week_end_date"] == "2026-04-04"
+    assert rows[-1]["transaction_count"] == 246506000
+    assert rows[-1]["transaction_value_sar"] == 14707441000.0
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fetch_dataset_payload_fails_when_any_pos_pdf_cannot_be_extracted() -> None:
+    valid_pdf_bytes = _build_text_pdf_bytes(
+        [
+            "Weekly Points of Sale Transactions",
+            "Table 1: By Activities",
+            "Value of Transactions: In Thousand",
+            "Number of Transactions: In Thousand",
+            "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26",
+            "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26",
+            "Total 226,928 16,149,247 223,899 14,793,365",
+            "219,827 12,969,718 246,506 14,707,441 12.1 13.4",
+            "Table 2.1: By Cities",
+        ]
+    )
+    respx.get(_page_url(POS_PAGE_LOCATOR)).mock(
+        return_value=httpx.Response(
+            200,
+            text=_pos_reports_page_html(),
+            headers={"content-type": "text/html; charset=utf-8"},
+        )
+    )
+    respx.get(
+        _pos_report_url("Weekly_Points_of_Sale_Transactions_Report_28-Mar-2026.pdf")
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            content=valid_pdf_bytes,
+            headers={"content-type": "application/pdf"},
+        )
+    )
+    respx.get(
+        _pos_report_url("Weekly_Points_of_Sale_Transactions_Report_21-Mar-2026.pdf")
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            content=b"not-a-real-pdf",
+            headers={"content-type": "application/pdf"},
+        )
+    )
+    connector = SAMAConnector()
+
+    with pytest.raises(InvalidSourceResponseError, match="PDF text extraction failed"):
+        await connector.fetch_dataset_payload(POS_PAGE_LOCATOR)
 
 
 @pytest.mark.asyncio

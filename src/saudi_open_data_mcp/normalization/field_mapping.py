@@ -32,6 +32,10 @@ from .sama_policy_rates import (
     SAMA_POLICY_RATE_HTML_LIMITATION,
     extract_sama_policy_rate_rows_from_html,
 )
+from .sama_pos_by_city import (
+    SAMA_POS_BY_CITY_JSON_REPORT_BUNDLE_LIMITATION,
+    extract_sama_pos_by_city_rows_from_json,
+)
 from .sama_pos_weekly import (
     SAMA_POS_WEEKLY_HTML_TABLE_LIMITATION,
     SAMA_POS_WEEKLY_JSON_REPORT_BUNDLE_LIMITATION,
@@ -264,6 +268,21 @@ _STRUCTURED_EXTRACTOR_REGISTRY: dict[
     ),
     (
         "sama",
+        "sama-pos-by-city",
+        MappingBodyKind.JSON,
+    ): _StructuredExtractorRegistration(
+        extractor=partial(
+            _run_json_body_rows_extractor,
+            extractor=extract_sama_pos_by_city_rows_from_json,
+        ),
+        accepted_body_types=(dict,),
+        limitations=(
+            JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
+            SAMA_POS_BY_CITY_JSON_REPORT_BUNDLE_LIMITATION,
+        ),
+    ),
+    (
+        "sama",
         "sama-pos-weekly",
         MappingBodyKind.JSON,
     ): _StructuredExtractorRegistration(
@@ -420,13 +439,17 @@ def _build_limited_extractor_field_mapping_result(
     base_canonical_fields: dict[str, Any],
     limitations: tuple[str, ...],
 ) -> FieldMappingResult:
+    canonical_fields = dict(base_canonical_fields)
+    if body_kind is MappingBodyKind.JSON:
+        canonical_fields["structured_body"] = raw_body
+
     return FieldMappingResult(
         source=raw_payload.source,
         dataset_locator=raw_payload.dataset_id,
         response_metadata=response_metadata,
         body_kind=body_kind,
         raw_body=raw_body,
-        canonical_fields=base_canonical_fields,
+        canonical_fields=canonical_fields,
         record_extraction_shape=RecordExtractionShape.NONE,
         can_derive_records=False,
         limitations=limitations,

@@ -30,6 +30,9 @@ from saudi_open_data_mcp.normalization.sama_money_supply_weekly import (
 from saudi_open_data_mcp.normalization.sama_policy_rates import (
     SAMA_POLICY_RATE_HTML_LIMITATION,
 )
+from saudi_open_data_mcp.normalization.sama_pos_by_city import (
+    SAMA_POS_BY_CITY_JSON_REPORT_BUNDLE_LIMITATION,
+)
 from saudi_open_data_mcp.normalization.sama_pos_weekly import (
     SAMA_POS_WEEKLY_HTML_TABLE_LIMITATION,
     SAMA_POS_WEEKLY_JSON_REPORT_BUNDLE_LIMITATION,
@@ -194,6 +197,8 @@ def test_sama_pos_weekly_json_report_bundle_can_map_to_structured_weekly_rows() 
                         ),
                         "report_text": (
                             "Weekly Points of Sale Transactions Table 1: By Activities "
+                            "Value of Transactions: In Thousand "
+                            "Number of Transactions: In Thousand "
                             "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
                             "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26 "
                             "Total 226,928 16,149,247 223,899 14,793,365 "
@@ -260,6 +265,119 @@ def test_sama_pos_weekly_json_bundle_without_supported_report_text_remains_limit
     assert result.limitations == (
         JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
         SAMA_POS_WEEKLY_JSON_REPORT_BUNDLE_LIMITATION,
+    )
+
+
+def test_sama_pos_weekly_json_bundle_without_thousand_units_remains_limited() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/Indices/Pages/POS.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {
+                "reports_page_url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+                "reports": [
+                    {
+                        "report_url": "https://www.sama.gov.sa/report.pdf",
+                        "report_text": (
+                            "Weekly Points of Sale Transactions Table 1: By Activities "
+                            "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
+                            "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26 "
+                            "Total 226,928 16,149,247 223,899 14,793,365 "
+                            "219,827 12,969,718 246,506 14,707,441 12.1 13.4 "
+                            "Table 2.1: By Cities"
+                        ),
+                    }
+                ],
+            },
+        },
+    )
+
+    result = get_field_mapping(raw_payload, canonical_dataset_id="sama-pos-weekly")
+
+    assert result.body_kind is MappingBodyKind.JSON
+    assert result.can_derive_records is False
+    assert result.record_extraction_shape is RecordExtractionShape.NONE
+    assert result.limitations == (
+        JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
+        SAMA_POS_WEEKLY_JSON_REPORT_BUNDLE_LIMITATION,
+    )
+
+
+def test_sama_pos_weekly_json_bundle_with_partial_report_failure_remains_limited() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/Indices/Pages/POS.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {
+                "reports_page_url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+                "reports": [
+                    {
+                        "report_url": "https://www.sama.gov.sa/valid-report.pdf",
+                        "report_text": (
+                            "Weekly Points of Sale Transactions Table 1: By Activities "
+                            "Value of Transactions: In Thousand "
+                            "Number of Transactions: In Thousand "
+                            "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
+                            "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26 "
+                            "Total 226,928 16,149,247 223,899 14,793,365 "
+                            "219,827 12,969,718 246,506 14,707,441 12.1 13.4 "
+                            "Table 2.1: By Cities"
+                        ),
+                    },
+                    {
+                        "report_url": "https://www.sama.gov.sa/invalid-report.pdf",
+                        "report_text": "",
+                    },
+                ],
+            },
+        },
+    )
+
+    result = get_field_mapping(raw_payload, canonical_dataset_id="sama-pos-weekly")
+
+    assert result.body_kind is MappingBodyKind.JSON
+    assert result.can_derive_records is False
+    assert result.record_extraction_shape is RecordExtractionShape.NONE
+    assert result.limitations == (
+        JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
+        SAMA_POS_WEEKLY_JSON_REPORT_BUNDLE_LIMITATION,
+    )
+
+
+def test_sama_pos_by_city_json_report_bundle_stays_source_specific_limited() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/Indices/Pages/POS.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {
+                "reports_page_url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+                "reports": [
+                    {
+                        "report_url": "https://www.sama.gov.sa/en-US/Indices/POS_EN/report.pdf",
+                        "report_text": "Weekly Points of Sale Transactions Table 2.1: By Cities",
+                    }
+                ],
+            },
+        },
+    )
+
+    result = get_field_mapping(raw_payload, canonical_dataset_id="sama-pos-by-city")
+
+    assert result.body_kind is MappingBodyKind.JSON
+    assert result.can_derive_records is False
+    assert result.record_extraction_shape is RecordExtractionShape.NONE
+    assert result.limitations == (
+        JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
+        SAMA_POS_BY_CITY_JSON_REPORT_BUNDLE_LIMITATION,
     )
 
 

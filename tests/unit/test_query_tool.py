@@ -14,6 +14,9 @@ from saudi_open_data_mcp.normalization.pipeline import (
     NormalizationPipelineStatus,
     NormalizationResult,
 )
+from saudi_open_data_mcp.normalization.sama_pos_by_city import (
+    SAMA_POS_BY_CITY_JSON_REPORT_BUNDLE_LIMITATION,
+)
 from saudi_open_data_mcp.registry.models import (
     DatasetDescriptor,
     DatasetHealthStatus,
@@ -83,6 +86,8 @@ def _pos_weekly_report_bundle_json() -> dict[str, object]:
                 ),
                 "report_text": (
                     "Weekly Points of Sale Transactions Table 1: By Activities "
+                    "Value of Transactions: In Thousand "
+                    "Number of Transactions: In Thousand "
                     "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
                     "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26 "
                     "Total 226,928 16,149,247 223,899 14,793,365 "
@@ -97,6 +102,8 @@ def _pos_weekly_report_bundle_json() -> dict[str, object]:
                 ),
                 "report_text": (
                     "Weekly Points of Sale Transactions Table 1: By Activities "
+                    "Value of Transactions: In Thousand "
+                    "Number of Transactions: In Thousand "
                     "1 Mar,26 - 7 Mar,26 8 Mar,26 - 14 Mar,26 "
                     "15 Mar,26 - 21 Mar,26 22 Mar,26 - 28 Mar,26 "
                     "Total 210,100 13,000,000 226,928 16,149,247 "
@@ -1294,6 +1301,54 @@ def test_query_dataset_returns_explicit_limited_result_for_unsupported_json_shap
     assert result.matched_records == ()
     assert result.limitations == (
         "json_body_requires_supported_object_list_shape_for_record_normalization",
+    )
+
+
+def test_query_dataset_returns_source_specific_limited_result_for_sama_pos_by_city_bundle(
+    tmp_path: Path,
+) -> None:
+    repository = RegistryRepository(tmp_path / "registry.sqlite")
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    descriptor = DatasetDescriptor(
+        dataset_id="sama-pos-by-city",
+        source="sama",
+        source_locator="/en-US/Indices/Pages/POS.aspx",
+        title="POS by City",
+        description="Official weekly point-of-sale reporting by city published by SAMA.",
+        schema_version="0.1.0",
+        update_frequency=UpdateFrequency.WEEKLY,
+        health_status=DatasetHealthStatus.UNKNOWN,
+        caveats=("City extraction is not implemented for the shared POS report bundle.",),
+        known_issues=("Only the shared POS bundle is materialized at this stage.",),
+    )
+    tool = DatasetQueryTool(repository, snapshot_store)
+
+    repository.upsert_dataset(descriptor)
+    snapshot_store.write_snapshot(
+        RawPayload(
+            source="sama",
+            dataset_id=descriptor.source_locator,
+            content={
+                "url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+                "status_code": 200,
+                "content_type": "application/json",
+                "body": _pos_weekly_report_bundle_json(),
+            },
+        )
+    )
+
+    result = tool.query_dataset(descriptor.dataset_id)
+
+    assert result.status is DatasetQueryStatus.LIMITED
+    assert result.source == "sama"
+    assert result.data_origin is ResultDataOrigin.LOCAL_SNAPSHOT
+    assert result.total_records_before_filter is None
+    assert result.failure_stage is None
+    assert result.degradation_reason is ResultDegradationReason.NORMALIZATION_LIMITED
+    assert result.matched_records == ()
+    assert result.limitations == (
+        "json_body_requires_supported_object_list_shape_for_record_normalization",
+        SAMA_POS_BY_CITY_JSON_REPORT_BUNDLE_LIMITATION,
     )
 
 

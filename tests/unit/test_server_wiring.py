@@ -335,6 +335,8 @@ async def test_server_materialize_hot_set_persists_wave_one_safe_subset(
             200,
             content=(
                 "Weekly Points of Sale Transactions Table 1: By Activities "
+                "Value of Transactions: In Thousand "
+                "Number of Transactions: In Thousand "
                 "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
                 "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26 "
                 "Total 226,928 16,149,247 223,899 14,793,365 "
@@ -351,6 +353,8 @@ async def test_server_materialize_hot_set_persists_wave_one_safe_subset(
             200,
             content=(
                 "Weekly Points of Sale Transactions Table 1: By Activities "
+                "Value of Transactions: In Thousand "
+                "Number of Transactions: In Thousand "
                 "1 Mar,26 - 7 Mar,26 8 Mar,26 - 14 Mar,26 "
                 "15 Mar,26 - 21 Mar,26 22 Mar,26 - 28 Mar,26 "
                 "Total 210,100 13,000,000 226,928 16,149,247 "

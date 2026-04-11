@@ -30,6 +30,14 @@ _TABLE_1_PERIOD_PATTERN = re.compile(
 )
 _TOTAL_ROW_PATTERN = re.compile(r"(?:\bTotal\b|الإجمالي)\s+(?P<metrics>.*)$", re.IGNORECASE)
 _REPORT_NUMBER_PATTERN = re.compile(r"\(?[0-9][0-9,]*(?:\.\d+)?\)?")
+_VALUE_IN_THOUSAND_PATTERN = re.compile(
+    r"Value\s+of\s+Transactions\s*:?\s*In\s*Thousand",
+    re.IGNORECASE,
+)
+_COUNT_IN_THOUSAND_PATTERN = re.compile(
+    r"Number\s+of\s+Transactions\s*:?\s*In\s*Thousand",
+    re.IGNORECASE,
+)
 _TABLE_1_TITLE = "Table 1: By Activities"
 _POS_RELEASE_TITLE = "Weekly Points of Sale Transactions"
 
@@ -217,7 +225,7 @@ def extract_sama_pos_weekly_rows_from_json(
 
     for report in reports:
         if not isinstance(report, dict):
-            continue
+            return None
 
         report_rows = _extract_records_from_report_bundle(
             report=report,
@@ -225,7 +233,7 @@ def extract_sama_pos_weekly_rows_from_json(
             source_url=source_url,
         )
         if report_rows is None:
-            continue
+            return None
 
         for record in report_rows:
             period_key = (record["week_start_date"], record["week_end_date"])
@@ -367,6 +375,9 @@ def _extract_records_from_report_bundle(
     if not normalized_text:
         return None
 
+    if not _has_supported_thousand_units(normalized_text):
+        return None
+
     table_1_section = _extract_table_1_section(normalized_text)
     if table_1_section is None:
         return None
@@ -387,6 +398,11 @@ def _extract_records_from_report_bundle(
         metric_index = period_index * 2
         transaction_count_thousand = _parse_decimal_text(numbers[metric_index])
         transaction_value_thousand = _parse_decimal_text(numbers[metric_index + 1])
+        if not _is_supported_metric_pair(
+            transaction_count_thousand=transaction_count_thousand,
+            transaction_value_thousand=transaction_value_thousand,
+        ):
+            return None
         transaction_count = int(round(transaction_count_thousand * 1000))
         transaction_value_sar = round(transaction_value_thousand * 1000, 2)
         records.append(
@@ -456,6 +472,25 @@ def _extract_total_row_numbers(table_1_section: str) -> list[str]:
     if match is None:
         return []
     return _REPORT_NUMBER_PATTERN.findall(match.group("metrics"))
+
+
+def _has_supported_thousand_units(normalized_text: str) -> bool:
+    return bool(
+        _VALUE_IN_THOUSAND_PATTERN.search(normalized_text)
+        and _COUNT_IN_THOUSAND_PATTERN.search(normalized_text)
+    )
+
+
+def _is_supported_metric_pair(
+    *,
+    transaction_count_thousand: float,
+    transaction_value_thousand: float,
+) -> bool:
+    return (
+        transaction_count_thousand >= 1000
+        and transaction_value_thousand >= 1000
+        and transaction_value_thousand > transaction_count_thousand
+    )
 
 
 def _normalize_period_text(value: str) -> str:

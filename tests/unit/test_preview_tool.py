@@ -162,6 +162,8 @@ def _pos_weekly_report_bundle_json() -> dict[str, object]:
                 ),
                 "report_text": (
                     "Weekly Points of Sale Transactions Table 1: By Activities "
+                    "Value of Transactions: In Thousand "
+                    "Number of Transactions: In Thousand "
                     "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
                     "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26 "
                     "Total 226,928 16,149,247 223,899 14,793,365 "
