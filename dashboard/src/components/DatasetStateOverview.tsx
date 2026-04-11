@@ -1,6 +1,5 @@
 import { ar } from "../i18n/ar";
 import {
-  getDataOriginNarrative,
   getFreshnessNarrative,
   getHealthStatusNarrative,
   getPreviewStatusNarrative,
@@ -18,6 +17,7 @@ import {
   PreviewStatusBadge,
   StatusBadge,
 } from "./StatusBadge";
+import { CardDisclosure } from "./CardDisclosure";
 
 interface DatasetStateOverviewProps {
   previewStatus?: PreviewStatus | null;
@@ -58,16 +58,14 @@ export function DatasetStateOverview({
             technical="preview_unavailable"
           />
         )}
-        {previewStatus === "limited" &&
-          previewLimitations.map((entry) => (
-            <span
-              key={entry}
-              className="id-mono block break-all text-[0.72rem] leading-5 text-amber-900"
-              dir="ltr"
-            >
-              {entry}
-            </span>
-          ))}
+        {previewStatus === "limited" && previewLimitations.length > 0 && (
+          <CardDisclosure
+            summary={ar.cards.technicalDetails}
+            items={previewLimitations}
+            technical
+            tone="warn"
+          />
+        )}
       </StateFacetCard>,
     );
   }
@@ -86,11 +84,6 @@ export function DatasetStateOverview({
       >
         {freshnessStatus && <FreshnessBadge status={freshnessStatus} />}
         {dataOrigin && <DataOriginBadge origin={dataOrigin} />}
-        {dataOrigin && (
-          <p className="mt-1 text-[0.72rem] leading-5 text-ink-500">
-            {getDataOriginNarrative(dataOrigin)}
-          </p>
-        )}
       </StateFacetCard>,
     );
   }
@@ -114,7 +107,7 @@ export function DatasetStateOverview({
 
   return (
     <section
-      className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3"
+      className="grid grid-cols-1 gap-2 lg:grid-cols-2"
       data-testid="dataset-state-overview"
     >
       {cards}
@@ -136,7 +129,7 @@ function StateFacetCard({
   return (
     <section
       className={[
-        "rounded-lg border px-3 py-3 shadow-sm",
+        "rounded-lg border px-3 py-3 shadow-none",
         tone === "ok"
           ? "border-emerald-200 bg-emerald-50/60"
           : tone === "warn"
@@ -150,7 +143,9 @@ function StateFacetCard({
     >
       <p className="text-[0.72rem] font-semibold text-ink-700">{label}</p>
       <div className="mt-2 flex min-w-0 flex-col gap-2">{children}</div>
-      <p className="mt-2 text-xs leading-relaxed text-ink-700">{description}</p>
+      <p className="cell-clamp-2 mt-2 text-[0.78rem] leading-5 text-ink-700">
+        {description}
+      </p>
     </section>
   );
 }

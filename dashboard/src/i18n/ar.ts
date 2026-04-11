@@ -43,6 +43,16 @@ export const ar = {
     },
   },
 
+  cards: {
+    snapshotTimestamp: "وقت اللقطة",
+    snapshotAgePrefix: "منذ",
+    technicalDetails: "التفاصيل التقنية",
+    operationalNotes: "ملاحظات تشغيلية",
+    knownIssues: "إشكالات معروفة",
+    showDetails: "أظهر التفاصيل",
+    hideDetails: "أخفِ التفاصيل",
+  },
+
   query: {
     heading: "الاستعلام عن السجلات المحلية",
     description:

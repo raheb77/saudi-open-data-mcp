@@ -174,6 +174,7 @@ describe("SystemStatusPage", () => {
     expect(screen.getByText("جاهز")).toBeInTheDocument();
     expect(screen.getByText("ملخص عدّادات التحديث")).toBeInTheDocument();
     expect(screen.getAllByText("قابلية الاستعلام").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("وقت اللقطة").length).toBeGreaterThan(0);
     expect(screen.getAllByText("sama-pos-weekly").length).toBeGreaterThan(0);
   });
 
@@ -265,6 +266,7 @@ describe("SystemStatusPage", () => {
     expect(screen.getAllByText("حالة اللقطة").length).toBeGreaterThan(0);
     expect(screen.getAllByText("صحة المصدر").length).toBeGreaterThan(0);
     expect(screen.getAllByText("حديث").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /التفاصيل التقنية/i }));
     expect(
       screen.getByText(
         "text_or_html_body_requires_source_specific_extraction_before_record_normalization",

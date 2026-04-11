@@ -159,6 +159,7 @@ describe("HomePage", () => {
 
     expect(await screen.findByText("نقاط البيع الأسبوعية")).toBeInTheDocument();
     expect(screen.getAllByText("قابلية الاستعلام").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("وقت اللقطة").length).toBeGreaterThan(0);
     expect(
       screen.getAllByRole("link", { name: "افتح في صفحة الاستعلام" }).length,
     ).toBeGreaterThan(0);
@@ -203,6 +204,7 @@ describe("HomePage", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getAllByText("حديث").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /التفاصيل التقنية/i }));
     expect(
       screen.getByText(
         "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
@@ -230,6 +232,7 @@ describe("HomePage", () => {
     renderHomePage();
 
     expect(await screen.findByText("نقاط البيع الأسبوعية")).toBeInTheDocument();
+    expect(screen.getAllByText("وقت اللقطة").length).toBeGreaterThan(0);
     expect(screen.getByText("تعذّر تحميل معاينة البطاقة.")).toBeInTheDocument();
   });
 
