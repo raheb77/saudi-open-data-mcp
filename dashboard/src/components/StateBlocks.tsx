@@ -1,4 +1,5 @@
 import { ar } from "../i18n/ar";
+import { getLimitedPracticalMeaning } from "../lib/statePresentation";
 
 // Shared "state" blocks: distinct rendering for empty / limited / stale /
 // failed / missing / unauthorized. Per the Phase 5 rules, these must
@@ -96,6 +97,12 @@ export function LimitedState({ limitations }: { limitations: string[] }) {
       tone="warn"
       testId="state-limited"
     >
+      <div className="rounded-md border border-amber-200 bg-white/70 px-3 py-2 text-amber-900">
+        <p className="text-xs font-semibold">{ar.limited.practicalMeaningLabel}</p>
+        <p className="mt-1 text-sm leading-relaxed">
+          {getLimitedPracticalMeaning(limitations)}
+        </p>
+      </div>
       {limitations.length > 0 && (
         <>
           <p className="text-xs font-medium text-amber-900">

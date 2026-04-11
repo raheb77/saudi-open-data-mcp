@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DashboardApiError } from "../lib/mcpClient";
 import {
   getDatasetHealthResult,
+  getDatasetPreviewResult,
   getObservability,
   getReadiness,
   listDatasets,
@@ -11,6 +12,7 @@ import { SystemStatusPage } from "../pages/SystemStatusPage";
 import type {
   DatasetCatalogEntry,
   DatasetHealthLookupResult,
+  DatasetPreviewResult,
   ObservabilitySummary,
   ReadinessReport,
   SourceName,
@@ -19,12 +21,14 @@ import type {
 vi.mock("../lib/liveData", () => ({
   listDatasets: vi.fn(),
   getDatasetHealthResult: vi.fn(),
+  getDatasetPreviewResult: vi.fn(),
   getObservability: vi.fn(),
   getReadiness: vi.fn(),
 }));
 
 const listDatasetsMock = vi.mocked(listDatasets);
 const getDatasetHealthResultMock = vi.mocked(getDatasetHealthResult);
+const getDatasetPreviewResultMock = vi.mocked(getDatasetPreviewResult);
 const getObservabilityMock = vi.mocked(getObservability);
 const getReadinessMock = vi.mocked(getReadiness);
 
@@ -110,6 +114,33 @@ function makeHealthResult(
   };
 }
 
+function makePreviewResult(
+  datasetId: string,
+  source: SourceName,
+): DatasetPreviewResult {
+  return {
+    dataset_id: datasetId,
+    status: "record_derivable",
+    resolution_outcome: "serve_local",
+    data_origin: "local_snapshot",
+    freshness_status: "fresh",
+    failure_stage: null,
+    degradation_reason: null,
+    snapshot_modified_at: "2026-04-08T07:00:00Z",
+    resolution_notice: null,
+    records: [
+      {
+        dataset_id: datasetId,
+        source,
+        record_index: 1,
+        fields: { observation_date: "2026-04-08", value: 1 },
+      },
+    ],
+    limitations: [],
+    failure: null,
+  };
+}
+
 describe("SystemStatusPage", () => {
   afterEach(() => {
     vi.clearAllMocks();
@@ -132,12 +163,17 @@ describe("SystemStatusPage", () => {
     getDatasetHealthResultMock.mockImplementation(async (datasetId, sourceFallback) =>
       makeHealthResult(datasetId, sourceFallback ?? "sama"),
     );
+    getDatasetPreviewResultMock.mockImplementation(async (datasetId) => {
+      const entry = STATUS_DATASETS.find((item) => item.dataset_id === datasetId)!;
+      return makePreviewResult(datasetId, entry.source);
+    });
 
     render(<SystemStatusPage />);
 
     expect(await screen.findByText("الجاهزية")).toBeInTheDocument();
     expect(screen.getByText("جاهز")).toBeInTheDocument();
     expect(screen.getByText("ملخص عدّادات التحديث")).toBeInTheDocument();
+    expect(screen.getAllByText("قابلية الاستعلام").length).toBeGreaterThan(0);
     expect(screen.getAllByText("sama-pos-weekly").length).toBeGreaterThan(0);
   });
 
@@ -151,6 +187,10 @@ describe("SystemStatusPage", () => {
     );
     getObservabilityMock.mockResolvedValue(makeObservabilitySummary());
     listDatasetsMock.mockResolvedValue(STATUS_DATASETS);
+    getDatasetPreviewResultMock.mockImplementation(async (datasetId) => {
+      const entry = STATUS_DATASETS.find((item) => item.dataset_id === datasetId)!;
+      return makePreviewResult(datasetId, entry.source);
+    });
 
     render(<SystemStatusPage />);
 
@@ -175,6 +215,10 @@ describe("SystemStatusPage", () => {
     getDatasetHealthResultMock.mockImplementation(async (datasetId, sourceFallback) =>
       makeHealthResult(datasetId, sourceFallback ?? "sama"),
     );
+    getDatasetPreviewResultMock.mockImplementation(async (datasetId) => {
+      const entry = STATUS_DATASETS.find((item) => item.dataset_id === datasetId)!;
+      return makePreviewResult(datasetId, entry.source);
+    });
 
     render(<SystemStatusPage />);
 
@@ -190,5 +234,41 @@ describe("SystemStatusPage", () => {
       ).not.toBeInTheDocument(),
     );
     expect(getReadinessMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows limited queryability separately from fresh snapshot state on status cards", async () => {
+    getReadinessMock.mockResolvedValue(makeReadinessReport());
+    getObservabilityMock.mockResolvedValue(makeObservabilitySummary());
+    listDatasetsMock.mockResolvedValue(STATUS_DATASETS);
+    getDatasetHealthResultMock.mockImplementation(async (datasetId, sourceFallback) =>
+      makeHealthResult(datasetId, sourceFallback ?? "sama"),
+    );
+    getDatasetPreviewResultMock.mockImplementation(async (datasetId) => {
+      const entry = STATUS_DATASETS.find((item) => item.dataset_id === datasetId)!;
+      if (datasetId === "sama-pos-weekly") {
+        return {
+          ...makePreviewResult(datasetId, entry.source),
+          status: "limited",
+          limitations: [
+            "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+          ],
+          degradation_reason: "normalization_limited",
+        };
+      }
+      return makePreviewResult(datasetId, entry.source);
+    });
+
+    render(<SystemStatusPage />);
+
+    expect(await screen.findByText("حالة المصادر ومجموعات البيانات")).toBeInTheDocument();
+    expect(screen.getAllByText("قابلية الاستعلام").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("حالة اللقطة").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("صحة المصدر").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("حديث").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(
+        "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+      ),
+    ).toBeInTheDocument();
   });
 });

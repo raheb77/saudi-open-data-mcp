@@ -158,9 +158,56 @@ describe("HomePage", () => {
     renderHomePage();
 
     expect(await screen.findByText("نقاط البيع الأسبوعية")).toBeInTheDocument();
+    expect(screen.getAllByText("قابلية الاستعلام").length).toBeGreaterThan(0);
     expect(
       screen.getAllByRole("link", { name: "افتح في صفحة الاستعلام" }).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("keeps limited preview queryability visually distinct from freshness", async () => {
+    listDatasetsMock.mockResolvedValue(FEATURED_DATASETS);
+    getDatasetPreviewResultMock.mockImplementation(async (datasetId) => {
+      const entry = FEATURED_DATASETS.find((item) => item.dataset_id === datasetId)!;
+      if (datasetId === FEATURED_DATASET_IDS[0]) {
+        return {
+          dataset_id: datasetId,
+          status: "limited",
+          resolution_outcome: "serve_local",
+          data_origin: "local_snapshot",
+          freshness_status: "fresh",
+          failure_stage: "normalization",
+          degradation_reason: "normalization_limited",
+          snapshot_modified_at: "2026-04-08T07:00:00Z",
+          resolution_notice: null,
+          records: [],
+          limitations: [
+            "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+          ],
+          failure: null,
+        };
+      }
+      return makePreviewResult(datasetId, entry.source);
+    });
+    getDatasetHealthResultMock.mockImplementation(async (datasetId, sourceFallback) =>
+      makeHealthResult(datasetId, sourceFallback ?? "sama"),
+    );
+
+    renderHomePage();
+
+    expect(await screen.findByText("نقاط البيع الأسبوعية")).toBeInTheDocument();
+    expect(screen.getAllByText("قابلية الاستعلام").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("حالة اللقطة").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(
+        "توجد لقطة قابلة للقراءة، لكن لا توجد بعد سجلات معيارية جاهزة للاستعلام التحليلي.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("حديث").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(
+        "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("isolates per-card preview failures without dropping healthy cards", async () => {

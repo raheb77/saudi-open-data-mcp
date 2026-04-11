@@ -7,8 +7,8 @@ import type {
   DatasetPreviewResult,
   DatasetHealthLookupResult,
 } from "../types/core";
+import { DatasetStateOverview } from "./DatasetStateOverview";
 import { MetadataStrip } from "./MetadataStrip";
-import { DataOriginBadge, FreshnessBadge, PreviewStatusBadge } from "./StatusBadge";
 
 interface DatasetCardProps {
   catalog: DatasetCatalogEntry;
@@ -41,13 +41,13 @@ export function DatasetCard({ catalog, preview, health }: DatasetCardProps) {
         </span>
       </p>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <PreviewStatusBadge status={preview.status} />
-        {preview.freshness_status && (
-          <FreshnessBadge status={preview.freshness_status} />
-        )}
-        {preview.data_origin && <DataOriginBadge origin={preview.data_origin} />}
-      </div>
+      <DatasetStateOverview
+        previewStatus={preview.status}
+        previewLimitations={preview.limitations}
+        freshnessStatus={preview.freshness_status}
+        dataOrigin={preview.data_origin}
+        healthStatus={health?.health_status ?? null}
+      />
 
       {preview.snapshot_modified_at && (
         <p className="text-xs text-ink-500">

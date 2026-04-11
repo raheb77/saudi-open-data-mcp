@@ -12,6 +12,7 @@ import { SOURCE_LABELS } from "../lib/catalogPresentation";
 import { formatNumber } from "../lib/format";
 import {
   getDatasetHealthResult,
+  getDatasetPreviewResult,
   getObservability,
   getReadiness,
   listDatasets,
@@ -20,6 +21,7 @@ import { DashboardApiError, asDashboardApiError } from "../lib/mcpClient";
 import type {
   DatasetCatalogEntry,
   DatasetHealthLookupResult,
+  DatasetPreviewResult,
   ObservabilitySummary,
   ReadinessReport,
 } from "../types/core";
@@ -27,7 +29,9 @@ import type {
 interface SourceHealthCardData {
   catalog: DatasetCatalogEntry;
   health: DatasetHealthLookupResult | null;
+  preview: DatasetPreviewResult | null;
   error: DashboardApiError | null;
+  previewError: DashboardApiError | null;
 }
 
 type SectionState<T> =
@@ -198,27 +202,33 @@ async function loadHealthCards(
   const datasets = await listDatasets(signal);
   return Promise.all(
     datasets.map(async (catalog) => {
-      try {
-        return {
-          catalog,
-          health: await getDatasetHealthResult(
-            catalog.dataset_id,
-            catalog.source,
-            signal,
-          ),
-          error: null,
-        } satisfies SourceHealthCardData;
-      } catch (error) {
-        return {
-          catalog,
-          health: null,
-          error: asDashboardApiError(
-            error,
-            "status_health",
-            "تعذّر تحميل حالة هذه المجموعة.",
-          ),
-        } satisfies SourceHealthCardData;
-      }
+      const [healthResult, previewResult] = await Promise.allSettled([
+        getDatasetHealthResult(catalog.dataset_id, catalog.source, signal),
+        getDatasetPreviewResult(catalog.dataset_id, signal),
+      ]);
+
+      return {
+        catalog,
+        health: healthResult.status === "fulfilled" ? healthResult.value : null,
+        preview:
+          previewResult.status === "fulfilled" ? previewResult.value : null,
+        error:
+          healthResult.status === "rejected"
+            ? asDashboardApiError(
+                healthResult.reason,
+                "status_health",
+                "تعذّر تحميل حالة هذه المجموعة.",
+              )
+            : null,
+        previewError:
+          previewResult.status === "rejected"
+            ? asDashboardApiError(
+                previewResult.reason,
+                "status_preview",
+                "تعذّر تحميل حالة قابلية الاستعلام لهذه المجموعة.",
+              )
+            : null,
+      } satisfies SourceHealthCardData;
     }),
   );
 }
@@ -314,7 +324,8 @@ function ReadinessPanel({ report }: { report: ReadinessReport }) {
               >
                 <span className="id-mono text-ink-700">{name}</span>
                 <span className={isOk ? "text-emerald-800" : "text-rose-800"}>
-                  {isOk ? "ok" : "fail"}
+                  {isOk ? ar.status.readiness.checkOk : ar.status.readiness.checkFail}
+                  <span className="id-mono ms-1">{isOk ? "ok" : "fail"}</span>
                 </span>
               </li>
             );
@@ -379,7 +390,13 @@ function SourcesPanel({ cards }: { cards: SourceHealthCardData[] }) {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {cards.map((entry) =>
           entry.health && entry.health.status === "found" ? (
-            <HealthCard key={entry.catalog.dataset_id} health={entry.health} />
+            <HealthCard
+              key={entry.catalog.dataset_id}
+              title={entry.catalog.title}
+              health={entry.health}
+              preview={entry.preview}
+              previewErrorMessage={entry.previewError?.message ?? null}
+            />
           ) : (
             <HealthFailureCard key={entry.catalog.dataset_id} entry={entry} />
           ),

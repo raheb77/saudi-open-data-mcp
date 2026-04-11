@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   DegradedState,
   ErrorState,
+  LimitedState,
   LoadingState,
 } from "../components/StateBlocks";
 
@@ -48,5 +49,27 @@ describe("StateBlocks", () => {
       "aria-live",
       "assertive",
     );
+  });
+
+  it("keeps limited states human-readable while preserving technical details", () => {
+    render(
+      <LimitedState
+        limitations={[
+          "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("المعنى العملي")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "عمليًا: صفحة المصدر موجودة، لكن بنيتها الحالية لا تسمح بعد باستخراج صفوف معيارية قابلة للمقارنة.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+      ),
+    ).toBeInTheDocument();
   });
 });
