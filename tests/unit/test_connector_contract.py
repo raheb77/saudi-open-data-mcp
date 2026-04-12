@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import httpx
 import pytest
 
 from saudi_open_data_mcp.connectors.base import (
@@ -93,6 +94,13 @@ def test_ensure_approved_url_rejects_unapproved_source() -> None:
     assert exc_info.value.dataset_id is None
 
 
+def test_ensure_approved_url_rejects_prefix_matching_sibling_host() -> None:
+    connector = DummyConnector()
+
+    with pytest.raises(SourceAccessPolicyViolationError):
+        connector.ensure_approved_url("https://data.example.gov.sa.evil.example.org/catalog")
+
+
 def test_ensure_approved_url_requires_base_url_configuration() -> None:
     class MisconfiguredConnector(DummyConnector):
         approved_base_url = ""
@@ -141,6 +149,80 @@ def test_catalog_model_defaults_are_typed() -> None:
     catalog = DatasetCatalog(source="dummy")
 
     assert catalog.entries == ()
+
+
+@pytest.mark.asyncio
+async def test_execute_get_with_retries_follows_approved_redirects_with_revalidation() -> None:
+    class RedirectingAsyncClient:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, bool]] = []
+
+        async def get(
+            self,
+            url: str,
+            *,
+            follow_redirects: bool,
+            timeout: httpx.Timeout,
+        ) -> httpx.Response:
+            del timeout
+            self.calls.append((url, follow_redirects))
+            if len(self.calls) == 1:
+                return httpx.Response(
+                    302,
+                    headers={"location": "/catalog/final"},
+                    request=httpx.Request("GET", url),
+                )
+            return httpx.Response(
+                200,
+                text="ok",
+                request=httpx.Request("GET", url),
+            )
+
+    connector = DummyConnector()
+    client = RedirectingAsyncClient()
+
+    response = await connector.execute_get_with_retries(
+        client=client,
+        url="https://data.example.gov.sa/catalog",
+        dataset_id="catalog-1",
+        source_label="dummy",
+    )
+
+    assert response.status_code == 200
+    assert client.calls == [
+        ("https://data.example.gov.sa/catalog", False),
+        ("https://data.example.gov.sa/catalog/final", False),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_execute_get_with_retries_rejects_redirects_outside_approved_boundary() -> None:
+    class RedirectingAsyncClient:
+        async def get(
+            self,
+            url: str,
+            *,
+            follow_redirects: bool,
+            timeout: httpx.Timeout,
+        ) -> httpx.Response:
+            del follow_redirects, timeout
+            return httpx.Response(
+                302,
+                headers={"location": "https://evil.example.org/catalog"},
+                request=httpx.Request("GET", url),
+            )
+
+    connector = DummyConnector()
+
+    with pytest.raises(SourceAccessPolicyViolationError) as exc_info:
+        await connector.execute_get_with_retries(
+            client=RedirectingAsyncClient(),
+            url="https://data.example.gov.sa/catalog",
+            dataset_id="catalog-1",
+            source_label="dummy",
+        )
+
+    assert exc_info.value.dataset_id == "catalog-1"
 
 
 def test_connector_error_string_includes_context() -> None:

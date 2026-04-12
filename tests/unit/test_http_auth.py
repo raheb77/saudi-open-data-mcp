@@ -14,6 +14,7 @@ from starlette.routing import Route
 
 from saudi_open_data_mcp.observability import build_token_fingerprint, get_metrics
 from saudi_open_data_mcp.security.http_auth import (
+    MAX_HTTP_AUTH_REQUEST_BODY_BYTES,
     HTTPAuthCapability,
     HTTPAuthRole,
     HTTPBearerAuthMiddleware,
@@ -109,6 +110,50 @@ async def test_valid_bearer_token_is_accepted() -> None:
     assert get_metrics().get("http.auth.requests") == 1
     assert get_metrics().get("http.auth.accepted") == 1
     assert get_metrics().get("http.auth.rejected") == 0
+
+
+@pytest.mark.asyncio
+async def test_oversized_request_body_with_content_length_is_rejected() -> None:
+    oversized_body = b"x" * (MAX_HTTP_AUTH_REQUEST_BODY_BYTES + 1)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=_app()),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/mcp",
+            headers={"Authorization": "Bearer internal-test-token"},
+            content=oversized_body,
+        )
+
+    assert response.status_code == 413
+    assert response.json() == {"error": "request body exceeds the maximum allowed size"}
+    assert get_metrics().get("http.auth.requests") == 1
+    assert get_metrics().get("http.auth.accepted") == 0
+    assert get_metrics().get("http.auth.rejected") == 1
+
+
+@pytest.mark.asyncio
+async def test_oversized_streamed_request_body_is_rejected_without_content_length() -> None:
+    async def oversized_stream():
+        yield b"x" * MAX_HTTP_AUTH_REQUEST_BODY_BYTES
+        yield b"x"
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=_app()),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/mcp",
+            headers={"Authorization": "Bearer internal-test-token"},
+            content=oversized_stream(),
+        )
+
+    assert response.status_code == 413
+    assert response.json() == {"error": "request body exceeds the maximum allowed size"}
+    assert get_metrics().get("http.auth.requests") == 1
+    assert get_metrics().get("http.auth.accepted") == 0
+    assert get_metrics().get("http.auth.rejected") == 1
 
 
 def test_role_bundles_are_explicit() -> None:

@@ -487,6 +487,23 @@ async def test_unapproved_page_locator_is_rejected() -> None:
 
 
 @pytest.mark.asyncio
+@respx.mock
+async def test_redirect_target_is_revalidated_before_following() -> None:
+    respx.get(_report_url()).mock(
+        return_value=httpx.Response(
+            302,
+            headers={"location": "https://evil.example.org/report.aspx?cid=55"},
+        )
+    )
+    connector = SAMAConnector(request_policy=RequestPolicy(timeout_seconds=0.1, max_retries=0))
+
+    with pytest.raises(SourceAccessPolicyViolationError) as exc_info:
+        await connector.fetch_dataset_payload(REPORT_LOCATOR)
+
+    assert exc_info.value.dataset_id == REPORT_LOCATOR
+
+
+@pytest.mark.asyncio
 async def test_transport_disconnect_uses_standard_library_fallback() -> None:
     class DisconnectingAsyncClient:
         async def request(

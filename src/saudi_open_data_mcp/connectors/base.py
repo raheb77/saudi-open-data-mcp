@@ -7,6 +7,7 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 from pydantic import BaseModel, Field
@@ -16,12 +17,15 @@ from saudi_open_data_mcp.observability import get_logger, get_metrics, log_event
 from .errors import (
     ConnectorConfigurationError,
     ConnectorNotImplementedError,
+    InvalidSourceResponseError,
     SourceAccessPolicyViolationError,
     SourceTimeoutError,
     SourceUnavailableError,
 )
 
 LOGGER = get_logger(__name__)
+_FOLLOWABLE_REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
+_MAX_SAFE_REDIRECT_HOPS = 5
 
 
 class RequestPolicy(BaseModel):
@@ -122,14 +126,31 @@ class Connector(ABC):
 
         return self.request_policy.to_httpx_timeout()
 
-    def ensure_approved_url(self, url: str) -> str:
+    def ensure_approved_url(self, url: str, *, dataset_id: str | None = None) -> str:
         """Ensure that connector access stays within the approved official source."""
 
-        approved_base_url = self.connector_identity.approved_base_url
-        if not url.startswith(approved_base_url):
+        approved_parts = urlsplit(self.connector_identity.approved_base_url)
+        candidate_parts = urlsplit(url)
+        approved_path = approved_parts.path.rstrip("/")
+        candidate_path = candidate_parts.path or "/"
+
+        if (
+            candidate_parts.scheme.lower() != approved_parts.scheme.lower()
+            or _normalized_port(candidate_parts) != _normalized_port(approved_parts)
+            or (candidate_parts.hostname or "").casefold()
+            != (approved_parts.hostname or "").casefold()
+            or candidate_parts.username is not None
+            or candidate_parts.password is not None
+            or (
+                approved_path
+                and candidate_path != approved_path
+                and not candidate_path.startswith(f"{approved_path}/")
+            )
+        ):
             raise SourceAccessPolicyViolationError(
                 source_name=self.connector_identity.source_name,
                 message=f"URL '{url}' is outside the approved source boundary",
+                dataset_id=dataset_id,
             )
         return url
 
@@ -182,10 +203,12 @@ class Connector(ABC):
         timeout = self.build_timeout()
 
         async def send_with(client_instance: httpx.AsyncClient) -> httpx.Response:
-            return await client_instance.get(
-                url,
-                follow_redirects=True,
+            return await self.send_request_with_redirect_revalidation(
+                client_instance,
+                method="GET",
+                url=url,
                 timeout=timeout,
+                dataset_id=dataset_id,
             )
 
         if client is not None:
@@ -276,3 +299,97 @@ class Connector(ABC):
             )
             await self.sleep_before_retry(retries_used)
             retries_used += 1
+
+    async def send_request_with_redirect_revalidation(
+        self,
+        client_instance: httpx.AsyncClient,
+        *,
+        method: str,
+        url: str,
+        timeout: httpx.Timeout,
+        dataset_id: str,
+        data: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        """Send one request and manually re-validate each followed redirect target."""
+
+        current_method = method.upper()
+        current_url = self.ensure_approved_url(url, dataset_id=dataset_id)
+        current_data = data
+        redirects_followed = 0
+
+        while True:
+            response = await self._send_one_http_request(
+                client_instance,
+                method=current_method,
+                url=current_url,
+                timeout=timeout,
+                data=current_data,
+            )
+            if response.status_code not in _FOLLOWABLE_REDIRECT_STATUS_CODES:
+                return response
+
+            if redirects_followed >= _MAX_SAFE_REDIRECT_HOPS:
+                raise InvalidSourceResponseError(
+                    source_name=self.source_name,
+                    dataset_id=dataset_id,
+                    message="source redirect chain exceeded the maximum safe hop count",
+                )
+
+            location = response.headers.get("location")
+            if not location:
+                raise InvalidSourceResponseError(
+                    source_name=self.source_name,
+                    dataset_id=dataset_id,
+                    message="source redirect response is missing a location header",
+                )
+
+            current_url = self.ensure_approved_url(
+                urljoin(current_url, location),
+                dataset_id=dataset_id,
+            )
+            redirects_followed += 1
+
+            if response.status_code == 303 or (
+                response.status_code in {301, 302}
+                and current_method not in {"GET", "HEAD"}
+            ):
+                current_method = "GET"
+                current_data = None
+
+    async def _send_one_http_request(
+        self,
+        client_instance: httpx.AsyncClient,
+        *,
+        method: str,
+        url: str,
+        timeout: httpx.Timeout,
+        data: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        """Send one HTTP request without automatic redirect following."""
+
+        if method == "GET" and data is None and hasattr(client_instance, "get"):
+            return await client_instance.get(
+                url,
+                follow_redirects=False,
+                timeout=timeout,
+            )
+
+        return await client_instance.request(
+            method,
+            url,
+            data=data,
+            follow_redirects=False,
+            timeout=timeout,
+        )
+
+
+def _normalized_port(parts) -> int | None:
+    """Return the explicit or default port for a parsed URL."""
+
+    if parts.port is not None:
+        return parts.port
+    if parts.scheme.lower() == "https":
+        return 443
+    if parts.scheme.lower() == "http":
+        return 80
+    return None

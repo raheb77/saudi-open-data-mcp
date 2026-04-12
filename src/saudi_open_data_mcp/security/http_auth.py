@@ -23,6 +23,7 @@ from saudi_open_data_mcp.observability import (
 )
 
 LOGGER = get_logger(__name__)
+MAX_HTTP_AUTH_REQUEST_BODY_BYTES = 1_048_576
 
 
 class HTTPAuthCapability(StrEnum):
@@ -153,8 +154,48 @@ class HTTPBearerAuthMiddleware:
             await _unauthorized_response("invalid bearer token")(scope, receive, send)
             return
 
+        content_length = _extract_content_length(request)
+        if (
+            content_length is not None
+            and content_length > MAX_HTTP_AUTH_REQUEST_BODY_BYTES
+        ):
+            metrics.increment("http.auth.rejected")
+            log_event(
+                LOGGER,
+                logging.WARNING,
+                "http.auth.rejected",
+                path=scope.get("path"),
+                reason="request_body_too_large",
+                content_length=content_length,
+                max_body_bytes=MAX_HTTP_AUTH_REQUEST_BODY_BYTES,
+            )
+            await _payload_too_large_response(
+                "request body exceeds the maximum allowed size"
+            )(scope, receive, send)
+            return
+
+        try:
+            request_body, replay_receive = await _buffer_http_request_body(
+                receive,
+                max_body_bytes=MAX_HTTP_AUTH_REQUEST_BODY_BYTES,
+            )
+        except _RequestBodyTooLargeError as exc:
+            metrics.increment("http.auth.rejected")
+            log_event(
+                LOGGER,
+                logging.WARNING,
+                "http.auth.rejected",
+                path=scope.get("path"),
+                reason="request_body_too_large",
+                observed_body_bytes=exc.observed_body_bytes,
+                max_body_bytes=exc.max_body_bytes,
+            )
+            await _payload_too_large_response(
+                "request body exceeds the maximum allowed size"
+            )(scope, receive, send)
+            return
+
         metrics.increment("http.auth.accepted")
-        request_body, replay_receive = await _buffer_http_request_body(receive)
         with audit_context(
             transport="http",
             actor_type="http_bearer_token",
@@ -373,11 +414,25 @@ class _AuthorizationDecision:
         self.coverage_error = coverage_error
 
 
-async def _buffer_http_request_body(receive) -> tuple[bytes, Any]:
+class _RequestBodyTooLargeError(ValueError):
+    """Raised when the current request body exceeds the middleware safety limit."""
+
+    def __init__(self, *, observed_body_bytes: int, max_body_bytes: int) -> None:
+        self.observed_body_bytes = observed_body_bytes
+        self.max_body_bytes = max_body_bytes
+        super().__init__("request body exceeds the maximum allowed size")
+
+
+async def _buffer_http_request_body(
+    receive,
+    *,
+    max_body_bytes: int,
+) -> tuple[bytes, Any]:
     """Buffer the current request body and return a replayable receive function."""
 
     messages: list[dict[str, Any]] = []
     body_parts: list[bytes] = []
+    total_body_bytes = 0
 
     while True:
         message = await receive()
@@ -385,7 +440,14 @@ async def _buffer_http_request_body(receive) -> tuple[bytes, Any]:
         if message["type"] != "http.request":
             break
 
-        body_parts.append(message.get("body", b""))
+        body = message.get("body", b"")
+        total_body_bytes += len(body)
+        if total_body_bytes > max_body_bytes:
+            raise _RequestBodyTooLargeError(
+                observed_body_bytes=total_body_bytes,
+                max_body_bytes=max_body_bytes,
+            )
+        body_parts.append(body)
         if not message.get("more_body", False):
             break
 
@@ -504,6 +566,21 @@ def _required_capability_for_tool_name(
     return None
 
 
+def _extract_content_length(request: Request) -> int | None:
+    """Return a parsed Content-Length header when present and valid."""
+
+    raw_value = request.headers.get("content-length")
+    if raw_value is None:
+        return None
+
+    try:
+        parsed = int(raw_value.strip())
+    except ValueError:
+        return None
+
+    return parsed if parsed >= 0 else None
+
+
 def _unauthorized_response(message: str) -> JSONResponse:
     """Return the standard unauthorized response payload."""
 
@@ -529,4 +606,13 @@ def _internal_error_response(message: str) -> JSONResponse:
     return JSONResponse(
         {"error": message},
         status_code=500,
+    )
+
+
+def _payload_too_large_response(message: str) -> JSONResponse:
+    """Return the standard payload-too-large response payload."""
+
+    return JSONResponse(
+        {"error": message},
+        status_code=413,
     )

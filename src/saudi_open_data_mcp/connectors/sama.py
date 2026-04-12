@@ -240,22 +240,13 @@ class SAMAConnector(Connector):
 
         async def send_with(client_instance: httpx.AsyncClient) -> httpx.Response:
             try:
-                if (
-                    method == "GET"
-                    and form_data is None
-                    and hasattr(client_instance, "get")
-                ):
-                    return await client_instance.get(
-                        url,
-                        follow_redirects=True,
-                        timeout=timeout,
-                    )
-                return await client_instance.request(
-                    method,
-                    url,
-                    data=form_data,
-                    follow_redirects=True,
+                return await self.send_request_with_redirect_revalidation(
+                    client_instance,
+                    method=method,
+                    url=url,
                     timeout=timeout,
+                    dataset_id=dataset_locator,
+                    data=form_data,
                 )
             except httpx.RequestError as exc:
                 if not self._should_use_standard_library_fallback(exc):

@@ -42,44 +42,67 @@ def test_load_config_defaults() -> None:
     assert config.tier_a_refresh.interval_seconds == 3600
 
 
-def test_load_config_respects_data_gov_sa_base_url_override(
+@pytest.mark.parametrize(
+    ("env_name", "value", "expected_field", "expected_url"),
+    (
+        (
+            "DATA_GOV_SA_BASE_URL",
+            "https://OPEN.DATA.GOV.SA/",
+            "data_gov_sa_base_url",
+            "https://open.data.gov.sa",
+        ),
+        (
+            "STATS_GOV_SA_BASE_URL",
+            "https://WWW.STATS.GOV.SA/",
+            "stats_gov_sa_base_url",
+            "https://www.stats.gov.sa",
+        ),
+        (
+            "SAMA_BASE_URL",
+            "https://WWW.SAMA.GOV.SA/",
+            "sama_base_url",
+            "https://www.sama.gov.sa",
+        ),
+        (
+            "MOF_BASE_URL",
+            "https://WWW.MOF.GOV.SA/",
+            "mof_base_url",
+            "https://www.mof.gov.sa",
+        ),
+    ),
+)
+def test_load_config_respects_valid_official_base_url_overrides(
     monkeypatch: pytest.MonkeyPatch,
+    env_name: str,
+    value: str,
+    expected_field: str,
+    expected_url: str,
 ) -> None:
-    monkeypatch.setenv("DATA_GOV_SA_BASE_URL", "https://example.data.gov.sa")
+    monkeypatch.setenv(env_name, value)
 
     config = load_config()
 
-    assert config.source.data_gov_sa_base_url == "https://example.data.gov.sa"
+    assert getattr(config.source, expected_field) == expected_url
 
 
-def test_load_config_respects_stats_gov_sa_base_url_override(
+@pytest.mark.parametrize(
+    ("env_name", "value"),
+    (
+        ("DATA_GOV_SA_BASE_URL", "https://open.data.gov.sa/preview"),
+        ("STATS_GOV_SA_BASE_URL", "https://127.0.0.1"),
+        ("SAMA_BASE_URL", "http://www.sama.gov.sa"),
+        ("MOF_BASE_URL", "https://evil.example.org"),
+    ),
+)
+def test_load_config_rejects_invalid_source_base_url_overrides(
     monkeypatch: pytest.MonkeyPatch,
+    env_name: str,
+    value: str,
 ) -> None:
-    monkeypatch.setenv("STATS_GOV_SA_BASE_URL", "https://example.stats.gov.sa")
+    monkeypatch.setenv(env_name, value)
 
-    config = load_config()
-
-    assert config.source.stats_gov_sa_base_url == "https://example.stats.gov.sa"
-
-
-def test_load_config_respects_sama_base_url_override(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("SAMA_BASE_URL", "https://example.sama.gov.sa")
-
-    config = load_config()
-
-    assert config.source.sama_base_url == "https://example.sama.gov.sa"
-
-
-def test_load_config_respects_mof_base_url_override(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("MOF_BASE_URL", "https://example.mof.gov.sa")
-
-    config = load_config()
-
-    assert config.source.mof_base_url == "https://example.mof.gov.sa"
+    with pytest.raises(RuntimeConfigurationError, match=env_name):
+        load_config()
 
 
 def test_load_config_respects_http_transport_overrides(

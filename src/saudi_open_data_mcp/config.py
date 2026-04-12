@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+from ipaddress import ip_address
 from logging import getLevelNamesMapping
 from os import getenv
 from pathlib import Path
 from typing import Self
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field, SecretStr, ValidationError, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    SecretStr,
+    ValidationError,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from saudi_open_data_mcp.security.http_auth import (
     ALL_HTTP_AUTH_CAPABILITIES,
@@ -26,6 +36,18 @@ FALSE_ENV_VALUES = frozenset({"0", "false", "no", "off"})
 VALID_LOG_LEVELS = frozenset(
     name for name in getLevelNamesMapping() if isinstance(name, str) and name.isalpha()
 )
+_SOURCE_BASE_URL_ALLOWED_HOSTS = {
+    "sama_base_url": frozenset({"www.sama.gov.sa"}),
+    "stats_gov_sa_base_url": frozenset({"www.stats.gov.sa"}),
+    "data_gov_sa_base_url": frozenset({"open.data.gov.sa"}),
+    "mof_base_url": frozenset({"www.mof.gov.sa"}),
+}
+_SOURCE_BASE_URL_ENV_NAMES = {
+    "sama_base_url": "SAMA_BASE_URL",
+    "stats_gov_sa_base_url": "STATS_GOV_SA_BASE_URL",
+    "data_gov_sa_base_url": "DATA_GOV_SA_BASE_URL",
+    "mof_base_url": "MOF_BASE_URL",
+}
 
 
 class RuntimeConfigurationError(ValueError):
@@ -43,6 +65,23 @@ class SourceConfig(BaseModel):
     stats_gov_sa_base_url: str = "https://www.stats.gov.sa"
     data_gov_sa_base_url: str = "https://open.data.gov.sa"
     mof_base_url: str = "https://www.mof.gov.sa"
+
+    @field_validator(
+        "sama_base_url",
+        "stats_gov_sa_base_url",
+        "data_gov_sa_base_url",
+        "mof_base_url",
+    )
+    @classmethod
+    def _validate_source_base_url(
+        cls,
+        value: str,
+        info: ValidationInfo,
+    ) -> str:
+        field_name = info.field_name
+        if field_name is None:
+            raise ValueError("source base URL field name is required")
+        return _validate_source_base_url(field_name, value)
 
 
 class TransportConfig(BaseModel):
@@ -306,3 +345,48 @@ def _format_validation_error(exc: ValidationError) -> str:
         location = ".".join(str(part) for part in error["loc"])
         parts.append(f"{location}: {error['msg']}")
     return "invalid runtime configuration: " + "; ".join(parts)
+
+
+def _validate_source_base_url(field_name: str, value: str) -> str:
+    """Validate a configured source base URL against the approved official host."""
+
+    env_name = _SOURCE_BASE_URL_ENV_NAMES[field_name]
+    allowed_hosts = _SOURCE_BASE_URL_ALLOWED_HOSTS[field_name]
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError(f"{env_name} must not be empty")
+
+    parts = urlsplit(normalized)
+    if parts.scheme.lower() != "https":
+        raise ValueError(f"{env_name} must use https")
+    if parts.username or parts.password:
+        raise ValueError(f"{env_name} must not include userinfo")
+    if parts.query or parts.fragment:
+        raise ValueError(f"{env_name} must not include query or fragment data")
+    if parts.path not in {"", "/"}:
+        raise ValueError(f"{env_name} must not include a path")
+    if parts.port not in {None, 443}:
+        raise ValueError(f"{env_name} must not override the HTTPS port")
+
+    hostname = parts.hostname
+    if hostname is None:
+        raise ValueError(f"{env_name} must include an approved official host")
+
+    normalized_host = hostname.casefold()
+    try:
+        parsed_ip = ip_address(normalized_host)
+    except ValueError:
+        parsed_ip = None
+
+    if parsed_ip is not None:
+        raise ValueError(
+            f"{env_name} must not use a private, loopback, link-local, or IP-literal host"
+        )
+
+    if normalized_host not in allowed_hosts:
+        raise ValueError(
+            f"{env_name} must use one of the approved official hosts: "
+            + ", ".join(sorted(allowed_hosts))
+        )
+
+    return f"https://{normalized_host}"
