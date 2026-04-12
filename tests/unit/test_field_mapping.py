@@ -26,12 +26,14 @@ from saudi_open_data_mcp.normalization.sama_deposits_core import (
 )
 from saudi_open_data_mcp.normalization.sama_exchange_rates_current import (
     SAMA_EXCHANGE_RATES_CURRENT_JSON_BUNDLE_LIMITATION,
+    SAMA_EXCHANGE_RATES_CURRENT_SANITY_VALIDATION_LIMITATION,
 )
 from saudi_open_data_mcp.normalization.sama_money_supply_weekly import (
     SAMA_MONEY_SUPPLY_WEEKLY_HTML_TABLE_LIMITATION,
 )
 from saudi_open_data_mcp.normalization.sama_policy_rates import (
     SAMA_POLICY_RATE_HTML_LIMITATION,
+    SAMA_POLICY_RATE_SANITY_VALIDATION_LIMITATION,
 )
 from saudi_open_data_mcp.normalization.sama_pos_by_city import (
     SAMA_POS_BY_CITY_JSON_REPORT_BUNDLE_LIMITATION,
@@ -39,6 +41,7 @@ from saudi_open_data_mcp.normalization.sama_pos_by_city import (
 from saudi_open_data_mcp.normalization.sama_pos_weekly import (
     SAMA_POS_WEEKLY_HTML_TABLE_LIMITATION,
     SAMA_POS_WEEKLY_JSON_REPORT_BUNDLE_LIMITATION,
+    SAMA_POS_WEEKLY_SANITY_VALIDATION_LIMITATION,
 )
 from saudi_open_data_mcp.normalization.stats_gov_sa_cpi_headline_monthly import (
     STATS_GOV_SA_CPI_HEADLINE_MONTHLY_HTML_LIMITATION,
@@ -259,6 +262,46 @@ def test_sama_pos_weekly_html_without_supported_table_remains_limited() -> None:
     )
 
 
+def test_sama_pos_weekly_html_with_reversed_period_remains_limited() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/Indices/Pages/POS.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": """
+                <html><body>
+                  <table>
+                    <caption>Weekly POS Summary</caption>
+                    <tr>
+                      <th>Week</th>
+                      <th>Transactions</th>
+                      <th>Value (SAR)</th>
+                    </tr>
+                    <tr>
+                      <td>2026-03-07 to 2026-03-01</td>
+                      <td>1,234</td>
+                      <td>246,800.00</td>
+                    </tr>
+                  </table>
+                </body></html>
+            """,
+        },
+    )
+
+    result = get_field_mapping(raw_payload, canonical_dataset_id="sama-pos-weekly")
+
+    assert result.body_kind is MappingBodyKind.HTML
+    assert result.can_derive_records is False
+    assert result.record_extraction_shape is RecordExtractionShape.NONE
+    assert result.limitations == (
+        "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+        SAMA_POS_WEEKLY_HTML_TABLE_LIMITATION,
+        SAMA_POS_WEEKLY_SANITY_VALIDATION_LIMITATION,
+    )
+
+
 def test_sama_pos_weekly_json_report_bundle_can_map_to_structured_weekly_rows() -> None:
     raw_payload = RawPayload(
         source="sama",
@@ -427,6 +470,56 @@ def test_sama_pos_weekly_json_bundle_with_partial_report_failure_remains_limited
     assert result.limitations == (
         JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
         SAMA_POS_WEEKLY_JSON_REPORT_BUNDLE_LIMITATION,
+    )
+
+
+def test_sama_pos_weekly_json_bundle_with_conflicting_duplicate_period_remains_limited() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/Indices/Pages/POS.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {
+                "reports_page_url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+                "reports": [
+                    {
+                        "report_url": "https://www.sama.gov.sa/weekly-1.pdf",
+                        "report_text": (
+                            "Weekly Points of Sale Transactions Table 1: By Activities "
+                            "Value of Transactions: In Thousand "
+                            "Number of Transactions: In Thousand "
+                            "29 Mar,26 - 04 Apr,26 "
+                            "Total 246,506 14,707,441 12.1 13.4 "
+                            "Table 2.1: By Cities"
+                        ),
+                    },
+                    {
+                        "report_url": "https://www.sama.gov.sa/weekly-2.pdf",
+                        "report_text": (
+                            "Weekly Points of Sale Transactions Table 1: By Activities "
+                            "Value of Transactions: In Thousand "
+                            "Number of Transactions: In Thousand "
+                            "29 Mar,26 - 04 Apr,26 "
+                            "Total 240,000 14,100,000 12.1 13.4 "
+                            "Table 2.1: By Cities"
+                        ),
+                    },
+                ],
+            },
+        },
+    )
+
+    result = get_field_mapping(raw_payload, canonical_dataset_id="sama-pos-weekly")
+
+    assert result.body_kind is MappingBodyKind.JSON
+    assert result.can_derive_records is False
+    assert result.record_extraction_shape is RecordExtractionShape.NONE
+    assert result.limitations == (
+        JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
+        SAMA_POS_WEEKLY_JSON_REPORT_BUNDLE_LIMITATION,
+        SAMA_POS_WEEKLY_SANITY_VALIDATION_LIMITATION,
     )
 
 
@@ -807,6 +900,64 @@ def test_sama_exchange_rates_current_json_bundle_with_unmapped_currency_remains_
     )
 
 
+def test_sama_exchange_rates_current_json_bundle_with_non_positive_rate_remains_limited() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/FinExc/Pages/Currency.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {
+                "results_page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                "current_date_text": "21/03/2026",
+                "total_results_count": 1,
+                "pages": [
+                    {
+                        "page_number": 1,
+                        "page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                        "body": """
+                            <html><body>
+                              <select name="ctl00$ctl50$ctl00$ddlCurrencies">
+                                <option selected="selected" value="-1">All</option>
+                                <option value="USD=">US DOLLAR</option>
+                              </select>
+                              <span id="ctl00_ctl50_ctl00_lblItemsCount">
+                                Number of result is 1
+                              </span>
+                              <table class="tableCurrency grid" id="ctl00_ctl50_ctl00_dgResults">
+                                <tr class="headerstyle gridhead">
+                                  <td>Currency Against S.R</td>
+                                  <td>Closing Price</td>
+                                  <td>Last Updated Date</td>
+                                </tr>
+                                <tr>
+                                  <td>US DOLLAR</td><td>0</td><td>21/03/2026</td>
+                                </tr>
+                              </table>
+                            </body></html>
+                        """,
+                    }
+                ],
+            },
+        },
+    )
+
+    result = get_field_mapping(
+        raw_payload,
+        canonical_dataset_id="sama-exchange-rates-current",
+    )
+
+    assert result.body_kind is MappingBodyKind.JSON
+    assert result.can_derive_records is False
+    assert result.record_extraction_shape is RecordExtractionShape.NONE
+    assert result.limitations == (
+        JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
+        SAMA_EXCHANGE_RATES_CURRENT_JSON_BUNDLE_LIMITATION,
+        SAMA_EXCHANGE_RATES_CURRENT_SANITY_VALIDATION_LIMITATION,
+    )
+
+
 def test_sama_repo_rate_html_can_map_to_structured_policy_rate_rows() -> None:
     raw_payload = RawPayload(
         source="sama",
@@ -1013,6 +1164,46 @@ def test_sama_repo_rate_html_with_incomplete_history_row_remains_limited() -> No
     )
 
 
+def test_sama_repo_rate_html_with_implausible_rate_remains_limited() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": """
+                <html><body>
+                  <h1>Repo Rate</h1>
+                  <nav>Reverse Repo Rate</nav>
+                  <table summary="Official Repo Rate">
+                    <tr>
+                      <th></th>
+                      <th>Publish Date</th>
+                      <th>Rate (%)</th>
+                      <th>Change Points(Bps)</th>
+                    </tr>
+                    <tr>
+                      <td></td><td>10/12/2025</td><td>425</td><td>-25</td>
+                    </tr>
+                  </table>
+                </body></html>
+            """,
+        },
+    )
+
+    result = get_field_mapping(raw_payload, canonical_dataset_id="sama-repo-rate")
+
+    assert result.body_kind is MappingBodyKind.HTML
+    assert result.can_derive_records is False
+    assert result.record_extraction_shape is RecordExtractionShape.NONE
+    assert result.limitations == (
+        "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+        SAMA_POLICY_RATE_HTML_LIMITATION,
+        SAMA_POLICY_RATE_SANITY_VALIDATION_LIMITATION,
+    )
+
+
 def test_sama_reverse_repo_rate_html_with_incomplete_history_row_remains_limited() -> None:
     raw_payload = RawPayload(
         source="sama",
@@ -1051,6 +1242,45 @@ def test_sama_reverse_repo_rate_html_with_incomplete_history_row_remains_limited
     assert result.limitations == (
         "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
         SAMA_POLICY_RATE_HTML_LIMITATION,
+    )
+
+
+def test_sama_reverse_repo_rate_html_with_implausible_rate_remains_limited() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": """
+                <html><body>
+                  <title>Reverse Repo Rate</title>
+                  <table summary="Reverse Repo Rate">
+                    <tr>
+                      <th></th>
+                      <th>Publish Date</th>
+                      <th>Rate (%)</th>
+                      <th>Change Points(Bps)</th>
+                    </tr>
+                    <tr>
+                      <td></td><td>10/12/2025</td><td>-25</td><td>-25</td>
+                    </tr>
+                  </table>
+                </body></html>
+            """,
+        },
+    )
+
+    result = get_field_mapping(raw_payload, canonical_dataset_id="sama-reverse-repo-rate")
+
+    assert result.body_kind is MappingBodyKind.HTML
+    assert result.can_derive_records is False
+    assert result.record_extraction_shape is RecordExtractionShape.NONE
+    assert result.limitations == (
+        "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+        SAMA_POLICY_RATE_HTML_LIMITATION,
+        SAMA_POLICY_RATE_SANITY_VALIDATION_LIMITATION,
     )
 
 

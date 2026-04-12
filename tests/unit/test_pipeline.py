@@ -254,6 +254,61 @@ def test_sama_exchange_rates_current_html_produces_queryable_quote_records() -> 
     assert result.records[0].fields["closing_rate_sar"] == 3.75
 
 
+def test_sama_exchange_rates_current_invalid_quote_value_produces_limited_result() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/FinExc/Pages/Currency.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {
+                "results_page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                "current_date_text": "21/03/2026",
+                "total_results_count": 1,
+                "pages": [
+                    {
+                        "page_number": 1,
+                        "page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                        "body": """
+                            <html><body>
+                              <select name="ctl00$ctl50$ctl00$ddlCurrencies">
+                                <option selected="selected" value="-1">All</option>
+                                <option value="USD=">US DOLLAR</option>
+                              </select>
+                              <span id="ctl00_ctl50_ctl00_lblItemsCount">
+                                Number of result is 1
+                              </span>
+                              <table class="tableCurrency grid" id="ctl00_ctl50_ctl00_dgResults">
+                                <tr class="headerstyle gridhead">
+                                  <td>Currency Against S.R</td>
+                                  <td>Closing Price</td>
+                                  <td>Last Updated Date</td>
+                                </tr>
+                                <tr>
+                                  <td>US DOLLAR</td><td>0</td><td>21/03/2026</td>
+                                </tr>
+                              </table>
+                            </body></html>
+                        """,
+                    }
+                ],
+            },
+        },
+    )
+
+    result = NormalizationPipeline().normalize(
+        raw_payload,
+        canonical_dataset_id="sama-exchange-rates-current",
+    )
+
+    assert result.status is NormalizationPipelineStatus.LIMITED
+    assert result.failure is None
+    assert result.mapping_result is not None
+    assert result.validation_result is not None
+    assert result.records == ()
+
+
 def test_sama_repo_rate_html_produces_queryable_policy_rate_record() -> None:
     raw_payload = RawPayload(
         source="sama",

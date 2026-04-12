@@ -8,11 +8,16 @@ from datetime import date, datetime
 from html import unescape
 from typing import Any
 
+from .errors import ExtractedValueValidationError
+
 SAMA_EXCHANGE_RATES_CURRENT_HTML_TABLE_LIMITATION = (
     "sama_exchange_rates_current_html_requires_supported_daily_quote_table"
 )
 SAMA_EXCHANGE_RATES_CURRENT_JSON_BUNDLE_LIMITATION = (
     "sama_exchange_rates_current_json_requires_supported_current_quote_bundle"
+)
+SAMA_EXCHANGE_RATES_CURRENT_SANITY_VALIDATION_LIMITATION = (
+    "sama_exchange_rates_current_extracted_values_failed_sanity_checks"
 )
 
 _HEADER_NORMALIZATION_PATTERN = re.compile(r"[^a-z0-9]+")
@@ -69,6 +74,7 @@ _EXPECTED_HEADER_CELLS = (
     "closing price",
     "last updated date",
 )
+_MAX_REASONABLE_CLOSING_RATE_SAR = 1000.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -261,6 +267,7 @@ def _parse_supported_quote_page(
         if page_url != source_url:
             fields["source_page_url"] = page_url
 
+        _validate_exchange_rate_record(fields)
         records.append(_PageRecord(fields=fields, as_of_date=as_of_date))
 
     if not header_seen or not records:
@@ -414,3 +421,43 @@ def _normalize_currency_key(value: str) -> str:
         value.upper().strip(),
     ).strip()
     return normalized
+
+
+def _validate_exchange_rate_record(fields: dict[str, Any]) -> None:
+    currency_code = str(fields["currency_code"]).strip()
+    currency_name = str(fields["currency_name"]).strip()
+    quote_currency_code = str(fields["quote_currency_code"]).strip()
+    quote_currency_name = str(fields["quote_currency_name"]).strip()
+    closing_rate_sar = float(fields["closing_rate_sar"])
+    source_currency_text = str(fields["source_currency_text"]).strip()
+    source_last_updated_date_text = str(fields["source_last_updated_date_text"]).strip()
+
+    if (
+        len(currency_code) != 3
+        or not currency_code.isalpha()
+        or currency_code != currency_code.upper()
+    ):
+        raise ExtractedValueValidationError(
+            limitation_code=SAMA_EXCHANGE_RATES_CURRENT_SANITY_VALIDATION_LIMITATION,
+            message="exchange-rate currency code must stay as a three-letter ISO token",
+        )
+    if not currency_name or not source_currency_text:
+        raise ExtractedValueValidationError(
+            limitation_code=SAMA_EXCHANGE_RATES_CURRENT_SANITY_VALIDATION_LIMITATION,
+            message="exchange-rate currency labels must not be empty",
+        )
+    if quote_currency_code != "SAR" or quote_currency_name != "Saudi Riyal":
+        raise ExtractedValueValidationError(
+            limitation_code=SAMA_EXCHANGE_RATES_CURRENT_SANITY_VALIDATION_LIMITATION,
+            message="exchange-rate quote currency semantics must remain SAR",
+        )
+    if closing_rate_sar <= 0 or closing_rate_sar > _MAX_REASONABLE_CLOSING_RATE_SAR:
+        raise ExtractedValueValidationError(
+            limitation_code=SAMA_EXCHANGE_RATES_CURRENT_SANITY_VALIDATION_LIMITATION,
+            message="exchange-rate closing values must stay positive and plausibly bounded",
+        )
+    if not source_last_updated_date_text:
+        raise ExtractedValueValidationError(
+            limitation_code=SAMA_EXCHANGE_RATES_CURRENT_SANITY_VALIDATION_LIMITATION,
+            message="exchange-rate source date text must not be empty",
+        )

@@ -17,7 +17,7 @@ from ..storage.snapshots import (
     SAMA_EXCHANGE_RATES_CURRENT_LEGACY_HTML_FORMAT_ID,
     with_snapshot_metadata,
 )
-from .errors import UnknownNormalizationSourceError
+from .errors import ExtractedValueValidationError, UnknownNormalizationSourceError
 from .mof_budget_balance_quarterly import (
     MOF_BUDGET_BALANCE_QUARTERLY_JSON_LIMITATION,
     extract_mof_budget_balance_quarterly_rows_from_json,
@@ -525,11 +525,24 @@ def _map_tabular_source_payload(
         body_kind=body_kind,
     )
     if structured_extractor is not None and structured_extractor.accepts_raw_body(raw_body):
-        extracted_rows = structured_extractor.extractor(
-            raw_body,
-            raw_payload.dataset_id,
-            response_metadata.url,
-        )
+        try:
+            extracted_rows = structured_extractor.extractor(
+                raw_body,
+                raw_payload.dataset_id,
+                response_metadata.url,
+            )
+        except ExtractedValueValidationError as exc:
+            return _build_limited_extractor_field_mapping_result(
+                raw_payload=raw_payload,
+                response_metadata=response_metadata,
+                body_kind=body_kind,
+                raw_body=raw_body,
+                base_canonical_fields=base_canonical_fields,
+                limitations=_dedupe_limitations(
+                    *structured_extractor.limitations,
+                    exc.limitation_code,
+                ),
+            )
         if extracted_rows:
             return _build_rows_field_mapping_result(
                 raw_payload=raw_payload,

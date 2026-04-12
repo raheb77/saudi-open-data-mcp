@@ -8,8 +8,13 @@ from datetime import date, datetime
 from html.parser import HTMLParser
 from typing import Any
 
+from .errors import ExtractedValueValidationError
+
 SAMA_POLICY_RATE_HTML_LIMITATION = (
     "sama_policy_rate_html_requires_supported_effective_date_and_rate_text"
+)
+SAMA_POLICY_RATE_SANITY_VALIDATION_LIMITATION = (
+    "sama_policy_rate_extracted_values_failed_sanity_checks"
 )
 
 _NUMBER_CLEANUP_PATTERN = re.compile(r"[^0-9.\-]+")
@@ -53,6 +58,8 @@ _REPO_RATE_PAGE_MARKERS = frozenset({"repo rate", "official repo rate"})
 _REVERSE_REPO_RATE_PAGE_MARKERS = frozenset(
     {"reverse repo rate", "official reverse repo rate"}
 )
+_MIN_REASONABLE_POLICY_RATE_PERCENT = -10.0
+_MAX_REASONABLE_POLICY_RATE_PERCENT = 100.0
 
 
 @dataclass(slots=True)
@@ -446,6 +453,12 @@ def _build_record(
     source_table_title: str | None,
     source_date_field_name: str = "source_effective_date_text",
 ) -> dict[str, Any]:
+    _validate_policy_rate_record(
+        rate_percent=rate_percent,
+        source_date_text=source_date_text,
+        source_rate_text=source_rate_text,
+    )
+
     record: dict[str, Any] = {
         "effective_date": effective_date.isoformat(),
         "policy_rate_code": policy_rate_code,
@@ -501,3 +514,25 @@ def _page_mentions_policy_rate(
             continue
         return normalized in markers
     return False
+
+
+def _validate_policy_rate_record(
+    *,
+    rate_percent: float,
+    source_date_text: str,
+    source_rate_text: str,
+) -> None:
+    if not source_date_text.strip() or not source_rate_text.strip():
+        raise ExtractedValueValidationError(
+            limitation_code=SAMA_POLICY_RATE_SANITY_VALIDATION_LIMITATION,
+            message="policy-rate source date and rate text must not be empty",
+        )
+    if not (
+        _MIN_REASONABLE_POLICY_RATE_PERCENT
+        <= rate_percent
+        <= _MAX_REASONABLE_POLICY_RATE_PERCENT
+    ):
+        raise ExtractedValueValidationError(
+            limitation_code=SAMA_POLICY_RATE_SANITY_VALIDATION_LIMITATION,
+            message="policy-rate percent must stay within a sane numeric range",
+        )

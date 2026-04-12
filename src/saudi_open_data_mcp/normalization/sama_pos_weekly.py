@@ -8,11 +8,16 @@ from datetime import date, datetime
 from html.parser import HTMLParser
 from typing import Any
 
+from .errors import ExtractedValueValidationError
+
 SAMA_POS_WEEKLY_HTML_TABLE_LIMITATION = (
     "sama_pos_weekly_html_requires_supported_weekly_summary_table"
 )
 SAMA_POS_WEEKLY_JSON_REPORT_BUNDLE_LIMITATION = (
     "sama_pos_weekly_json_requires_supported_report_text_bundle"
+)
+SAMA_POS_WEEKLY_SANITY_VALIDATION_LIMITATION = (
+    "sama_pos_weekly_extracted_values_failed_sanity_checks"
 )
 
 _HEADER_NORMALIZATION_PATTERN = re.compile(r"[^a-z0-9]+")
@@ -40,6 +45,7 @@ _COUNT_IN_THOUSAND_PATTERN = re.compile(
 )
 _TABLE_1_TITLE = "Table 1: By Activities"
 _POS_RELEASE_TITLE = "Weekly Points of Sale Transactions"
+_AVERAGE_TICKET_TOLERANCE_SAR = 0.05
 
 _WEEK_START_HEADER_ALIASES = frozenset(
     {
@@ -221,7 +227,7 @@ def extract_sama_pos_weekly_rows_from_json(
         return None
 
     extracted_rows: list[dict[str, Any]] = []
-    seen_periods: set[tuple[str, str]] = set()
+    seen_periods: dict[tuple[str, str], tuple[int, float, float]] = {}
 
     for report in reports:
         if not isinstance(report, dict):
@@ -237,10 +243,24 @@ def extract_sama_pos_weekly_rows_from_json(
 
         for record in report_rows:
             period_key = (record["week_start_date"], record["week_end_date"])
-            if period_key in seen_periods:
+            record_signature = (
+                int(record["transaction_count"]),
+                float(record["transaction_value_sar"]),
+                float(record["average_ticket_sar"]),
+            )
+            existing_signature = seen_periods.get(period_key)
+            if existing_signature is not None:
+                if existing_signature != record_signature:
+                    raise ExtractedValueValidationError(
+                        limitation_code=SAMA_POS_WEEKLY_SANITY_VALIDATION_LIMITATION,
+                        message=(
+                            "duplicate POS weekly periods must not produce "
+                            "conflicting transaction values"
+                        ),
+                    )
                 continue
 
-            seen_periods.add(period_key)
+            seen_periods[period_key] = record_signature
             extracted_rows.append(record)
 
     extracted_rows.sort(key=lambda row: (row["week_start_date"], row["week_end_date"]))
@@ -357,6 +377,7 @@ def _extract_record(
     }
     if source_table_title:
         record["source_table_title"] = source_table_title
+    _validate_pos_weekly_record(record)
     return record
 
 
@@ -405,26 +426,26 @@ def _extract_records_from_report_bundle(
             return None
         transaction_count = int(round(transaction_count_thousand * 1000))
         transaction_value_sar = round(transaction_value_thousand * 1000, 2)
-        records.append(
-            {
-                "week_start_date": start_date.isoformat(),
-                "week_end_date": end_date.isoformat(),
-                "transaction_count": transaction_count,
-                "transaction_value_sar": transaction_value_sar,
-                "average_ticket_sar": round(
-                    transaction_value_sar / transaction_count,
-                    2,
-                )
-                if transaction_count
-                else 0.0,
-                "source_locator": source_locator,
-                "source_url": source_url,
-                "source_period_text": period_text,
-                "source_table_title": _TABLE_1_TITLE,
-                "source_report_url": report_url,
-                "source_release_title": _POS_RELEASE_TITLE,
-            }
-        )
+        record = {
+            "week_start_date": start_date.isoformat(),
+            "week_end_date": end_date.isoformat(),
+            "transaction_count": transaction_count,
+            "transaction_value_sar": transaction_value_sar,
+            "average_ticket_sar": round(
+                transaction_value_sar / transaction_count,
+                2,
+            )
+            if transaction_count
+            else 0.0,
+            "source_locator": source_locator,
+            "source_url": source_url,
+            "source_period_text": period_text,
+            "source_table_title": _TABLE_1_TITLE,
+            "source_report_url": report_url,
+            "source_release_title": _POS_RELEASE_TITLE,
+        }
+        _validate_pos_weekly_record(record)
+        records.append(record)
 
     return records
 
@@ -536,3 +557,34 @@ def _parse_decimal_text(value: str | None) -> float:
     if not cleaned:
         raise ValueError(f"unsupported decimal value: {value}")
     return float(cleaned)
+
+
+def _validate_pos_weekly_record(record: dict[str, Any]) -> None:
+    start_date = _parse_date_text(str(record["week_start_date"]))
+    end_date = _parse_date_text(str(record["week_end_date"]))
+    transaction_count = int(record["transaction_count"])
+    transaction_value_sar = float(record["transaction_value_sar"])
+    average_ticket_sar = float(record["average_ticket_sar"])
+
+    if start_date > end_date:
+        raise ExtractedValueValidationError(
+            limitation_code=SAMA_POS_WEEKLY_SANITY_VALIDATION_LIMITATION,
+            message="weekly POS period start date must not be after the end date",
+        )
+    if transaction_count <= 0:
+        raise ExtractedValueValidationError(
+            limitation_code=SAMA_POS_WEEKLY_SANITY_VALIDATION_LIMITATION,
+            message="weekly POS transaction count must be positive",
+        )
+    if transaction_value_sar <= 0:
+        raise ExtractedValueValidationError(
+            limitation_code=SAMA_POS_WEEKLY_SANITY_VALIDATION_LIMITATION,
+            message="weekly POS transaction value must be positive",
+        )
+
+    expected_average_ticket = round(transaction_value_sar / transaction_count, 2)
+    if abs(average_ticket_sar - expected_average_ticket) > _AVERAGE_TICKET_TOLERANCE_SAR:
+        raise ExtractedValueValidationError(
+            limitation_code=SAMA_POS_WEEKLY_SANITY_VALIDATION_LIMITATION,
+            message="weekly POS average ticket must stay consistent with value and count",
+        )
