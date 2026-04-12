@@ -146,21 +146,19 @@ def test_sama_exchange_rates_current_contract_makes_daily_snapshot_scope_explici
     assert "does not claim buy/sell quotes" in contract.structure_note
 
 
-@pytest.mark.parametrize(
-    ("dataset_id", "expected_phrase"),
-    (
-        ("sama-repo-rate", "current-page surface"),
-        ("sama-reverse-repo-rate", "current-page surface"),
-    ),
-)
-def test_policy_rate_contracts_make_current_page_scope_explicit(
-    dataset_id: str,
-    expected_phrase: str,
-) -> None:
-    contract = get_canonical_dataset_contract(dataset_id)
+def test_sama_repo_rate_contract_makes_published_table_scope_explicit() -> None:
+    contract = get_canonical_dataset_contract("sama-repo-rate")
 
     assert contract.structure_note is not None
-    assert expected_phrase in contract.structure_note
+    assert "published policy-change table" in contract.structure_note
+    assert "published row dates" in contract.structure_note
+
+
+def test_sama_reverse_repo_rate_contract_makes_current_page_scope_explicit() -> None:
+    contract = get_canonical_dataset_contract("sama-reverse-repo-rate")
+
+    assert contract.structure_note is not None
+    assert "current-page surface" in contract.structure_note
     assert "ad-hoc policy updates" in contract.structure_note
 
 
@@ -361,30 +359,55 @@ def test_sama_exchange_rates_current_enriched_sample_matches_declared_contract_d
 
 
 @pytest.mark.parametrize(
-    ("dataset_id", "locator", "policy_rate_name", "rate_text", "expected_code"),
+    ("dataset_id", "locator", "body", "expected_code", "expected_record_count"),
     (
         (
             "sama-repo-rate",
             "/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
-            "Official Repo Rate",
-            "5.25%",
+            """
+                <html><body>
+                  <h1>Repo Rate</h1>
+                  <nav>Reverse Repo Rate</nav>
+                  <table summary="Official Repo Rate">
+                    <tr>
+                      <th></th>
+                      <th>Publish Date</th>
+                      <th>Rate (%)</th>
+                      <th>Change Points(Bps)</th>
+                    </tr>
+                    <tr>
+                      <td></td><td>10/12/2025</td><td>4.25</td><td>-25</td>
+                    </tr>
+                    <tr>
+                      <td></td><td>29/10/2025</td><td>4.5</td><td>-25</td>
+                    </tr>
+                  </table>
+                </body></html>
+            """,
             "repo_rate",
+            2,
         ),
         (
             "sama-reverse-repo-rate",
             "/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
-            "Reverse Repo Rate",
-            "4.75%",
+            """
+                <html><body>
+                  <h1>Reverse Repo Rate</h1>
+                  <p>Effective Date: 2026-03-21</p>
+                  <p>Rate: 4.75%</p>
+                </body></html>
+            """,
             "reverse_repo_rate",
+            1,
         ),
     ),
 )
 def test_policy_rate_enriched_samples_match_declared_contract_direction(
     dataset_id: str,
     locator: str,
-    policy_rate_name: str,
-    rate_text: str,
+    body: str,
     expected_code: str,
+    expected_record_count: int,
 ) -> None:
     raw_payload = RawPayload(
         source="sama",
@@ -393,13 +416,7 @@ def test_policy_rate_enriched_samples_match_declared_contract_direction(
             "url": f"https://www.sama.gov.sa{locator}",
             "status_code": 200,
             "content_type": "text/html",
-            "body": f"""
-                <html><body>
-                  <h1>{policy_rate_name}</h1>
-                  <p>Effective Date: 2026-03-21</p>
-                  <p>Rate: {rate_text}</p>
-                </body></html>
-            """,
+            "body": body,
         },
     )
 
@@ -410,7 +427,7 @@ def test_policy_rate_enriched_samples_match_declared_contract_direction(
     contract = get_canonical_dataset_contract(dataset_id)
 
     assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
-    assert len(result.records) == 1
+    assert len(result.records) == expected_record_count
     sample_fields = result.records[0].fields
     assert sample_fields["policy_rate_code"] == expected_code
     assert all(field_name in sample_fields for field_name in contract.primary_key)

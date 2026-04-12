@@ -375,9 +375,10 @@ SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_CONTRACTS: tuple[CanonicalDatasetContract, ...
             ),
         ),
         structure_note=(
-            "Current repo-rate enrichment extracts one effective-date observation "
-            "from the official current policy-rate page. The source remains a simple "
-            "current-page surface with ad-hoc policy updates, not a full historical table."
+            "Current repo-rate enrichment normalizes the published policy-change table "
+            "on the official repo-rate page. Canonical rows derive event observations "
+            "from the page's published row dates and do not claim an independent "
+            "effective timestamp beyond that published date field."
         ),
         intended_analytical_uses=(
             "Track the policy timeline of official repo rate changes.",

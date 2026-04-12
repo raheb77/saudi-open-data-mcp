@@ -239,12 +239,12 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         update_frequency=UpdateFrequency.AD_HOC,
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=(
-            "This canonical dataset normalizes supported effective-date and rate "
-            "content from the official repo-rate page.",
+            "This canonical dataset normalizes supported published date and rate "
+            "rows from the official repo-rate table on the official page.",
         ),
         known_issues=(
-            "Only supported page text or simple table layouts with explicit "
-            "effective-date and rate content are normalized.",
+            "Only supported repo-rate table layouts with explicit Publish Date "
+            "and Rate (%) columns are normalized.",
         ),
     ),
     DatasetDescriptor(

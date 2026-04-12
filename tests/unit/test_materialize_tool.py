@@ -183,9 +183,25 @@ def _exchange_rates_current_bundle_json() -> dict[str, object]:
 def _repo_rate_html() -> str:
     return """
         <html><body>
-          <h1>Official Repo Rate</h1>
-          <p>Effective Date: 2026-03-21</p>
-          <p>Rate: 5.25%</p>
+          <h1>Repo Rate</h1>
+          <nav>Reverse Repo Rate</nav>
+          <table summary="Official Repo Rate">
+            <tr>
+              <th></th>
+              <th>Publish Date</th>
+              <th>Rate (%)</th>
+              <th>Change Points(Bps)</th>
+            </tr>
+            <tr>
+              <td></td><td>10/12/2025</td><td>4.25</td><td>-25</td>
+            </tr>
+            <tr>
+              <td></td><td>29/10/2025</td><td>4.5</td><td>-25</td>
+            </tr>
+            <tr>
+              <td></td><td>17/09/2025</td><td>4.75</td><td>-25</td>
+            </tr>
+          </table>
         </body></html>
     """
 

@@ -205,9 +205,25 @@ def _exchange_rates_current_bundle_json() -> dict[str, object]:
 def _repo_rate_html() -> str:
     return """
         <html><body>
-          <h1>Official Repo Rate</h1>
-          <p>Effective Date: 2026-03-21</p>
-          <p>Rate: 5.25%</p>
+          <h1>Repo Rate</h1>
+          <nav>Reverse Repo Rate</nav>
+          <table summary="Official Repo Rate">
+            <tr>
+              <th></th>
+              <th>Publish Date</th>
+              <th>Rate (%)</th>
+              <th>Change Points(Bps)</th>
+            </tr>
+            <tr>
+              <td></td><td>10/12/2025</td><td>4.25</td><td>-25</td>
+            </tr>
+            <tr>
+              <td></td><td>29/10/2025</td><td>4.5</td><td>-25</td>
+            </tr>
+            <tr>
+              <td></td><td>17/09/2025</td><td>4.75</td><td>-25</td>
+            </tr>
+          </table>
         </body></html>
     """
 
@@ -1155,8 +1171,8 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_repo_rate(
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.AD_HOC,
         health_status=DatasetHealthStatus.UNKNOWN,
-        caveats=("Current canonical extraction covers supported effective-date and rate text.",),
-        known_issues=("Only supported page text or simple table layouts are normalized.",),
+        caveats=("Current canonical extraction covers supported published repo-rate rows.",),
+        known_issues=("Only supported Publish Date / Rate (%) table layouts are normalized.",),
     )
     tool = DatasetQueryTool(repository, snapshot_store)
 
@@ -1177,27 +1193,28 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_repo_rate(
     result = tool.query_dataset(
         descriptor.dataset_id,
         filters={
-            "effective_date": "2026-03-21",
+            "effective_date": "2025-10-29",
             "policy_rate_code": "repo_rate",
         },
     )
 
     assert result.status is DatasetQueryStatus.SUCCESS
-    assert result.total_records_before_filter == 1
+    assert result.total_records_before_filter == 3
     assert result.applied_filters == {
-        "effective_date": "2026-03-21",
+        "effective_date": "2025-10-29",
         "policy_rate_code": "repo_rate",
     }
     assert len(result.matched_records) == 1
     assert result.matched_records[0].fields == {
-        "effective_date": "2026-03-21",
+        "effective_date": "2025-10-29",
         "policy_rate_code": "repo_rate",
         "policy_rate_name": "Official Repo Rate",
-        "rate_percent": 5.25,
+        "rate_percent": 4.5,
         "source_locator": "/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
         "source_url": "https://www.sama.gov.sa/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
-        "source_effective_date_text": "Effective Date: 2026-03-21",
-        "source_rate_text": "Rate: 5.25%",
+        "source_publish_date_text": "29/10/2025",
+        "source_rate_text": "4.5",
+        "source_change_points_text": "-25",
     }
 
 

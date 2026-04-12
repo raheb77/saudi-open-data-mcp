@@ -737,9 +737,26 @@ def test_sama_repo_rate_html_can_map_to_structured_policy_rate_rows() -> None:
             "content_type": "text/html",
             "body": """
                 <html><body>
-                  <h1>Official Repo Rate</h1>
-                  <p>Effective Date: 2026-03-21</p>
-                  <p>Rate: 5.25%</p>
+                  <h1>Repo Rate</h1>
+                  <nav>Reverse Repo Rate</nav>
+                  <table summary="Official Repo Rate">
+                    <thead>
+                      <tr>
+                        <th></th>
+                        <th>Publish Date</th>
+                        <th>Rate (%)</th>
+                        <th>Change Points(Bps)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td></td><td>10/12/2025</td><td>4.25</td><td>-25</td>
+                      </tr>
+                      <tr>
+                        <td></td><td>29/10/2025</td><td>4.5</td><td>-25</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </body></html>
             """,
         },
@@ -754,14 +771,26 @@ def test_sama_repo_rate_html_can_map_to_structured_policy_rate_rows() -> None:
     assert result.canonical_fields["structured_body"] == {
         "rows": [
             {
-                "effective_date": "2026-03-21",
+                "effective_date": "2025-12-10",
                 "policy_rate_code": "repo_rate",
                 "policy_rate_name": "Official Repo Rate",
-                "rate_percent": 5.25,
+                "rate_percent": 4.25,
                 "source_locator": "/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
                 "source_url": "https://www.sama.gov.sa/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
-                "source_effective_date_text": "Effective Date: 2026-03-21",
-                "source_rate_text": "Rate: 5.25%",
+                "source_publish_date_text": "10/12/2025",
+                "source_rate_text": "4.25",
+                "source_change_points_text": "-25",
+            },
+            {
+                "effective_date": "2025-10-29",
+                "policy_rate_code": "repo_rate",
+                "policy_rate_name": "Official Repo Rate",
+                "rate_percent": 4.5,
+                "source_locator": "/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
+                "source_url": "https://www.sama.gov.sa/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
+                "source_publish_date_text": "29/10/2025",
+                "source_rate_text": "4.5",
+                "source_change_points_text": "-25",
             }
         ]
     }
@@ -819,6 +848,48 @@ def test_sama_policy_rate_html_without_supported_text_remains_limited() -> None:
             "status_code": 200,
             "content_type": "text/html",
             "body": "<html><body><p>Official Repo Rate page</p></body></html>",
+        },
+    )
+
+    result = get_field_mapping(raw_payload, canonical_dataset_id="sama-repo-rate")
+
+    assert result.body_kind is MappingBodyKind.HTML
+    assert result.can_derive_records is False
+    assert result.record_extraction_shape is RecordExtractionShape.NONE
+    assert result.limitations == (
+        "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+        SAMA_POLICY_RATE_HTML_LIMITATION,
+    )
+
+
+def test_sama_repo_rate_html_with_incomplete_history_row_remains_limited() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": """
+                <html><body>
+                  <h1>Repo Rate</h1>
+                  <nav>Reverse Repo Rate</nav>
+                  <table summary="Official Repo Rate">
+                    <tr>
+                      <th></th>
+                      <th>Publish Date</th>
+                      <th>Rate (%)</th>
+                      <th>Change Points(Bps)</th>
+                    </tr>
+                    <tr>
+                      <td></td><td>10/12/2025</td><td>4.25</td><td>-25</td>
+                    </tr>
+                    <tr>
+                      <td></td><td>29/10/2025</td><td></td><td>-25</td>
+                    </tr>
+                  </table>
+                </body></html>
+            """,
         },
     )
 

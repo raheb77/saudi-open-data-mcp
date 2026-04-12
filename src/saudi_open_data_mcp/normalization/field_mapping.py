@@ -33,6 +33,7 @@ from .sama_money_supply_weekly import (
 from .sama_policy_rates import (
     SAMA_POLICY_RATE_HTML_LIMITATION,
     extract_sama_policy_rate_rows_from_html,
+    extract_sama_repo_rate_rows_from_html,
 )
 from .sama_pos_by_city import (
     SAMA_POS_BY_CITY_JSON_REPORT_BUNDLE_LIMITATION,
@@ -319,9 +320,8 @@ _STRUCTURED_EXTRACTOR_REGISTRY: dict[
         MappingBodyKind.HTML,
     ): _StructuredExtractorRegistration(
         extractor=partial(
-            _run_policy_rate_rows_extractor,
-            policy_rate_code="repo_rate",
-            policy_rate_name="Official Repo Rate",
+            _run_html_rows_extractor,
+            extractor=extract_sama_repo_rate_rows_from_html,
         ),
         accepted_body_types=(str,),
         limitations=(
