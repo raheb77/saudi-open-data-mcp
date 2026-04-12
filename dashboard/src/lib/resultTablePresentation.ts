@@ -2,6 +2,7 @@ export type ResultTableColumnKind =
   | "time"
   | "series-code"
   | "series-name"
+  | "context"
   | "measure"
   | "release"
   | "provenance-primary"
@@ -18,6 +19,7 @@ export interface ResultTableColumn {
 }
 
 const TIME_FIELDS = new Set([
+  "as_of_date",
   "observation_date",
   "observation_month",
   "observation_quarter",
@@ -26,6 +28,7 @@ const TIME_FIELDS = new Set([
 ]);
 
 const SERIES_CODE_FIELDS = new Set([
+  "currency_code",
   "series_code",
   "inflation_series_code",
   "gdp_series_code",
@@ -35,6 +38,7 @@ const SERIES_CODE_FIELDS = new Set([
 ]);
 
 const SERIES_NAME_FIELDS = new Set([
+  "currency_name",
   "series_name",
   "inflation_series_name",
   "gdp_series_name",
@@ -43,7 +47,13 @@ const SERIES_NAME_FIELDS = new Set([
   "deposit_category_name",
 ]);
 
+const CONTEXT_FIELDS = new Set([
+  "quote_currency_code",
+  "quote_currency_name",
+]);
+
 const MEASURE_FIELDS = new Set([
+  "closing_rate_sar",
   "transaction_count",
   "transaction_value_sar",
   "average_ticket_sar",
@@ -62,8 +72,12 @@ const PRIMARY_PROVENANCE_FIELDS = new Set([
 ]);
 
 const SECONDARY_PROVENANCE_FIELDS = new Set([
+  "source_currency_text",
+  "source_last_updated_date_text",
   "source_release_date_text",
   "source_locator",
+  "source_page_number",
+  "source_page_url",
   "source_series_name",
   "source_observation_month_text",
 ]);
@@ -71,12 +85,15 @@ const SECONDARY_PROVENANCE_FIELDS = new Set([
 const LONG_TEXT_FIELDS = new Set(["source_summary_text"]);
 
 const LINK_FIELDS = new Set([
+  "source_page_url",
   "source_release_url",
   "source_report_url",
   "source_url",
 ]);
 
 const TECHNICAL_TOKEN_FIELDS = new Set([
+  "currency_code",
+  "quote_currency_code",
   "series_code",
   "inflation_series_code",
   "gdp_series_code",
@@ -88,11 +105,13 @@ const TECHNICAL_TOKEN_FIELDS = new Set([
 ]);
 
 const EXPLICIT_COLUMN_ORDER = new Map([
+  ["as_of_date", 10],
   ["observation_date", 10],
   ["observation_month", 20],
   ["observation_quarter", 30],
   ["week_start_date", 40],
   ["week_end_date", 50],
+  ["closing_rate_sar", 100],
   ["transaction_count", 100],
   ["transaction_value_sar", 110],
   ["average_ticket_sar", 120],
@@ -101,25 +120,33 @@ const EXPLICIT_COLUMN_ORDER = new Map([
   ["value_sar_bn", 150],
   ["yoy_rate_percent", 160],
   ["mom_rate_percent", 170],
+  ["currency_name", 220],
   ["series_name", 220],
   ["inflation_series_name", 230],
   ["gdp_series_name", 240],
   ["labor_series_name", 250],
   ["fiscal_series_name", 260],
   ["deposit_category_name", 270],
+  ["currency_code", 300],
   ["series_code", 300],
   ["inflation_series_code", 310],
   ["gdp_series_code", 320],
   ["labor_series_code", 330],
   ["fiscal_series_code", 340],
   ["deposit_category_code", 350],
+  ["quote_currency_name", 360],
+  ["quote_currency_code", 370],
   ["release_date", 390],
   ["source_release_title", 500],
   ["source_release_url", 510],
   ["source_report_url", 520],
   ["source_url", 530],
+  ["source_last_updated_date_text", 600],
   ["source_release_date_text", 600],
+  ["source_currency_text", 605],
   ["source_locator", 610],
+  ["source_page_number", 615],
+  ["source_page_url", 620],
   ["source_series_name", 620],
   ["source_observation_month_text", 630],
   ["source_summary_text", 700],
@@ -204,6 +231,10 @@ function getResultTableColumnKind(fieldName: string): ResultTableColumnKind {
     return "series-name";
   }
 
+  if (CONTEXT_FIELDS.has(fieldName)) {
+    return "context";
+  }
+
   if (fieldName === "release_date") {
     return "release";
   }
@@ -243,6 +274,8 @@ function getResultTableColumnOrder(fieldName: string): number {
       return 240;
     case "series-code":
       return 290;
+    case "context":
+      return 360;
     case "release":
       return 390;
     case "provenance-primary":

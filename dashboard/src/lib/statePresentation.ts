@@ -66,6 +66,13 @@ export function getLimitedPracticalMeaning(limitations: string[]): string {
   const normalized = limitations.join(" ").toLowerCase();
 
   if (
+    normalized.includes("sama_exchange_rates_current_html") ||
+    normalized.includes("exchange_rates_current_html")
+  ) {
+    return ar.limited.practicalMeanings.exchangeRatesLegacyHtml;
+  }
+
+  if (
     normalized.includes("html") ||
     normalized.includes("release_card") ||
     normalized.includes("release_cards")

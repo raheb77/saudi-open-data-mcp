@@ -72,4 +72,25 @@ describe("StateBlocks", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it("explains older exchange-rate HTML snapshots as a refresh-needed limited case", () => {
+    render(
+      <LimitedState
+        limitations={[
+          "sama_exchange_rates_current_html_requires_supported_daily_quote_table",
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "عمليًا: هذه اللقطة تبدو من تنسيق أقدم لصفحة أسعار الصرف. حدّث اللقطة المحلية لقراءة الصفوف الحالية القابلة للاستعلام.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "sama_exchange_rates_current_html_requires_supported_daily_quote_table",
+      ),
+    ).toBeInTheDocument();
+  });
 });

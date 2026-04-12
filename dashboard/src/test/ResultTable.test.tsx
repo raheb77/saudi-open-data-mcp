@@ -96,4 +96,85 @@ describe("ResultTable", () => {
     );
     expect(screen.getByText(summaryText)).toBeInTheDocument();
   });
+
+  it("presents exchange-rate rows in analyst-first order with labeled market context and de-emphasized provenance", () => {
+    const records: CanonicalRecord[] = [
+      {
+        dataset_id: "sama-exchange-rates-current",
+        source: "sama",
+        record_index: 0,
+        fields: {
+          as_of_date: "2026-04-12",
+          closing_rate_sar: 3.75,
+          currency_code: "USD",
+          currency_name: "US DOLLAR",
+          quote_currency_code: "SAR",
+          quote_currency_name: "Saudi Riyal",
+          source_url: "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+          source_last_updated_date_text: "12/04/2026",
+          source_currency_text: "US DOLLAR",
+          source_page_number: 1,
+          source_locator: "/en-US/FinExc/Pages/Currency.aspx",
+        },
+      },
+      {
+        dataset_id: "sama-exchange-rates-current",
+        source: "sama",
+        record_index: 1,
+        fields: {
+          as_of_date: "2026-04-12",
+          closing_rate_sar: 4.39818,
+          currency_code: "EUR",
+          currency_name: "EURO",
+          quote_currency_code: "SAR",
+          quote_currency_name: "Saudi Riyal",
+          source_url: "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+          source_last_updated_date_text: "12/04/2026",
+          source_currency_text: "EURO",
+          source_page_number: 2,
+          source_page_url:
+            "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx?PageIndex=2",
+          source_locator: "/en-US/FinExc/Pages/Currency.aspx",
+        },
+      },
+    ];
+
+    const { container } = render(<ResultTable records={records} />);
+    const order = [
+      ...container.querySelectorAll<HTMLTableCellElement>("th[data-column-key]"),
+    ].map((element) => element.dataset.columnKey);
+
+    expect(order).toEqual([
+      "as_of_date",
+      "closing_rate_sar",
+      "currency_name",
+      "currency_code",
+      "quote_currency_name",
+      "quote_currency_code",
+      "source_url",
+      "source_last_updated_date_text",
+      "source_currency_text",
+      "source_locator",
+      "source_page_number",
+      "source_page_url",
+    ]);
+
+    expect(screen.getByText("تاريخ السعر")).toBeInTheDocument();
+    expect(screen.getByText("سعر الإغلاق (ريال)")).toBeInTheDocument();
+    expect(screen.getByText("عملة التسعير")).toBeInTheDocument();
+
+    const measureCell = screen.getByText("3.75");
+    expect(measureCell.className).toContain("bg-ink-100");
+
+    const contextHeader = container.querySelector<HTMLTableCellElement>(
+      'th[data-column-key="quote_currency_name"]',
+    );
+    expect(contextHeader?.className).toContain("text-[0.72rem]");
+
+    const pageLink = screen.getByRole("link", {
+      name:
+        "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx?PageIndex=2",
+    });
+    expect(pageLink.className).toContain("text-[0.72rem]");
+  });
 });

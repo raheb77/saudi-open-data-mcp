@@ -29,7 +29,8 @@ export function ResultTable({ records }: ResultTableProps) {
   // Keep the table honest to the canonical record fields, but sort them into
   // an analyst-first reading order so core measures and provenance are easier
   // to scan than raw source text blocks.
-  const columns = buildResultTableColumns(Object.keys(records[0].fields));
+  const fieldNames = getTableFieldNames(records);
+  const columns = buildResultTableColumns(fieldNames);
 
   if (columns.length === 0) {
     return (
@@ -193,7 +194,9 @@ function ExpandableTextCell({
 function getHeaderClassName(column: ResultTableColumn): string {
   return [
     "sticky top-0 z-10 bg-ink-100 px-3 py-2 text-start font-semibold align-top",
-    column.isSecondary || column.kind === "provenance-primary"
+    column.isSecondary ||
+    column.kind === "provenance-primary" ||
+    column.kind === "context"
       ? "text-[0.72rem] text-ink-500"
       : "text-xs text-ink-700",
     getWidthClassName(column),
@@ -239,6 +242,7 @@ function getValueClassName(column: ResultTableColumn): string {
       ? "whitespace-nowrap font-medium"
       : "",
     column.kind === "series-name" ? "font-medium text-ink-900" : "",
+    column.kind === "context" ? "text-xs leading-5 text-ink-700" : "",
     column.kind === "provenance-primary" ? "text-xs leading-5 text-ink-700" : "",
     column.isSecondary ? "text-[0.72rem] leading-5 text-ink-600" : "",
     column.isTechnicalToken ? "id-mono text-xs" : "",
@@ -257,6 +261,8 @@ function getWidthClassName(column: ResultTableColumn): string {
       return "min-w-[11rem]";
     case "series-name":
       return "min-w-[14rem]";
+    case "context":
+      return "min-w-[9rem]";
     case "provenance-primary":
       return "min-w-[9rem]";
     case "provenance-secondary":
@@ -270,4 +276,21 @@ function getWidthClassName(column: ResultTableColumn): string {
 
 function isHttpUrl(value: string): boolean {
   return /^https?:\/\//.test(value);
+}
+
+function getTableFieldNames(records: CanonicalRecord[]): string[] {
+  const seen = new Set<string>();
+  const fieldNames: string[] = [];
+
+  for (const record of records) {
+    for (const fieldName of Object.keys(record.fields)) {
+      if (seen.has(fieldName)) {
+        continue;
+      }
+      seen.add(fieldName);
+      fieldNames.push(fieldName);
+    }
+  }
+
+  return fieldNames;
 }

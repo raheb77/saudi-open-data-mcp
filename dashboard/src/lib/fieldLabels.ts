@@ -3,6 +3,13 @@
 // shown in the result table header above the id-mono field name span.
 // Unknown fields fall back to the raw field name — never omit a column.
 export const FIELD_LABELS: Record<string, string> = {
+  // SAMA exchange rates
+  as_of_date: "تاريخ السعر",
+  currency_code: "رمز العملة",
+  currency_name: "اسم العملة",
+  quote_currency_code: "رمز عملة التسعير",
+  quote_currency_name: "عملة التسعير",
+  closing_rate_sar: "سعر الإغلاق (ريال)",
   // SAMA POS weekly
   week_start_date: "بداية الأسبوع",
   week_end_date: "نهاية الأسبوع",
@@ -37,6 +44,10 @@ export const FIELD_LABELS: Record<string, string> = {
   source_url: "رابط المصدر",
   source_release_date_text: "تاريخ الإصدار النصي",
   source_locator: "محدد المصدر",
+  source_currency_text: "اسم العملة في المصدر",
+  source_last_updated_date_text: "تاريخ التحديث في المصدر",
+  source_page_number: "رقم الصفحة في المصدر",
+  source_page_url: "رابط صفحة المصدر",
   source_series_name: "اسم السلسلة في المصدر",
   source_observation_month_text: "الشهر كما ورد في المصدر",
   source_summary_text: "ملخص المصدر",
