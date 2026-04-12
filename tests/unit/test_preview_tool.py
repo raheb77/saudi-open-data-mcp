@@ -13,6 +13,10 @@ import pytest
 from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.connectors.errors import SourceUnavailableError
 from saudi_open_data_mcp.connectors.resolver import SourceConnectorResolver
+from saudi_open_data_mcp.normalization.field_mapping import (
+    SAMA_EXCHANGE_RATES_CURRENT_SNAPSHOT_REFRESH_REQUIRED_LIMITATION,
+    SNAPSHOT_INCOMPATIBLE_WITH_CURRENT_NORMALIZATION_LIMITATION,
+)
 from saudi_open_data_mcp.registry.models import (
     DatasetDescriptor,
     DatasetHealthStatus,
@@ -733,6 +737,47 @@ async def test_sama_exchange_rates_current_fresh_snapshot_is_served_as_queryable
     assert result.records[0].fields["currency_code"] == "USD"
     assert result.records[0].fields["quote_currency_code"] == "SAR"
     assert result.records[0].fields["closing_rate_sar"] == 3.75
+
+
+@pytest.mark.asyncio
+async def test_sama_exchange_rates_current_legacy_html_snapshot_is_explicitly_limited(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(
+        tmp_path,
+        dataset_id="sama-exchange-rates-current",
+        source_locator="/en-US/FinExc/Pages/Currency.aspx",
+        update_frequency=UpdateFrequency.DAILY,
+    )
+    store = _snapshot_store(tmp_path)
+    _write_snapshot_with_mtime(
+        store,
+        locator="/en-US/FinExc/Pages/Currency.aspx",
+        modified_at=datetime(2026, 3, 21, 12, 0, tzinfo=UTC),
+        body="<html><body><h1>Currency Rate</h1></body></html>",
+        content_type="text/html",
+    )
+    tool = DatasetPreviewTool(
+        repository,
+        SourceConnectorResolver({"sama": _ConnectorSpy([])}),
+        snapshot_store=store,
+    )
+
+    result = await tool.preview_dataset(
+        "sama-exchange-rates-current",
+        reference_time=datetime(2026, 3, 21, 18, 0, tzinfo=UTC),
+    )
+
+    assert result.status is PreviewStatus.LIMITED
+    assert result.resolution_outcome is PreviewResolutionOutcome.SERVE_LOCAL
+    assert result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT
+    assert result.freshness_status is SnapshotFreshnessStatus.FRESH
+    assert result.degradation_reason is ResultDegradationReason.NORMALIZATION_LIMITED
+    assert result.limitations == (
+        "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+        SNAPSHOT_INCOMPATIBLE_WITH_CURRENT_NORMALIZATION_LIMITATION,
+        SAMA_EXCHANGE_RATES_CURRENT_SNAPSHOT_REFRESH_REQUIRED_LIMITATION,
+    )
 
 
 @pytest.mark.asyncio

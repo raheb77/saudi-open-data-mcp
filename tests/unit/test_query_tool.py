@@ -8,6 +8,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from saudi_open_data_mcp.connectors.base import RawPayload
+from saudi_open_data_mcp.normalization.field_mapping import (
+    SAMA_EXCHANGE_RATES_CURRENT_SNAPSHOT_REFRESH_REQUIRED_LIMITATION,
+    SNAPSHOT_INCOMPATIBLE_WITH_CURRENT_NORMALIZATION_LIMITATION,
+)
 from saudi_open_data_mcp.normalization.pipeline import (
     NormalizationFailure,
     NormalizationFailureStage,
@@ -1155,6 +1159,51 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_exchange_rat
         "source_last_updated_date_text": "21/03/2026",
         "source_page_number": 1,
     }
+
+
+def test_query_dataset_returns_explicitly_limited_for_legacy_exchange_rates_snapshot(
+    tmp_path: Path,
+) -> None:
+    repository = RegistryRepository(tmp_path / "registry.sqlite")
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    descriptor = DatasetDescriptor(
+        dataset_id="sama-exchange-rates-current",
+        source="sama",
+        source_locator="/en-US/FinExc/Pages/Currency.aspx",
+        title="Current Exchange Rates",
+        description="Daily current exchange-rate quotes.",
+        schema_version="0.1.0",
+        update_frequency=UpdateFrequency.DAILY,
+        health_status=DatasetHealthStatus.UNKNOWN,
+        caveats=("Legacy raw snapshots may require a live refresh.",),
+        known_issues=("Only the current JSON page-bundle contract is queryable.",),
+    )
+    tool = DatasetQueryTool(repository, snapshot_store)
+
+    repository.upsert_dataset(descriptor)
+    snapshot_store.write_snapshot(
+        RawPayload(
+            source="sama",
+            dataset_id=descriptor.source_locator,
+            content={
+                "url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                "status_code": 200,
+                "content_type": "text/html",
+                "body": "<html><body><h1>Currency Rate</h1></body></html>",
+            },
+        )
+    )
+
+    result = tool.query_dataset(descriptor.dataset_id)
+
+    assert result.status is DatasetQueryStatus.LIMITED
+    assert result.data_origin is ResultDataOrigin.LOCAL_SNAPSHOT
+    assert result.degradation_reason is ResultDegradationReason.NORMALIZATION_LIMITED
+    assert result.limitations == (
+        "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+        SNAPSHOT_INCOMPATIBLE_WITH_CURRENT_NORMALIZATION_LIMITATION,
+        SAMA_EXCHANGE_RATES_CURRENT_SNAPSHOT_REFRESH_REQUIRED_LIMITATION,
+    )
 
 
 def test_query_dataset_returns_queryable_canonical_records_for_sama_repo_rate(

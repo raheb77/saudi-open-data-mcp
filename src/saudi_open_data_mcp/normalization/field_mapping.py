@@ -11,6 +11,12 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..connectors.base import RawPayload
+from ..storage.snapshots import (
+    CURRENT_SNAPSHOT_STORAGE_SCHEMA_VERSION,
+    SAMA_EXCHANGE_RATES_CURRENT_BUNDLE_FORMAT_ID,
+    SAMA_EXCHANGE_RATES_CURRENT_LEGACY_HTML_FORMAT_ID,
+    with_snapshot_metadata,
+)
 from .errors import UnknownNormalizationSourceError
 from .mof_budget_balance_quarterly import (
     MOF_BUDGET_BALANCE_QUARTERLY_JSON_LIMITATION,
@@ -84,6 +90,16 @@ JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION = (
     "json_body_requires_supported_object_list_shape_for_record_normalization"
 )
 
+SNAPSHOT_INCOMPATIBLE_WITH_CURRENT_NORMALIZATION_LIMITATION = (
+    "stored_snapshot_is_incompatible_with_current_normalization_contract"
+)
+SNAPSHOT_STORAGE_SCHEMA_VERSION_UNSUPPORTED_LIMITATION = (
+    "stored_snapshot_uses_unsupported_storage_schema_version"
+)
+SAMA_EXCHANGE_RATES_CURRENT_SNAPSHOT_REFRESH_REQUIRED_LIMITATION = (
+    "sama_exchange_rates_current_snapshot_requires_refresh_for_current_json_bundle_contract"
+)
+
 
 class RawResponseMetadata(BaseModel):
     """Typed raw response metadata extracted from connector payload content."""
@@ -142,6 +158,13 @@ def get_field_mapping(
     Dispatch stays inside the normalization layer and selects the registered
     source-specific mapper by `raw_payload.source`.
     """
+
+    compatibility_mapping = _build_snapshot_compatibility_mapping(
+        raw_payload,
+        canonical_dataset_id=canonical_dataset_id,
+    )
+    if compatibility_mapping is not None:
+        return compatibility_mapping
 
     mapper = _resolve_field_mapper(raw_payload.source)
     return mapper(raw_payload, canonical_dataset_id)
@@ -579,6 +602,63 @@ def _resolve_field_mapper(source: str) -> FieldMapper:
     return mapper
 
 
+def _build_snapshot_compatibility_mapping(
+    raw_payload: RawPayload,
+    *,
+    canonical_dataset_id: str | None,
+) -> FieldMappingResult | None:
+    """Return a limited mapping when a stored snapshot is explicitly incompatible."""
+
+    if canonical_dataset_id is None:
+        return None
+
+    payload_with_metadata = with_snapshot_metadata(
+        raw_payload,
+        assume_legacy_when_missing=True,
+    )
+    compatibility_limitations = _snapshot_compatibility_limitations(
+        payload_with_metadata,
+        canonical_dataset_id=canonical_dataset_id,
+    )
+    if not compatibility_limitations:
+        return None
+
+    response_metadata = _build_response_metadata(payload_with_metadata)
+    raw_body = _extract_raw_body(payload_with_metadata)
+    body_kind = _classify_body_kind(response_metadata.content_type, raw_body)
+    canonical_fields: dict[str, Any] = {
+        "dataset_locator": payload_with_metadata.dataset_id,
+        "response_url": response_metadata.url,
+        "response_status_code": response_metadata.status_code,
+        "response_content_type": response_metadata.content_type,
+    }
+    limitations = compatibility_limitations
+
+    if body_kind is MappingBodyKind.JSON:
+        canonical_fields["structured_body"] = raw_body
+        limitations = _dedupe_limitations(
+            JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
+            *compatibility_limitations,
+        )
+    else:
+        limitations = _dedupe_limitations(
+            TEXT_HTML_EXTRACTION_LIMITATION,
+            *compatibility_limitations,
+        )
+
+    return FieldMappingResult(
+        source=payload_with_metadata.source,
+        dataset_locator=payload_with_metadata.dataset_id,
+        response_metadata=response_metadata,
+        body_kind=body_kind,
+        raw_body=raw_body,
+        canonical_fields=canonical_fields,
+        record_extraction_shape=RecordExtractionShape.NONE,
+        can_derive_records=False,
+        limitations=limitations,
+    )
+
+
 def _build_response_metadata(raw_payload: RawPayload) -> RawResponseMetadata:
     """Build typed response metadata from raw connector content."""
 
@@ -604,6 +684,36 @@ def _build_response_metadata(raw_payload: RawPayload) -> RawResponseMetadata:
         status_code=status_code,
         content_type=content_type,
     )
+
+
+def _snapshot_compatibility_limitations(
+    raw_payload: RawPayload,
+    *,
+    canonical_dataset_id: str,
+) -> tuple[str, ...]:
+    """Return explicit limitations for snapshots that no longer match current semantics."""
+
+    metadata = raw_payload.snapshot_metadata
+    if (
+        metadata is not None
+        and metadata.storage_schema_version > CURRENT_SNAPSHOT_STORAGE_SCHEMA_VERSION
+    ):
+        return (
+            SNAPSHOT_INCOMPATIBLE_WITH_CURRENT_NORMALIZATION_LIMITATION,
+            SNAPSHOT_STORAGE_SCHEMA_VERSION_UNSUPPORTED_LIMITATION,
+        )
+
+    if canonical_dataset_id == "sama-exchange-rates-current":
+        raw_format_id = metadata.raw_format_id if metadata is not None else None
+        if raw_format_id == SAMA_EXCHANGE_RATES_CURRENT_BUNDLE_FORMAT_ID:
+            return ()
+        if raw_format_id == SAMA_EXCHANGE_RATES_CURRENT_LEGACY_HTML_FORMAT_ID:
+            return (
+                SNAPSHOT_INCOMPATIBLE_WITH_CURRENT_NORMALIZATION_LIMITATION,
+                SAMA_EXCHANGE_RATES_CURRENT_SNAPSHOT_REFRESH_REQUIRED_LIMITATION,
+            )
+
+    return ()
 
 
 def _extract_raw_body(raw_payload: RawPayload) -> dict[str, Any] | list[Any] | str:
@@ -652,3 +762,13 @@ def _detect_record_extraction_shape(
         return RecordExtractionShape.ROWS_OBJECT_LIST
 
     return RecordExtractionShape.NONE
+
+
+def _dedupe_limitations(*limitations: str) -> tuple[str, ...]:
+    """Return limitations in first-seen order without duplicates."""
+
+    deduped: list[str] = []
+    for limitation in limitations:
+        if limitation not in deduped:
+            deduped.append(limitation)
+    return tuple(deduped)

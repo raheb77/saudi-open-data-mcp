@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from saudi_open_data_mcp.connectors.base import RawPayload
+from saudi_open_data_mcp.connectors.base import RawPayload, SnapshotMetadata
 from saudi_open_data_mcp.normalization import field_mapping as field_mapping_module
 from saudi_open_data_mcp.normalization.errors import UnknownNormalizationSourceError
 from saudi_open_data_mcp.normalization.field_mapping import (
     JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
+    SAMA_EXCHANGE_RATES_CURRENT_SNAPSHOT_REFRESH_REQUIRED_LIMITATION,
+    SNAPSHOT_INCOMPATIBLE_WITH_CURRENT_NORMALIZATION_LIMITATION,
+    SNAPSHOT_STORAGE_SCHEMA_VERSION_UNSUPPORTED_LIMITATION,
     FieldMappingResult,
     MappingBodyKind,
     RawResponseMetadata,
@@ -22,7 +25,6 @@ from saudi_open_data_mcp.normalization.sama_deposits_core import (
     SAMA_DEPOSITS_CORE_JSON_ROWS_LIMITATION,
 )
 from saudi_open_data_mcp.normalization.sama_exchange_rates_current import (
-    SAMA_EXCHANGE_RATES_CURRENT_HTML_TABLE_LIMITATION,
     SAMA_EXCHANGE_RATES_CURRENT_JSON_BUNDLE_LIMITATION,
 )
 from saudi_open_data_mcp.normalization.sama_money_supply_weekly import (
@@ -68,13 +70,90 @@ def test_json_raw_payload_maps_to_structured_field_mapping_result() -> None:
     assert result.dataset_locator == "report.aspx?cid=55"
     assert result.can_derive_records is True
     assert result.limitations == ()
+
+
+def test_legacy_exchange_rates_html_snapshot_is_explicitly_incompatible() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/FinExc/Pages/Currency.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": "<html><body><h1>Currency Rate</h1></body></html>",
+        },
+    )
+
+    result = get_field_mapping(
+        raw_payload,
+        canonical_dataset_id="sama-exchange-rates-current",
+    )
+
+    assert result.body_kind is MappingBodyKind.HTML
+    assert result.can_derive_records is False
+    assert result.record_extraction_shape is RecordExtractionShape.NONE
+    assert result.limitations == (
+        field_mapping_module.TEXT_HTML_EXTRACTION_LIMITATION,
+        SNAPSHOT_INCOMPATIBLE_WITH_CURRENT_NORMALIZATION_LIMITATION,
+        SAMA_EXCHANGE_RATES_CURRENT_SNAPSHOT_REFRESH_REQUIRED_LIMITATION,
+    )
+
+
+def test_future_snapshot_storage_schema_version_is_explicitly_incompatible() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/FinExc/Pages/Currency.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {
+                "results_page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                "current_date_text": "21/03/2026",
+                "total_results_count": 1,
+                "pages": [
+                    {
+                        "page_number": 1,
+                        "page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                        "body": "<html></html>",
+                    }
+                ],
+            },
+        },
+        snapshot_metadata=SnapshotMetadata(storage_schema_version=99),
+    )
+
+    result = get_field_mapping(
+        raw_payload,
+        canonical_dataset_id="sama-exchange-rates-current",
+    )
+
+    assert result.body_kind is MappingBodyKind.JSON
+    assert result.can_derive_records is False
+    assert result.record_extraction_shape is RecordExtractionShape.NONE
+    assert result.limitations == (
+        JSON_UNSUPPORTED_RECORD_SHAPE_LIMITATION,
+        SNAPSHOT_INCOMPATIBLE_WITH_CURRENT_NORMALIZATION_LIMITATION,
+        SNAPSHOT_STORAGE_SCHEMA_VERSION_UNSUPPORTED_LIMITATION,
+    )
     assert result.response_metadata.status_code == 200
     assert result.canonical_fields == {
-        "dataset_locator": "report.aspx?cid=55",
-        "response_url": "https://www.sama.gov.sa/en-US/EconomicReports/Pages/report.aspx?cid=55",
+        "dataset_locator": "/en-US/FinExc/Pages/Currency.aspx",
+        "response_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
         "response_status_code": 200,
         "response_content_type": "application/json",
-        "structured_body": {"rows": [{"period": "2026-01", "value": 1}]},
+        "structured_body": {
+            "results_page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+            "current_date_text": "21/03/2026",
+            "total_results_count": 1,
+            "pages": [
+                {
+                    "page_number": 1,
+                    "page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                    "body": "<html></html>",
+                }
+            ],
+        },
     }
 
 
@@ -666,7 +745,8 @@ def test_sama_exchange_rates_current_html_without_full_pagination_remains_limite
     assert result.record_extraction_shape is RecordExtractionShape.NONE
     assert result.limitations == (
         "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
-        SAMA_EXCHANGE_RATES_CURRENT_HTML_TABLE_LIMITATION,
+        SNAPSHOT_INCOMPATIBLE_WITH_CURRENT_NORMALIZATION_LIMITATION,
+        SAMA_EXCHANGE_RATES_CURRENT_SNAPSHOT_REFRESH_REQUIRED_LIMITATION,
     )
 
 

@@ -7,8 +7,15 @@ from pathlib import Path
 
 import pytest
 
-from saudi_open_data_mcp.connectors.base import RawPayload
-from saudi_open_data_mcp.storage.snapshots import SnapshotStore
+from saudi_open_data_mcp.connectors.base import RawPayload, SnapshotMetadata
+from saudi_open_data_mcp.storage.snapshots import (
+    CURRENT_SNAPSHOT_STORAGE_SCHEMA_VERSION,
+    LEGACY_SNAPSHOT_STORAGE_SCHEMA_VERSION,
+    SAMA_EXCHANGE_RATES_CURRENT_BUNDLE_FORMAT_ID,
+    SAMA_EXCHANGE_RATES_CURRENT_FORMAT_VERSION,
+    SAMA_EXCHANGE_RATES_CURRENT_LEGACY_HTML_FORMAT_ID,
+    SnapshotStore,
+)
 
 
 def test_snapshot_path_is_deterministic(tmp_path: Path) -> None:
@@ -33,8 +40,77 @@ def test_write_then_read_snapshot_round_trip(tmp_path: Path) -> None:
     loaded = store.read_snapshot("sama", "money-supply")
 
     assert path == tmp_path / "sama" / "money-supply.json"
-    assert loaded == payload
+    assert loaded == payload.model_copy(
+        update={
+            "snapshot_metadata": SnapshotMetadata(
+                storage_schema_version=CURRENT_SNAPSHOT_STORAGE_SCHEMA_VERSION
+            )
+        }
+    )
     assert sorted(item.name for item in path.parent.iterdir()) == ["money-supply.json"]
+
+
+def test_read_snapshot_infers_legacy_exchange_rates_html_snapshot_metadata(
+    tmp_path: Path,
+) -> None:
+    store = SnapshotStore(tmp_path)
+    path = store.snapshot_path("sama", "/en-US/FinExc/Pages/Currency.aspx")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    legacy_payload = {
+        "source": "sama",
+        "dataset_id": "/en-US/FinExc/Pages/Currency.aspx",
+        "content": {
+            "url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": "<html><body><h1>Currency Rate</h1></body></html>",
+        },
+    }
+    path.write_text(json.dumps(legacy_payload, indent=2, sort_keys=True), encoding="utf-8")
+
+    loaded = store.read_snapshot("sama", "/en-US/FinExc/Pages/Currency.aspx")
+
+    assert loaded.snapshot_metadata == SnapshotMetadata(
+        storage_schema_version=LEGACY_SNAPSHOT_STORAGE_SCHEMA_VERSION,
+        raw_format_id=SAMA_EXCHANGE_RATES_CURRENT_LEGACY_HTML_FORMAT_ID,
+        raw_format_version=SAMA_EXCHANGE_RATES_CURRENT_FORMAT_VERSION,
+    )
+
+
+def test_write_snapshot_tags_current_exchange_rates_bundle_format(
+    tmp_path: Path,
+) -> None:
+    store = SnapshotStore(tmp_path)
+    payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/FinExc/Pages/Currency.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {
+                "results_page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                "current_date_text": "21/03/2026",
+                "total_results_count": 1,
+                "pages": [
+                    {
+                        "page_number": 1,
+                        "page_url": "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx",
+                        "body": "<html></html>",
+                    }
+                ],
+            },
+        },
+    )
+
+    store.write_snapshot(payload)
+    loaded = store.read_snapshot("sama", "/en-US/FinExc/Pages/Currency.aspx")
+
+    assert loaded.snapshot_metadata == SnapshotMetadata(
+        storage_schema_version=CURRENT_SNAPSHOT_STORAGE_SCHEMA_VERSION,
+        raw_format_id=SAMA_EXCHANGE_RATES_CURRENT_BUNDLE_FORMAT_ID,
+        raw_format_version=SAMA_EXCHANGE_RATES_CURRENT_FORMAT_VERSION,
+    )
 
 
 def test_snapshot_exists_reflects_storage_state(tmp_path: Path) -> None:
@@ -120,11 +196,23 @@ def test_existing_snapshot_remains_intact_when_replace_fails_before_commit(
         failing_store.write_snapshot(updated_payload)
 
     assert final_path.read_text(encoding="utf-8") == json.dumps(
-        original_payload.model_dump(mode="json"),
+        original_payload.model_copy(
+            update={
+                "snapshot_metadata": SnapshotMetadata(
+                    storage_schema_version=CURRENT_SNAPSHOT_STORAGE_SCHEMA_VERSION
+                )
+            }
+        ).model_dump(mode="json"),
         indent=2,
         sort_keys=True,
     )
-    assert base_store.read_snapshot("sama", "money-supply") == original_payload
+    assert base_store.read_snapshot("sama", "money-supply") == original_payload.model_copy(
+        update={
+            "snapshot_metadata": SnapshotMetadata(
+                storage_schema_version=CURRENT_SNAPSHOT_STORAGE_SCHEMA_VERSION
+            )
+        }
+    )
     assert list(final_path.parent.glob("*.tmp")) == []
 
 
@@ -157,9 +245,21 @@ def test_existing_snapshot_remains_intact_when_write_fails_before_commit(
         )
 
     assert final_path.read_text(encoding="utf-8") == json.dumps(
-        original_payload.model_dump(mode="json"),
+        original_payload.model_copy(
+            update={
+                "snapshot_metadata": SnapshotMetadata(
+                    storage_schema_version=CURRENT_SNAPSHOT_STORAGE_SCHEMA_VERSION
+                )
+            }
+        ).model_dump(mode="json"),
         indent=2,
         sort_keys=True,
     )
-    assert base_store.read_snapshot("sama", "money-supply") == original_payload
+    assert base_store.read_snapshot("sama", "money-supply") == original_payload.model_copy(
+        update={
+            "snapshot_metadata": SnapshotMetadata(
+                storage_schema_version=CURRENT_SNAPSHOT_STORAGE_SCHEMA_VERSION
+            )
+        }
+    )
     assert list(final_path.parent.glob("*.tmp")) == []

@@ -10,7 +10,7 @@ from typing import Any, Protocol
 from urllib.parse import urljoin, urlsplit
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from saudi_open_data_mcp.observability import get_logger, get_metrics, log_event
 
@@ -70,6 +70,23 @@ class RawPayload(BaseModel):
     source: str
     dataset_id: str
     content: dict[str, Any] = Field(default_factory=dict)
+    snapshot_metadata: SnapshotMetadata | None = None
+
+
+class SnapshotMetadata(BaseModel):
+    """Versioned snapshot metadata persisted alongside raw payload content."""
+
+    storage_schema_version: int = Field(default=1, ge=0)
+    raw_format_id: str | None = None
+    raw_format_version: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def _validate_format_version_pairing(self) -> "SnapshotMetadata":
+        if (self.raw_format_id is None) != (self.raw_format_version is None):
+            raise ValueError(
+                "snapshot raw_format_id and raw_format_version must be set together"
+            )
+        return self
 
 
 class RawPayloadSnapshotWriter(Protocol):

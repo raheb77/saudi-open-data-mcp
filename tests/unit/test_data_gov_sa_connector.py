@@ -300,4 +300,9 @@ async def test_snapshot_store_is_used_when_provided(tmp_path: Path) -> None:
     payload = await connector.fetch_dataset_payload(SOURCE_LOCATOR)
 
     assert store.snapshot_exists("data-gov-sa", SOURCE_LOCATOR)
-    assert store.read_snapshot("data-gov-sa", SOURCE_LOCATOR) == payload
+    loaded = store.read_snapshot("data-gov-sa", SOURCE_LOCATOR)
+    assert loaded.model_dump(mode="json", exclude={"snapshot_metadata"}) == payload.model_dump(
+        mode="json",
+        exclude={"snapshot_metadata"},
+    )
+    assert loaded.snapshot_metadata is not None

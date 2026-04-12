@@ -9,7 +9,19 @@ from pathlib import Path
 from typing import TextIO
 from urllib.parse import quote
 
-from ..connectors.base import RawPayload
+from ..connectors.base import RawPayload, SnapshotMetadata
+
+CURRENT_SNAPSHOT_STORAGE_SCHEMA_VERSION = 1
+LEGACY_SNAPSHOT_STORAGE_SCHEMA_VERSION = 0
+
+SAMA_EXCHANGE_RATES_CURRENT_BUNDLE_FORMAT_ID = (
+    "sama_exchange_rates_current_page_bundle"
+)
+SAMA_EXCHANGE_RATES_CURRENT_LEGACY_HTML_FORMAT_ID = (
+    "sama_exchange_rates_current_legacy_html_page"
+)
+SAMA_EXCHANGE_RATES_CURRENT_FORMAT_VERSION = 1
+SAMA_EXCHANGE_RATES_CURRENT_LOCATOR = "/en-US/FinExc/Pages/Currency.aspx"
 
 
 class SnapshotStore:
@@ -45,9 +57,10 @@ class SnapshotStore:
         """Write a raw payload snapshot to local storage."""
 
         path = self.snapshot_path(payload.source, payload.dataset_id)
+        payload_for_storage = with_snapshot_metadata(payload)
         self._write_atomic_text(
             path,
-            json.dumps(payload.model_dump(mode="json"), indent=2, sort_keys=True),
+            json.dumps(payload_for_storage.model_dump(mode="json"), indent=2, sort_keys=True),
         )
         return path
 
@@ -57,7 +70,8 @@ class SnapshotStore:
         path = self.snapshot_path(source, dataset_id)
         if not path.is_file():
             raise FileNotFoundError(f"Snapshot not found: {path}")
-        return RawPayload.model_validate_json(path.read_text(encoding="utf-8"))
+        payload = RawPayload.model_validate_json(path.read_text(encoding="utf-8"))
+        return with_snapshot_metadata(payload, assume_legacy_when_missing=True)
 
     def _write_atomic_text(self, path: Path, text: str) -> None:
         """Write text atomically by replacing the final path only after a full temp write."""
@@ -92,3 +106,82 @@ class SnapshotStore:
         """Atomically replace the final snapshot path with a prepared temp file."""
 
         os.replace(temp_path, final_path)
+
+
+def with_snapshot_metadata(
+    payload: RawPayload,
+    *,
+    assume_legacy_when_missing: bool = False,
+) -> RawPayload:
+    """Attach deterministic snapshot metadata without mutating the original payload."""
+
+    existing = payload.snapshot_metadata
+    inferred_format_id, inferred_format_version = infer_snapshot_format(payload)
+
+    if existing is None:
+        storage_schema_version = (
+            LEGACY_SNAPSHOT_STORAGE_SCHEMA_VERSION
+            if assume_legacy_when_missing
+            else CURRENT_SNAPSHOT_STORAGE_SCHEMA_VERSION
+        )
+        raw_format_id = inferred_format_id
+        raw_format_version = inferred_format_version
+    else:
+        storage_schema_version = existing.storage_schema_version
+        raw_format_id = existing.raw_format_id or inferred_format_id
+        raw_format_version = existing.raw_format_version or inferred_format_version
+
+    metadata = SnapshotMetadata(
+        storage_schema_version=storage_schema_version,
+        raw_format_id=raw_format_id,
+        raw_format_version=raw_format_version,
+    )
+    return payload.model_copy(update={"snapshot_metadata": metadata})
+
+
+def infer_snapshot_format(payload: RawPayload) -> tuple[str | None, int | None]:
+    """Infer a narrow raw-format identity for snapshots with known schema drift risk."""
+
+    if (
+        payload.source == "sama"
+        and payload.dataset_id == SAMA_EXCHANGE_RATES_CURRENT_LOCATOR
+    ):
+        body = payload.content.get("body")
+        if _looks_like_exchange_rates_current_bundle(body):
+            return (
+                SAMA_EXCHANGE_RATES_CURRENT_BUNDLE_FORMAT_ID,
+                SAMA_EXCHANGE_RATES_CURRENT_FORMAT_VERSION,
+            )
+        if isinstance(body, str):
+            return (
+                SAMA_EXCHANGE_RATES_CURRENT_LEGACY_HTML_FORMAT_ID,
+                SAMA_EXCHANGE_RATES_CURRENT_FORMAT_VERSION,
+            )
+
+    return (None, None)
+
+
+def _looks_like_exchange_rates_current_bundle(body: object) -> bool:
+    """Return whether a body matches the current exchange-rates bundle contract."""
+
+    if not isinstance(body, dict):
+        return False
+
+    pages = body.get("pages")
+    if not isinstance(pages, list) or not pages:
+        return False
+
+    if not isinstance(body.get("results_page_url"), str):
+        return False
+    if not isinstance(body.get("current_date_text"), str):
+        return False
+    if not isinstance(body.get("total_results_count"), int):
+        return False
+
+    return all(
+        isinstance(page, dict)
+        and isinstance(page.get("page_number"), int)
+        and isinstance(page.get("page_url"), str)
+        and isinstance(page.get("body"), str)
+        for page in pages
+    )
