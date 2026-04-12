@@ -158,6 +158,8 @@ describe("HomePage", () => {
     renderHomePage();
 
     expect(await screen.findByText("نقاط البيع الأسبوعية")).toBeInTheDocument();
+    expect(screen.getAllByText("التغطية الحالية").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("مدعومة الآن").length).toBeGreaterThan(0);
     expect(screen.getAllByText("قابلية الاستعلام").length).toBeGreaterThan(0);
     expect(screen.getAllByText("وقت اللقطة").length).toBeGreaterThan(0);
     expect(
@@ -196,6 +198,13 @@ describe("HomePage", () => {
     renderHomePage();
 
     expect(await screen.findByText("نقاط البيع الأسبوعية")).toBeInTheDocument();
+    expect(screen.getAllByText("التغطية الحالية").length).toBeGreaterThan(0);
+    expect(screen.getByText("فهرس فقط")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "هذه المجموعة مسجلة في الفهرس لإظهار النطاق المقصود، لكن لا يوجد لها الآن مسار استخراج منظّم يجعلها قابلة للاستعلام التحليلي.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("قابلية الاستعلام").length).toBeGreaterThan(0);
     expect(screen.getAllByText("حالة اللقطة").length).toBeGreaterThan(0);
     expect(

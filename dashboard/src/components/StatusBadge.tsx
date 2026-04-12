@@ -6,6 +6,7 @@ import type {
   ResultDataOrigin,
   SnapshotFreshnessStatus,
 } from "../types/core";
+import type { DatasetCoverageStatus } from "../lib/statePresentation";
 
 type Tone = "ok" | "warn" | "bad" | "neutral";
 
@@ -99,4 +100,19 @@ export function DataOriginBadge({ origin }: { origin: ResultDataOrigin }) {
   };
   const entry = map[origin];
   return <StatusBadge label={entry.label} tone={entry.tone} technical={origin} />;
+}
+
+export function CoverageBadge({
+  status,
+}: {
+  status: DatasetCoverageStatus;
+}) {
+  const map: Record<DatasetCoverageStatus, { label: string; tone: Tone }> = {
+    queryable: { label: ar.state.coverageQueryable, tone: "ok" },
+    limited: { label: ar.state.coverageLimited, tone: "warn" },
+    catalog_only: { label: ar.state.coverageCatalogOnly, tone: "neutral" },
+    unavailable: { label: ar.state.coverageUnavailable, tone: "neutral" },
+  };
+  const entry = map[status];
+  return <StatusBadge label={entry.label} tone={entry.tone} technical={status} />;
 }

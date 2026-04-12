@@ -173,6 +173,8 @@ describe("SystemStatusPage", () => {
     expect(await screen.findByText("الجاهزية")).toBeInTheDocument();
     expect(screen.getByText("جاهز")).toBeInTheDocument();
     expect(screen.getByText("ملخص عدّادات التحديث")).toBeInTheDocument();
+    expect(screen.getAllByText("التغطية الحالية").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("مدعومة الآن").length).toBeGreaterThan(0);
     expect(screen.getAllByText("قابلية الاستعلام").length).toBeGreaterThan(0);
     expect(screen.getAllByText("وقت اللقطة").length).toBeGreaterThan(0);
     expect(screen.getAllByText("sama-pos-weekly").length).toBeGreaterThan(0);
@@ -250,9 +252,7 @@ describe("SystemStatusPage", () => {
         return {
           ...makePreviewResult(datasetId, entry.source),
           status: "limited",
-          limitations: [
-            "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
-          ],
+          limitations: ["sama_pos_weekly_json_requires_supported_report_text_bundle"],
           degradation_reason: "normalization_limited",
         };
       }
@@ -262,6 +262,13 @@ describe("SystemStatusPage", () => {
     render(<SystemStatusPage />);
 
     expect(await screen.findByText("حالة المصادر ومجموعات البيانات")).toBeInTheDocument();
+    expect(screen.getAllByText("التغطية الحالية").length).toBeGreaterThan(0);
+    expect(screen.getByText("دعم جزئي")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "هذه المجموعة ضمن النطاق الحالي، لكن استخدامها التحليلي ما زال جزئيًا بسبب قيود استخراج أو تطبيع مُعلنة.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("قابلية الاستعلام").length).toBeGreaterThan(0);
     expect(screen.getAllByText("حالة اللقطة").length).toBeGreaterThan(0);
     expect(screen.getAllByText("صحة المصدر").length).toBeGreaterThan(0);
@@ -269,7 +276,7 @@ describe("SystemStatusPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /التفاصيل التقنية/i }));
     expect(
       screen.getByText(
-        "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+        "sama_pos_weekly_json_requires_supported_report_text_bundle",
       ),
     ).toBeInTheDocument();
   });

@@ -7,6 +7,7 @@ import type {
   DatasetPreviewResult,
   DatasetHealthLookupResult,
 } from "../types/core";
+import { CoverageSignal } from "./CoverageSignal";
 import { DatasetStateOverview } from "./DatasetStateOverview";
 import { MetadataStrip } from "./MetadataStrip";
 import { SnapshotContextBlock } from "./SnapshotContextBlock";
@@ -45,6 +46,11 @@ export function DatasetCard({ catalog, preview, health }: DatasetCardProps) {
           </span>
         </p>
       </header>
+
+      <CoverageSignal
+        previewStatus={preview.status}
+        previewLimitations={preview.limitations}
+      />
 
       <DatasetStateOverview
         previewStatus={preview.status}

@@ -6,6 +6,7 @@ import type {
   DatasetPreviewResult,
 } from "../types/core";
 import { CardDisclosure } from "./CardDisclosure";
+import { CoverageSignal } from "./CoverageSignal";
 import { DatasetStateOverview } from "./DatasetStateOverview";
 import { MetadataStrip } from "./MetadataStrip";
 import { SnapshotContextBlock } from "./SnapshotContextBlock";
@@ -57,6 +58,12 @@ export function HealthCard({
           </p>
         </div>
       </header>
+
+      <CoverageSignal
+        previewStatus={preview?.status ?? null}
+        previewLimitations={preview?.limitations ?? []}
+        previewErrorMessage={previewErrorMessage}
+      />
 
       <DatasetStateOverview
         previewStatus={preview?.status ?? null}
