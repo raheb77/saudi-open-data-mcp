@@ -154,12 +154,12 @@ def test_sama_repo_rate_contract_makes_published_table_scope_explicit() -> None:
     assert "published row dates" in contract.structure_note
 
 
-def test_sama_reverse_repo_rate_contract_makes_current_page_scope_explicit() -> None:
+def test_sama_reverse_repo_rate_contract_makes_published_table_scope_explicit() -> None:
     contract = get_canonical_dataset_contract("sama-reverse-repo-rate")
 
     assert contract.structure_note is not None
-    assert "current-page surface" in contract.structure_note
-    assert "ad-hoc policy updates" in contract.structure_note
+    assert "published policy-change table" in contract.structure_note
+    assert "published row dates" in contract.structure_note
 
 
 def test_unknown_dataset_id_has_no_declared_canonical_contract() -> None:

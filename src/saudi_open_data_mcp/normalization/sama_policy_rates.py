@@ -197,13 +197,18 @@ def extract_sama_repo_rate_rows_from_html(
     parser = _HTMLTextParser()
     parser.feed(html)
 
-    if not _page_mentions_repo_rate(visible_text=parser.visible_text):
+    if not _page_mentions_policy_rate(
+        visible_text=parser.visible_text,
+        markers=_REPO_RATE_PAGE_MARKERS,
+    ):
         return None
 
-    extracted_from_table = _extract_repo_rate_history_from_tables(
+    extracted_from_table = _extract_policy_rate_history_from_tables(
         tables=parser.tables,
         source_locator=source_locator,
         source_url=source_url,
+        policy_rate_code="repo_rate",
+        policy_rate_name="Official Repo Rate",
     )
     if extracted_from_table is not None:
         return extracted_from_table
@@ -214,6 +219,42 @@ def extract_sama_repo_rate_rows_from_html(
         source_url=source_url,
         policy_rate_code="repo_rate",
         policy_rate_name="Official Repo Rate",
+    )
+
+
+def extract_sama_reverse_repo_rate_rows_from_html(
+    *,
+    html: str,
+    source_locator: str,
+    source_url: str,
+) -> list[dict[str, Any]] | None:
+    """Extract canonical reverse-repo-rate observations from the official table."""
+
+    parser = _HTMLTextParser()
+    parser.feed(html)
+
+    if not _page_mentions_policy_rate(
+        visible_text=parser.visible_text,
+        markers=_REVERSE_REPO_RATE_PAGE_MARKERS,
+    ):
+        return None
+
+    extracted_from_table = _extract_policy_rate_history_from_tables(
+        tables=parser.tables,
+        source_locator=source_locator,
+        source_url=source_url,
+        policy_rate_code="reverse_repo_rate",
+        policy_rate_name="Reverse Repo Rate",
+    )
+    if extracted_from_table is not None:
+        return extracted_from_table
+
+    return extract_sama_policy_rate_rows_from_html(
+        html=html,
+        source_locator=source_locator,
+        source_url=source_url,
+        policy_rate_code="reverse_repo_rate",
+        policy_rate_name="Reverse Repo Rate",
     )
 
 
@@ -265,11 +306,13 @@ def _extract_from_tables(
     return None
 
 
-def _extract_repo_rate_history_from_tables(
+def _extract_policy_rate_history_from_tables(
     *,
     tables: list[_ParsedTable],
     source_locator: str,
     source_url: str,
+    policy_rate_code: str,
+    policy_rate_name: str,
 ) -> list[dict[str, Any]] | None:
     for table in tables:
         header_row_index = next(
@@ -311,8 +354,8 @@ def _extract_repo_rate_history_from_tables(
                 source_rate_text=rate_text,
                 source_locator=source_locator,
                 source_url=source_url,
-                policy_rate_code="repo_rate",
-                policy_rate_name="Official Repo Rate",
+                policy_rate_code=policy_rate_code,
+                policy_rate_name=policy_rate_name,
                 source_table_title=table.caption,
             )
             change_points_index = header_mapping.get("change_points_text")
@@ -447,10 +490,14 @@ def _normalize_header(value: str) -> str:
     return _HEADER_NORMALIZATION_PATTERN.sub(" ", value.strip().casefold()).strip()
 
 
-def _page_mentions_repo_rate(*, visible_text: list[str]) -> bool:
+def _page_mentions_policy_rate(
+    *,
+    visible_text: list[str],
+    markers: frozenset[str],
+) -> bool:
     for text in visible_text:
         normalized = _normalize_header(text)
         if not normalized:
             continue
-        return normalized in _REPO_RATE_PAGE_MARKERS
+        return normalized in markers
     return False

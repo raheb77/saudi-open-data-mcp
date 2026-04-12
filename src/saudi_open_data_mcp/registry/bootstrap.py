@@ -297,12 +297,12 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         update_frequency=UpdateFrequency.AD_HOC,
         health_status=DatasetHealthStatus.UNKNOWN,
         caveats=(
-            "This canonical dataset normalizes supported effective-date and rate "
-            "content from the official reverse-repo-rate page.",
+            "This canonical dataset normalizes supported policy-change rows from "
+            "the official reverse-repo-rate table published on the official page.",
         ),
         known_issues=(
-            "Only supported page text or simple table layouts with explicit "
-            "effective-date and rate content are normalized.",
+            "This upstream mapping is hand-curated and may need revision if SAMA "
+            "changes page routes, SharePoint table structure, or published columns.",
         ),
     ),
     DatasetDescriptor(

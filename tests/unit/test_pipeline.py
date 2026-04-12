@@ -310,9 +310,22 @@ def test_sama_reverse_repo_rate_html_produces_queryable_policy_rate_record() -> 
             "content_type": "text/html",
             "body": """
                 <html><body>
-                  <h1>Reverse Repo Rate</h1>
-                  <p>Effective Date: 2026-03-21</p>
-                  <p>Rate: 4.75%</p>
+                  <title>Reverse Repo Rate</title>
+                  <nav>Official Repo Rate</nav>
+                  <table summary="Reverse Repo Rate">
+                    <tr>
+                      <th></th>
+                      <th>Publish Date</th>
+                      <th>Rate (%)</th>
+                      <th>Change Points(Bps)</th>
+                    </tr>
+                    <tr>
+                      <td></td><td>10/12/2025</td><td>3.75</td><td>-25</td>
+                    </tr>
+                    <tr>
+                      <td></td><td>29/10/2025</td><td>4</td><td>-25</td>
+                    </tr>
+                  </table>
                 </body></html>
             """,
         },
@@ -325,11 +338,12 @@ def test_sama_reverse_repo_rate_html_produces_queryable_policy_rate_record() -> 
 
     assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
     assert result.failure is None
-    assert len(result.records) == 1
+    assert len(result.records) == 2
     assert result.records[0].dataset_id == "/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx"
-    assert result.records[0].fields["effective_date"] == "2026-03-21"
+    assert result.records[0].fields["effective_date"] == "2025-12-10"
     assert result.records[0].fields["policy_rate_code"] == "reverse_repo_rate"
-    assert result.records[0].fields["rate_percent"] == 4.75
+    assert result.records[0].fields["rate_percent"] == 3.75
+    assert result.records[0].fields["source_publish_date_text"] == "10/12/2025"
 
 
 def test_sama_deposits_core_json_produces_queryable_monthly_bundle_records() -> None:

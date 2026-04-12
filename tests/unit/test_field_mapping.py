@@ -806,9 +806,26 @@ def test_sama_reverse_repo_rate_html_can_map_to_structured_policy_rate_rows() ->
             "content_type": "text/html",
             "body": """
                 <html><body>
-                  <h1>Reverse Repo Rate</h1>
-                  <p>Effective Date: 2026-03-21</p>
-                  <p>Rate: 4.75%</p>
+                  <title>Reverse Repo Rate</title>
+                  <nav>Official Repo Rate</nav>
+                  <table summary="Reverse Repo Rate">
+                    <thead>
+                      <tr>
+                        <th></th>
+                        <th>Publish Date</th>
+                        <th>Rate (%)</th>
+                        <th>Change Points(Bps)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td></td><td>10/12/2025</td><td>3.75</td><td>-25</td>
+                      </tr>
+                      <tr>
+                        <td></td><td>29/10/2025</td><td>4</td><td>-25</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </body></html>
             """,
         },
@@ -826,14 +843,26 @@ def test_sama_reverse_repo_rate_html_can_map_to_structured_policy_rate_rows() ->
     assert result.canonical_fields["structured_body"] == {
         "rows": [
             {
-                "effective_date": "2026-03-21",
+                "effective_date": "2025-12-10",
                 "policy_rate_code": "reverse_repo_rate",
                 "policy_rate_name": "Reverse Repo Rate",
-                "rate_percent": 4.75,
+                "rate_percent": 3.75,
                 "source_locator": "/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
                 "source_url": "https://www.sama.gov.sa/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
-                "source_effective_date_text": "Effective Date: 2026-03-21",
-                "source_rate_text": "Rate: 4.75%",
+                "source_publish_date_text": "10/12/2025",
+                "source_rate_text": "3.75",
+                "source_change_points_text": "-25",
+            },
+            {
+                "effective_date": "2025-10-29",
+                "policy_rate_code": "reverse_repo_rate",
+                "policy_rate_name": "Reverse Repo Rate",
+                "rate_percent": 4.0,
+                "source_locator": "/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
+                "source_url": "https://www.sama.gov.sa/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
+                "source_publish_date_text": "29/10/2025",
+                "source_rate_text": "4",
+                "source_change_points_text": "-25",
             }
         ]
     }
@@ -894,6 +923,47 @@ def test_sama_repo_rate_html_with_incomplete_history_row_remains_limited() -> No
     )
 
     result = get_field_mapping(raw_payload, canonical_dataset_id="sama-repo-rate")
+
+    assert result.body_kind is MappingBodyKind.HTML
+    assert result.can_derive_records is False
+    assert result.record_extraction_shape is RecordExtractionShape.NONE
+    assert result.limitations == (
+        "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+        SAMA_POLICY_RATE_HTML_LIMITATION,
+    )
+
+
+def test_sama_reverse_repo_rate_html_with_incomplete_history_row_remains_limited() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": """
+                <html><body>
+                  <title>Reverse Repo Rate</title>
+                  <table summary="Reverse Repo Rate">
+                    <tr>
+                      <th></th>
+                      <th>Publish Date</th>
+                      <th>Rate (%)</th>
+                      <th>Change Points(Bps)</th>
+                    </tr>
+                    <tr>
+                      <td></td><td>10/12/2025</td><td>3.75</td><td>-25</td>
+                    </tr>
+                    <tr>
+                      <td></td><td>29/10/2025</td><td></td><td>-25</td>
+                    </tr>
+                  </table>
+                </body></html>
+            """,
+        },
+    )
+
+    result = get_field_mapping(raw_payload, canonical_dataset_id="sama-reverse-repo-rate")
 
     assert result.body_kind is MappingBodyKind.HTML
     assert result.can_derive_records is False

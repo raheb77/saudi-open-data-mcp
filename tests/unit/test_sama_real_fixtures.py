@@ -19,10 +19,12 @@ from saudi_open_data_mcp.normalization.pipeline import (
 POS_PAGE_LOCATOR = "/en-US/Indices/Pages/POS.aspx"
 EXCHANGE_RATES_PAGE_LOCATOR = "/en-US/FinExc/Pages/Currency.aspx"
 REPO_RATE_PAGE_LOCATOR = "/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx"
+REVERSE_REPO_RATE_PAGE_LOCATOR = "/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx"
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "sama"
 POS_FIXTURES_DIR = FIXTURES_DIR / "pos_weekly"
 EXCHANGE_RATES_FIXTURES_DIR = FIXTURES_DIR / "exchange_rates_current"
 REPO_RATE_FIXTURES_DIR = FIXTURES_DIR / "repo_rate"
+REVERSE_REPO_RATE_FIXTURES_DIR = FIXTURES_DIR / "reverse_repo_rate"
 
 
 def _fixture_text(path: Path) -> str:
@@ -299,5 +301,65 @@ def test_real_repo_rate_fixture_normalizes_to_known_good_policy_rate_rows() -> N
         "source_url": _page_url(REPO_RATE_PAGE_LOCATOR),
         "source_publish_date_text": "15/06/2022",
         "source_rate_text": "2.25",
+        "source_change_points_text": "50",
+    }
+
+
+def test_real_reverse_repo_rate_fixture_normalizes_to_known_good_policy_rate_rows() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id=REVERSE_REPO_RATE_PAGE_LOCATOR,
+        content={
+            "url": _page_url(REVERSE_REPO_RATE_PAGE_LOCATOR),
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": _fixture_text(
+                REVERSE_REPO_RATE_FIXTURES_DIR / "reverse-repo-rate-page.html"
+            ),
+        },
+    )
+
+    result = NormalizationPipeline().normalize(
+        raw_payload,
+        canonical_dataset_id="sama-reverse-repo-rate",
+    )
+
+    assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
+    assert len(result.records) == 15
+    records_by_effective_date = _records_by_field(result.records, "effective_date")
+
+    # Manually verified against the recorded "Reverse Repo Rate" SharePoint table.
+    # The canonical effective_date intentionally derives from the source Publish Date.
+    assert records_by_effective_date["2025-12-10"] == {
+        "effective_date": "2025-12-10",
+        "policy_rate_code": "reverse_repo_rate",
+        "policy_rate_name": "Reverse Repo Rate",
+        "rate_percent": 3.75,
+        "source_locator": REVERSE_REPO_RATE_PAGE_LOCATOR,
+        "source_url": _page_url(REVERSE_REPO_RATE_PAGE_LOCATOR),
+        "source_publish_date_text": "10/12/2025",
+        "source_rate_text": "3.75",
+        "source_change_points_text": "-25",
+    }
+    assert records_by_effective_date["2024-09-18"] == {
+        "effective_date": "2024-09-18",
+        "policy_rate_code": "reverse_repo_rate",
+        "policy_rate_name": "Reverse Repo Rate",
+        "rate_percent": 5.0,
+        "source_locator": REVERSE_REPO_RATE_PAGE_LOCATOR,
+        "source_url": _page_url(REVERSE_REPO_RATE_PAGE_LOCATOR),
+        "source_publish_date_text": "18/09/2024",
+        "source_rate_text": "5",
+        "source_change_points_text": "-50",
+    }
+    assert records_by_effective_date["2022-06-15"] == {
+        "effective_date": "2022-06-15",
+        "policy_rate_code": "reverse_repo_rate",
+        "policy_rate_name": "Reverse Repo Rate",
+        "rate_percent": 1.75,
+        "source_locator": REVERSE_REPO_RATE_PAGE_LOCATOR,
+        "source_url": _page_url(REVERSE_REPO_RATE_PAGE_LOCATOR),
+        "source_publish_date_text": "15/06/2022",
+        "source_rate_text": "1.75",
         "source_change_points_text": "50",
     }
