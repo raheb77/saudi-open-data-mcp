@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import subprocess
+import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -11,6 +15,66 @@ from pathlib import Path
 from typing import Any
 
 from saudi_open_data_mcp.tools.query import DatasetQueryResult
+
+PDF_TEXT_RENDERER_DISABLE_ENV = "SAUDI_OPEN_DATA_MCP_DISABLE_SYSTEM_PDF_RENDERER"
+_PDF_SECTION_LABELS = {
+    "document_title": "تصدير استعلام Saudi Open Data MCP / Saudi Open Data MCP Query Export",
+    "dataset_source_section": "البيانات والمصدر / Dataset & Source",
+    "result_context_section": "سياق النتيجة / Result Context",
+    "degraded_context_section": "سياق التقييد / Degraded Context",
+    "failure_details_section": "تفاصيل الإخفاق / Failure Details",
+    "notes_section": "ملاحظات / قيود / Notes / Limitations",
+    "records_label": "السجلات / Records",
+}
+_PDF_METADATA_LABELS = {
+    "dataset_id": "معرّف مجموعة البيانات / Dataset ID",
+    "source": "المصدر / Source",
+    "exported_at": "وقت التصدير (UTC) / Exported At (UTC)",
+    "query_status": "حالة الاستعلام / Result Status",
+    "coverage_status": "حالة التغطية / Coverage Status",
+    "freshness_status": "حداثة اللقطة / Freshness Status",
+    "data_origin": "أصل البيانات / Data Origin",
+    "matched_record_count": "السجلات المطابقة / Matched Records",
+    "total_records_before_filter": "الإجمالي قبل التصفية / Total Before Filter",
+    "limit": "الحد / Limit",
+    "applied_filters_json": "المرشحات المطبقة / Applied Filters",
+    "degradation_reason": "سبب التقييد / Degradation Reason",
+    "failure_stage": "مرحلة الإخفاق / Failure Stage",
+    "failure_type": "نوع الإخفاق / Failure Type",
+    "failure_message": "رسالة الإخفاق / Failure Message",
+}
+_PDF_RECORD_FIELD_LABELS = {
+    "observation_quarter": "ربع الملاحظة / Observation Quarter [observation_quarter]",
+    "observation_month": "شهر الملاحظة / Observation Month [observation_month]",
+    "fiscal_series_code": "رمز السلسلة المالية / Fiscal Series Code [fiscal_series_code]",
+    "fiscal_series_name": "اسم السلسلة المالية / Fiscal Series Name [fiscal_series_name]",
+    "gdp_series_code": "رمز سلسلة الناتج / GDP Series Code [gdp_series_code]",
+    "gdp_series_name": "اسم سلسلة الناتج / GDP Series Name [gdp_series_name]",
+    "labor_series_code": "رمز سلسلة العمل / Labor Series Code [labor_series_code]",
+    "labor_series_name": "اسم سلسلة العمل / Labor Series Name [labor_series_name]",
+    "value_sar_bn": "القيمة بمليار ريال / Value (SAR bn) [value_sar_bn]",
+    "value_percent": "القيمة المئوية / Value (%) [value_percent]",
+    "release_date": "تاريخ الإصدار / Release Date [release_date]",
+    "week_start_date": "بداية الأسبوع / Week Start Date [week_start_date]",
+    "week_end_date": "نهاية الأسبوع / Week End Date [week_end_date]",
+    "transaction_count": "عدد العمليات / Transaction Count [transaction_count]",
+    "transaction_value_sar": (
+        "قيمة العمليات بالريال / Transaction Value (SAR) [transaction_value_sar]"
+    ),
+    "average_ticket_sar": "متوسط العملية بالريال / Average Ticket (SAR) [average_ticket_sar]",
+    "as_of_date": "تاريخ السريان / As-of Date [as_of_date]",
+    "currency_code": "رمز العملة / Currency Code [currency_code]",
+    "currency_name": "اسم العملة / Currency Name [currency_name]",
+    "quote_currency_code": "رمز عملة التسعير / Quote Currency Code [quote_currency_code]",
+    "quote_currency_name": "اسم عملة التسعير / Quote Currency Name [quote_currency_name]",
+    "closing_rate_sar": "سعر الإقفال بالريال / Closing Rate (SAR) [closing_rate_sar]",
+    "effective_date": "التاريخ الفعلي / Effective Date [effective_date]",
+    "policy_rate_code": "رمز سعر السياسة / Policy Rate Code [policy_rate_code]",
+    "policy_rate_name": "اسم سعر السياسة / Policy Rate Name [policy_rate_name]",
+    "rate_percent": "السعر المئوي / Rate (%) [rate_percent]",
+    "source_release_title": "عنوان الإصدار / Source Release Title [source_release_title]",
+    "source_summary_text": "ملخص المصدر / Source Summary [source_summary_text]",
+}
 
 
 class ExportArtifactFormat(StrEnum):
@@ -238,38 +302,62 @@ def _build_pdf_lines(
 
     semantics = _load_export_semantics()
     pdf = semantics["pdf"]
+    dataset_id_label = _pdf_metadata_label("dataset_id", pdf["labels"]["dataset_id"])
+    source_label = _pdf_metadata_label("source", pdf["labels"]["source"])
+    exported_at_label = _pdf_metadata_label("exported_at", pdf["labels"]["exported_at"])
+    query_status_label = _pdf_metadata_label(
+        "query_status", pdf["labels"]["query_status"]
+    )
+    coverage_status_label = _pdf_metadata_label(
+        "coverage_status", pdf["labels"]["coverage_status"]
+    )
+    freshness_status_label = _pdf_metadata_label(
+        "freshness_status", pdf["labels"]["freshness_status"]
+    )
+    data_origin_label = _pdf_metadata_label("data_origin", pdf["labels"]["data_origin"])
+    matched_record_count_label = _pdf_metadata_label(
+        "matched_record_count", pdf["labels"]["matched_record_count"]
+    )
+    total_before_filter_label = _pdf_metadata_label(
+        "total_records_before_filter",
+        pdf["labels"]["total_records_before_filter"],
+    )
+    limit_label = _pdf_metadata_label("limit", pdf["labels"]["limit"])
+    applied_filters_label = _pdf_metadata_label(
+        "applied_filters_json", pdf["labels"]["applied_filters_json"]
+    )
     lines = [
-        pdf["document_title"],
+        _pdf_section_label("document_title", pdf["document_title"]),
         "=" * 32,
         "",
-        pdf["dataset_source_section"],
-        f'{pdf["labels"]["dataset_id"]}: {context.dataset_id}',
-        f'{pdf["labels"]["source"]}: {_source_display_label(context.source)}',
+        _pdf_section_label("dataset_source_section", pdf["dataset_source_section"]),
+        f"{dataset_id_label}: {context.dataset_id}",
+        f"{source_label}: {_source_display_label(context.source)}",
         "",
-        pdf["result_context_section"],
-        f'{pdf["labels"]["exported_at"]}: {context.exported_at}',
-        f'{pdf["labels"]["query_status"]}: {context.query_status}',
-        f'{pdf["labels"]["coverage_status"]}: {context.coverage_status}',
-        f'{pdf["labels"]["freshness_status"]}: {_display_value(context.freshness_status)}',
-        f'{pdf["labels"]["data_origin"]}: {_display_value(context.data_origin)}',
-        f'{pdf["labels"]["matched_record_count"]}: {context.matched_record_count}',
-        (
-            f'{pdf["labels"]["total_records_before_filter"]}: '
-            f'{_display_value(context.total_records_before_filter)}'
-        ),
-        f'{pdf["labels"]["limit"]}: {_display_value(context.limit)}',
-        (
-            f'{pdf["labels"]["applied_filters_json"]}: '
-            f'{_applied_filters_display(context.applied_filters_json)}'
-        ),
+        _pdf_section_label("result_context_section", pdf["result_context_section"]),
+        f"{exported_at_label}: {context.exported_at}",
+        f"{query_status_label}: {context.query_status}",
+        f"{coverage_status_label}: {context.coverage_status}",
+        f"{freshness_status_label}: {_display_value(context.freshness_status)}",
+        f"{data_origin_label}: {_display_value(context.data_origin)}",
+        f"{matched_record_count_label}: {context.matched_record_count}",
+        f"{total_before_filter_label}: {_display_value(context.total_records_before_filter)}",
+        f"{limit_label}: {_display_value(context.limit)}",
+        f"{applied_filters_label}: {_applied_filters_display(context.applied_filters_json)}",
     ]
 
     if context.degradation_reason is not None:
+        degradation_reason_label = _pdf_metadata_label(
+            "degradation_reason",
+            pdf["labels"]["degradation_reason"],
+        )
         lines.extend(
             [
                 "",
-                pdf["degraded_context_section"],
-                f'{pdf["labels"]["degradation_reason"]}: {context.degradation_reason}',
+                _pdf_section_label(
+                    "degraded_context_section", pdf["degraded_context_section"]
+                ),
+                f"{degradation_reason_label}: {context.degradation_reason}",
             ]
         )
 
@@ -278,29 +366,50 @@ def _build_pdf_lines(
         for item in (context.failure_stage, context.failure_type, context.failure_message)
     ):
         lines.append("")
-        lines.append(pdf["failure_details_section"])
+        lines.append(
+            _pdf_section_label("failure_details_section", pdf["failure_details_section"])
+        )
         if context.failure_stage is not None:
-            lines.append(f'{pdf["labels"]["failure_stage"]}: {context.failure_stage}')
+            lines.append(
+                f'{_pdf_metadata_label("failure_stage", pdf["labels"]["failure_stage"])}: '
+                f"{context.failure_stage}"
+            )
         if context.failure_type is not None:
-            lines.append(f'{pdf["labels"]["failure_type"]}: {context.failure_type}')
+            lines.append(
+                f'{_pdf_metadata_label("failure_type", pdf["labels"]["failure_type"])}: '
+                f"{context.failure_type}"
+            )
         if context.failure_message is not None:
-            lines.append(f'{pdf["labels"]["failure_message"]}: {context.failure_message}')
+            lines.append(
+                f'{_pdf_metadata_label("failure_message", pdf["labels"]["failure_message"])}: '
+                f"{context.failure_message}"
+            )
 
     if context.notes:
-        lines.extend(["", pdf["notes_section"]])
+        lines.extend(["", _pdf_section_label("notes_section", pdf["notes_section"])])
         lines.extend(f"- {note}" for note in context.notes)
 
     if result.matched_records:
         columns = _collect_record_columns(result)
         total_records = len(result.matched_records)
-        lines.extend(["", f'{pdf["records_label"]} ({total_records})'])
+        lines.extend(
+            [
+                "",
+                f'{_pdf_section_label("records_label", pdf["records_label"])} '
+                f"({total_records})",
+            ]
+        )
         for display_index, record in enumerate(result.matched_records, start=1):
-            lines.append(f"{display_index}. Record {display_index} of {total_records}")
+            lines.append(
+                f"{display_index}. "
+                f"السجل {display_index} من {total_records} / "
+                f"Record {display_index} of {total_records}"
+            )
             for column in columns:
                 if column in record.fields:
                     lines.append(
                         "   - "
-                        f"{_record_field_label(column)}: "
+                        f"{_pdf_record_field_label(column)}: "
                         f"{_display_value(record.fields.get(column))}"
                     )
             lines.append("")
@@ -309,7 +418,46 @@ def _build_pdf_lines(
 
 
 def _render_pdf_document(lines: list[str]) -> bytes:
-    """Render line-oriented content into a minimal multi-page PDF."""
+    """Render line-oriented content into a PDF with Arabic-safe fallback handling."""
+
+    system_rendered = _render_pdf_document_with_system_renderer(lines)
+    if system_rendered is not None:
+        return system_rendered
+    return _render_legacy_pdf_document(lines)
+
+
+def _render_pdf_document_with_system_renderer(lines: list[str]) -> bytes | None:
+    """Render PDF using a UTF-aware system renderer when available."""
+
+    if os.environ.get(PDF_TEXT_RENDERER_DISABLE_ENV) == "1":
+        return None
+
+    renderer_path = shutil.which("cupsfilter")
+    if renderer_path is None:
+        return None
+
+    document_text = "\n".join(lines) + "\n"
+    with tempfile.TemporaryDirectory(prefix="saudi-open-data-pdf-") as temp_dir:
+        input_path = Path(temp_dir) / "query-export.txt"
+        input_path.write_text(document_text, encoding="utf-8")
+        result = subprocess.run(
+            [renderer_path, "-m", "application/pdf", str(input_path)],
+            capture_output=True,
+            check=False,
+            env={
+                **os.environ,
+                "CHARSET": "utf-8",
+                "LANG": os.environ.get("LANG", "en_US.UTF-8"),
+            },
+        )
+
+    if result.returncode != 0 or not result.stdout.startswith(b"%PDF"):
+        return None
+    return result.stdout
+
+
+def _render_legacy_pdf_document(lines: list[str]) -> bytes:
+    """Render line-oriented content into the legacy minimal multi-page PDF."""
 
     wrapped_lines: list[str] = []
     for line in lines:
@@ -446,6 +594,24 @@ def _record_field_label(field_name: str) -> str:
     if field_name in field_labels:
         return field_labels[field_name]
     return f"{field_name.replace('_', ' ').title()} [{field_name}]"
+
+
+def _pdf_section_label(key: str, fallback: str) -> str:
+    """Render an Arabic-first PDF section heading without losing English meaning."""
+
+    return _PDF_SECTION_LABELS.get(key, fallback)
+
+
+def _pdf_metadata_label(key: str, fallback: str) -> str:
+    """Render an Arabic-first PDF metadata label without losing English meaning."""
+
+    return _PDF_METADATA_LABELS.get(key, fallback)
+
+
+def _pdf_record_field_label(field_name: str) -> str:
+    """Render Arabic-first PDF field labels for common canonical fields."""
+
+    return _PDF_RECORD_FIELD_LABELS.get(field_name, _record_field_label(field_name))
 
 
 def _metadata_field_value(context: QueryExportContext, field_name: str) -> Any:
