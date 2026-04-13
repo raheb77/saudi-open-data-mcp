@@ -15,6 +15,7 @@ import type {
   DatasetCatalogEntry,
   DatasetHealthLookupResult,
   DatasetQueryResult,
+  ObservationRecencyAssessment,
   QueryFailure,
   SourceName,
 } from "../types/core";
@@ -90,6 +91,7 @@ function makeQueryResult(
   source: SourceName,
   status: DatasetQueryResult["status"] = "success",
   failure: QueryFailure | null = null,
+  observationRecency: ObservationRecencyAssessment | null = null,
 ): DatasetQueryResult {
   const coverageStatus =
     status === "success"
@@ -108,6 +110,7 @@ function makeQueryResult(
     total_records_before_filter: status === "success" ? 1 : null,
     failure_stage: failure?.stage ?? null,
     degradation_reason: null,
+    observation_recency: observationRecency,
     matched_records:
       status === "success"
         ? [
@@ -301,6 +304,86 @@ describe("QueryPage", () => {
     expect(
       within(exportControls).getByRole("button", { name: ar.query.export }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps observation recency visible and distinct from snapshot freshness", async () => {
+    listDatasetsMock.mockResolvedValue([
+      makeCatalogEntry(
+        "stats-gov-sa-cpi-headline-monthly",
+        "stats-gov-sa",
+        "مؤشر أسعار المستهلك",
+      ),
+    ]);
+    getDatasetHealthResultMock.mockResolvedValue(
+      makeHealthResult("stats-gov-sa-cpi-headline-monthly", "stats-gov-sa"),
+    );
+    getDatasetQueryResultMock.mockResolvedValue(
+      makeQueryResult(
+        "stats-gov-sa-cpi-headline-monthly",
+        "stats-gov-sa",
+        "success",
+        null,
+        {
+          latest_observation: "2025-12",
+          latest_observation_field: "observation_month",
+          status: "stale",
+          warning:
+            "latest observation 2025-12 is materially behind the expected monthly recency window",
+        },
+      ),
+    );
+
+    renderQueryPage("/query?dataset=stats-gov-sa-cpi-headline-monthly");
+
+    const summary = await screen.findByTestId("query-result-summary");
+    const recencyPanel = within(summary).getByTestId("query-observation-recency");
+
+    expect(
+      within(recencyPanel).getByText(ar.query.observationRecency.title),
+    ).toBeInTheDocument();
+    expect(within(recencyPanel).getByText("2025-12")).toBeInTheDocument();
+    expect(
+      within(recencyPanel).getByText(ar.state.observationStale),
+    ).toBeInTheDocument();
+    expect(within(recencyPanel).getByText("شهر الرصد")).toBeInTheDocument();
+    expect(within(recencyPanel).getByText("observation_month")).toBeInTheDocument();
+    expect(
+      within(recencyPanel).getByText(
+        "latest observation 2025-12 is materially behind the expected monthly recency window",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("metadata-strip")).toHaveTextContent(ar.state.fresh);
+  });
+
+  it("shows a not-applicable observation recency state without a warning block", async () => {
+    listDatasetsMock.mockResolvedValue([
+      makeCatalogEntry("sama-repo-rate", "sama", "معدل إعادة الشراء"),
+    ]);
+    getDatasetHealthResultMock.mockResolvedValue(
+      makeHealthResult("sama-repo-rate", "sama"),
+    );
+    getDatasetQueryResultMock.mockResolvedValue(
+      makeQueryResult("sama-repo-rate", "sama", "success", null, {
+        latest_observation: "2025-12-10",
+        latest_observation_field: "effective_date",
+        status: "not_applicable",
+        warning: null,
+      }),
+    );
+
+    renderQueryPage("/query?dataset=sama-repo-rate");
+
+    const summary = await screen.findByTestId("query-result-summary");
+    const recencyPanel = within(summary).getByTestId("query-observation-recency");
+
+    expect(within(recencyPanel).getByText("2025-12-10")).toBeInTheDocument();
+    expect(
+      within(recencyPanel).getByText(ar.state.observationNotApplicable),
+    ).toBeInTheDocument();
+    expect(within(recencyPanel).getByText("effective_date")).toBeInTheDocument();
+    expect(
+      within(recencyPanel).queryByTestId("query-observation-recency-warning"),
+    ).not.toBeInTheDocument();
   });
 
   it("surfaces a validation-stage query failure as an explicit page error state", async () => {

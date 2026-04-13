@@ -3,6 +3,7 @@ import type {
   DatasetCoverageStatus,
   DatasetHealthStatus,
   DatasetQueryStatus,
+  ObservationRecencyStatus,
   PreviewStatus,
   ResultDataOrigin,
   SnapshotFreshnessStatus,
@@ -115,4 +116,21 @@ export function CoverageBadge({
   };
   const entry = map[status];
   return <StatusBadge label={entry.label} tone={entry.tone} technical={status} />;
+}
+
+export function ObservationRecencyBadge({
+  status,
+}: {
+  status: ObservationRecencyStatus;
+}) {
+  const map: Record<ObservationRecencyStatus, { label: string; tone: Tone }> = {
+    current: { label: ar.state.observationCurrent, tone: "ok" },
+    stale: { label: ar.state.observationStale, tone: "warn" },
+    not_applicable: {
+      label: ar.state.observationNotApplicable,
+      tone: "neutral",
+    },
+  };
+  const entry = map[status];
+  return <StatusBadge label={entry.label} tone={entry.tone} />;
 }

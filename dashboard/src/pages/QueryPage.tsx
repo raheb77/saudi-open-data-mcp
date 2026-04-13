@@ -8,6 +8,7 @@ import {
 } from "../components/FilterForm";
 import { MetadataStrip } from "../components/MetadataStrip";
 import { ResultTable } from "../components/ResultTable";
+import { ObservationRecencyBadge } from "../components/StatusBadge";
 import {
   DegradedState,
   EmptyState,
@@ -36,6 +37,7 @@ import type {
   DatasetCatalogEntry,
   DatasetHealthLookupResult,
   DatasetQueryResult,
+  ObservationRecencyAssessment,
   QueryFilterValue,
 } from "../types/core";
 
@@ -446,6 +448,10 @@ function QueryResultSummary({
           />
         </div>
 
+        {result.observation_recency && (
+          <ObservationRecencyPanel assessment={result.observation_recency} />
+        )}
+
         <div className="flex flex-col gap-2 rounded-lg border border-ink-200 bg-ink-50 px-3 py-3">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-semibold text-ink-800">
@@ -527,6 +533,135 @@ function QueryResultSummary({
       </div>
     </section>
   );
+}
+
+function ObservationRecencyPanel({
+  assessment,
+}: {
+  assessment: ObservationRecencyAssessment;
+}) {
+  const latestObservationFieldLabel =
+    FIELD_LABELS[assessment.latest_observation_field] ??
+    assessment.latest_observation_field;
+
+  const narrative = getObservationRecencyNarrative(assessment.status);
+  const toneClass = getObservationRecencyToneClass(assessment.status);
+
+  return (
+    <section
+      className={[
+        "flex flex-col gap-3 rounded-lg border px-3 py-3",
+        toneClass,
+      ].join(" ")}
+      data-testid="query-observation-recency"
+    >
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="flex min-w-0 flex-col gap-1">
+            <h4 className="text-sm font-semibold text-ink-900">
+              {ar.query.observationRecency.title}
+            </h4>
+            <p className="text-xs leading-relaxed text-ink-700">
+              {ar.query.observationRecency.body}
+            </p>
+          </div>
+          <ObservationRecencyBadge status={assessment.status} />
+        </div>
+        <p className="text-xs leading-relaxed text-ink-700">{narrative}</p>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <ObservationRecencyFact
+          label={ar.query.observationRecency.latestObservation}
+          value={assessment.latest_observation}
+          technical={null}
+          valueDirection="ltr"
+        />
+        <ObservationRecencyFact
+          label={ar.query.observationRecency.basedOnField}
+          value={latestObservationFieldLabel}
+          technical={assessment.latest_observation_field}
+          valueDirection="auto"
+        />
+      </div>
+
+      {assessment.warning && (
+        <div
+          className="flex flex-col gap-1 rounded-lg border border-amber-200 bg-white/80 px-3 py-3"
+          data-testid="query-observation-recency-warning"
+        >
+          <p className="text-xs font-semibold text-ink-900">
+            {ar.query.observationRecency.warningTitle}
+          </p>
+          <p className="text-xs leading-relaxed text-ink-700">
+            {assessment.warning}
+          </p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ObservationRecencyFact({
+  label,
+  value,
+  technical,
+  valueDirection,
+}: {
+  label: string;
+  value: string;
+  technical: string | null;
+  valueDirection: "auto" | "ltr";
+}) {
+  const shouldShowTechnical = technical !== null && technical !== value;
+
+  return (
+    <div className="flex flex-col gap-1 rounded-lg border border-white/80 bg-white/70 px-3 py-3">
+      <span className="text-[0.72rem] font-medium text-ink-600">{label}</span>
+      <span
+        className={[
+          "text-base font-semibold text-ink-900",
+          valueDirection === "ltr" ? "num-latn" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        dir={valueDirection}
+      >
+        {value}
+      </span>
+      {shouldShowTechnical && (
+        <span className="id-mono text-[0.7rem] text-ink-500" dir="ltr">
+          {technical}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function getObservationRecencyToneClass(
+  status: ObservationRecencyAssessment["status"],
+): string {
+  switch (status) {
+    case "current":
+      return "border-emerald-200 bg-emerald-50/60";
+    case "stale":
+      return "border-amber-200 bg-amber-50/70";
+    case "not_applicable":
+      return "border-slate-200 bg-slate-50";
+  }
+}
+
+function getObservationRecencyNarrative(
+  status: ObservationRecencyAssessment["status"],
+): string {
+  switch (status) {
+    case "current":
+      return ar.query.observationRecency.narratives.current;
+    case "stale":
+      return ar.query.observationRecency.narratives.stale;
+    case "not_applicable":
+      return ar.query.observationRecency.narratives.notApplicable;
+  }
 }
 
 function SummaryStatCard({
