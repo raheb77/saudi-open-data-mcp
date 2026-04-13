@@ -48,8 +48,7 @@ export function DatasetCard({ catalog, preview, health }: DatasetCardProps) {
       </header>
 
       <CoverageSignal
-        previewStatus={preview.status}
-        previewLimitations={preview.limitations}
+        coverageStatus={preview.coverage_status}
       />
 
       <DatasetStateOverview

@@ -54,6 +54,7 @@ function makeCatalogEntry(
     title,
     update_frequency: "weekly",
     health_status: "healthy",
+    coverage_status: "queryable",
   };
 }
 
@@ -66,6 +67,7 @@ function makeHealthResult(
     status: "found",
     source,
     health_status: "healthy",
+    coverage_status: "queryable",
     schema_version: "1.0.0",
     caveats: [],
     known_issues: [],

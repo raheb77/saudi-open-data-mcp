@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from saudi_open_data_mcp.observability import log_audit_event
 from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
     DatasetDescriptor,
     DatasetHealthStatus,
     NonEmptyText,
@@ -33,6 +34,7 @@ class DatasetHealthLookupResult(BaseModel):
     dataset_id: NonEmptyText
     status: Literal["found", "missing"]
     health_status: DatasetHealthStatus | None = None
+    coverage_status: DatasetCoverageStatus | None = None
     schema_version: SchemaVersion | None = None
     caveats: tuple[RegistryNote, ...] = Field(default_factory=tuple)
     known_issues: tuple[RegistryNote, ...] = Field(default_factory=tuple)
@@ -43,12 +45,16 @@ class DatasetHealthLookupResult(BaseModel):
         if self.status == "found":
             if self.health_status is None:
                 raise ValueError("health_status must be present when status is 'found'")
+            if self.coverage_status is None:
+                raise ValueError("coverage_status must be present when status is 'found'")
             if self.schema_version is None:
                 raise ValueError("schema_version must be present when status is 'found'")
             return self
 
         if self.health_status is not None:
             raise ValueError("health_status must be absent when status is 'missing'")
+        if self.coverage_status is not None:
+            raise ValueError("coverage_status must be absent when status is 'missing'")
         if self.schema_version is not None:
             raise ValueError("schema_version must be absent when status is 'missing'")
         if self.caveats:
@@ -71,6 +77,7 @@ class DatasetHealthLookupResult(BaseModel):
         *,
         dataset_id: str,
         health_status: DatasetHealthStatus,
+        coverage_status: DatasetCoverageStatus,
         schema_version: str,
         caveats: tuple[str, ...],
         known_issues: tuple[str, ...],
@@ -82,6 +89,7 @@ class DatasetHealthLookupResult(BaseModel):
             dataset_id=dataset_id,
             status="found",
             health_status=health_status,
+            coverage_status=coverage_status,
             schema_version=schema_version,
             caveats=caveats,
             known_issues=known_issues,
@@ -149,6 +157,7 @@ class DatasetHealthTool:
         result = DatasetHealthLookupResult.found(
             dataset_id=descriptor.dataset_id,
             health_status=health_status,
+            coverage_status=descriptor.coverage_status,
             schema_version=descriptor.schema_version,
             caveats=descriptor.caveats,
             known_issues=descriptor.known_issues,
@@ -197,6 +206,11 @@ def _audit_health_result(
         health_status=(
             result.health_status.value
             if result.health_status is not None
+            else None
+        ),
+        coverage_status=(
+            result.coverage_status.value
+            if result.coverage_status is not None
             else None
         ),
         freshness_status=(

@@ -21,7 +21,11 @@ from saudi_open_data_mcp.registry.bootstrap import (
     INITIAL_DATASET_DESCRIPTORS,
     WAVE_1_HOT_SET_TIER_A_DATASET_IDS,
 )
-from saudi_open_data_mcp.registry.models import DatasetHealthStatus, HealthMetadata
+from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
+    DatasetHealthStatus,
+    HealthMetadata,
+)
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.server import create_server
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
@@ -231,6 +235,11 @@ async def test_server_registers_current_mcp_surface(
     policies_payload = json.loads(await resources["resource://policies"].read())
     assert catalog_payload["dataset_count"] == len(expected_datasets)
     assert catalog_payload["datasets"][0]["dataset_id"] == expected_datasets[0].dataset_id
+    assert catalog_payload["datasets"][0]["coverage_status"] in {
+        "queryable",
+        "limited",
+        "catalog_only",
+    }
     assert observability_payload["process_local"] is True
     assert [group["name"] for group in observability_payload["groups"]] == [
         "startup",
@@ -273,12 +282,14 @@ async def test_server_registers_current_mcp_surface(
     assert metadata_result.structured_content["status"] == "found"
     assert metadata_result.structured_content["dataset_id"] == "sama-money-supply"
     assert metadata_result.structured_content["metadata"]["title"] == "Money Supply"
+    assert metadata_result.structured_content["metadata"]["coverage_status"] == "catalog_only"
     assert "source_locator" not in metadata_result.structured_content["metadata"]
 
     health_result = await tools["dataset_health"].run({"dataset_id": "sama-money-supply"})
     assert health_result.structured_content["status"] == "found"
     assert health_result.structured_content["dataset_id"] == "sama-money-supply"
     assert health_result.structured_content["health_status"] == "unknown"
+    assert health_result.structured_content["coverage_status"] == "catalog_only"
     assert health_result.structured_content["schema_version"] == "0.1.0"
     assert health_result.structured_content["freshness"]["status"] == "missing"
     assert health_result.structured_content["freshness"]["reason"] == "no_snapshot"
@@ -384,28 +395,25 @@ async def test_server_registers_current_mcp_surface(
     preview_result = await tools["preview_dataset"].run(
         {"dataset_id": "sama-money-supply"}
     )
-    assert preview_result.structured_content["status"] == "record_derivable"
+    assert preview_result.structured_content["status"] == "limited"
     assert preview_result.structured_content["dataset_id"] == "sama-money-supply"
+    assert preview_result.structured_content["coverage_status"] == "catalog_only"
     assert preview_result.structured_content["resolution_outcome"] == "refresh_then_serve"
     assert preview_result.structured_content["data_origin"] == "live_refresh"
     assert preview_result.structured_content["freshness_status"] == "fresh"
     assert preview_result.structured_content["snapshot_modified_at"] is not None
     assert preview_result.structured_content["failure"] is None
-    assert preview_result.structured_content["limitations"] == []
-    assert preview_result.structured_content["records"] == [
-        {
-            "dataset_id": "sama-money-supply",
-            "source": "sama",
-            "record_index": 0,
-            "fields": {"period": "2026-01", "value": 1},
-        }
+    assert preview_result.structured_content["limitations"] == [
+        "dataset_registry_declares_no_current_queryable_support"
     ]
+    assert preview_result.structured_content["records"] == []
 
     data_gov_preview_result = await tools["preview_dataset"].run(
         {"dataset_id": DATA_GOV_SA_DATASET_ID}
     )
-    assert data_gov_preview_result.structured_content["status"] == "record_derivable"
+    assert data_gov_preview_result.structured_content["status"] == "limited"
     assert data_gov_preview_result.structured_content["dataset_id"] == DATA_GOV_SA_DATASET_ID
+    assert data_gov_preview_result.structured_content["coverage_status"] == "catalog_only"
     assert data_gov_preview_result.structured_content["resolution_outcome"] == (
         "refresh_then_serve"
     )
@@ -413,15 +421,10 @@ async def test_server_registers_current_mcp_surface(
     assert data_gov_preview_result.structured_content["freshness_status"] == "unknown"
     assert data_gov_preview_result.structured_content["snapshot_modified_at"] is not None
     assert data_gov_preview_result.structured_content["failure"] is None
-    assert data_gov_preview_result.structured_content["limitations"] == []
-    assert data_gov_preview_result.structured_content["records"] == [
-        {
-            "dataset_id": DATA_GOV_SA_DATASET_ID,
-            "source": "data-gov-sa",
-            "record_index": 0,
-            "fields": {"status": "single", "count": 10},
-        }
+    assert data_gov_preview_result.structured_content["limitations"] == [
+        "dataset_registry_declares_no_current_queryable_support"
     ]
+    assert data_gov_preview_result.structured_content["records"] == []
 
 
 @respx.mock
@@ -605,6 +608,7 @@ async def test_server_missing_dataset_lookup_stays_explicit(
         "dataset_id": "missing-dataset",
         "status": "missing",
         "health_status": None,
+        "coverage_status": None,
         "schema_version": None,
         "caveats": [],
         "known_issues": [],
@@ -636,6 +640,7 @@ async def test_server_missing_dataset_lookup_stays_explicit(
     assert preview_result.structured_content == {
         "dataset_id": "missing-dataset",
         "status": "missing",
+        "coverage_status": "unavailable",
         "resolution_outcome": None,
         "data_origin": None,
         "freshness_status": None,
@@ -861,6 +866,7 @@ async def test_server_preview_tool_keeps_html_preview_limited(tmp_path: Path) ->
     )
 
     assert preview_result.structured_content["status"] == "limited"
+    assert preview_result.structured_content["coverage_status"] == "catalog_only"
     assert preview_result.structured_content["resolution_outcome"] == "refresh_then_serve"
     assert preview_result.structured_content["data_origin"] == "live_refresh"
     assert preview_result.structured_content["freshness_status"] == "fresh"
@@ -896,6 +902,7 @@ async def test_server_wires_preview_through_connector_resolver(
             return DatasetPreviewResult(
                 dataset_id=dataset_id,
                 status=PreviewStatus.MISSING,
+                coverage_status=DatasetCoverageStatus.UNAVAILABLE,
             )
 
     monkeypatch.setattr(server_module, "build_default_connector_resolver", _resolver_factory)
@@ -917,6 +924,7 @@ async def test_server_wires_preview_through_connector_resolver(
     preview_result = await tools["preview_dataset"].run({"dataset_id": "missing-dataset"})
 
     assert preview_result.structured_content["status"] == "missing"
+    assert preview_result.structured_content["coverage_status"] == "unavailable"
     assert captured["connector_resolver"] is resolver_sentinel
     assert captured["source_config"].sama_base_url == "https://www.sama.gov.sa"
     assert captured["source_config"].data_gov_sa_base_url == "https://open.data.gov.sa"

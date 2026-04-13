@@ -1,12 +1,12 @@
 import { ar } from "../i18n/ar";
 import type {
+  DatasetCoverageStatus,
   DatasetHealthStatus,
   DatasetQueryStatus,
   PreviewStatus,
   ResultDataOrigin,
   SnapshotFreshnessStatus,
 } from "../types/core";
-import type { DatasetCoverageStatus } from "../lib/statePresentation";
 
 type Tone = "ok" | "warn" | "bad" | "neutral";
 

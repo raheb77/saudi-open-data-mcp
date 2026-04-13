@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from .models import DatasetDescriptor, DatasetHealthStatus, UpdateFrequency
+from .models import (
+    DatasetCoverageStatus,
+    DatasetDescriptor,
+    DatasetHealthStatus,
+    UpdateFrequency,
+)
 from .repository import RegistryRepository
 
 WAVE_1_HOT_SET_TIER_A_DATASET_IDS: tuple[str, ...] = (
@@ -35,6 +40,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.QUARTERLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.CATALOG_ONLY,
         caveats=(
             "This is a hand-curated registry entry, not a complete SAMA catalog entry.",
         ),
@@ -55,6 +61,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.QUARTERLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=(
             "This first Ministry of Finance fiscal entry normalizes one narrow "
             "headline budget-balance series from supported quarterly report PDFs "
@@ -81,6 +88,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.UNSPECIFIED,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.CATALOG_ONLY,
         caveats=(
             "This is a hand-curated registry entry, not a complete data.gov.sa catalog entry.",
         ),
@@ -101,6 +109,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=(
             "This first non-SAMA macro entry normalizes supported headline CPI release "
             "cards from the official stats.gov.sa inflation-filtered news page.",
@@ -121,6 +130,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.DAILY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=(
             "This canonical dataset normalizes the latest published closing-price rows "
             "from the official SAMA current exchange-rates page.",
@@ -139,6 +149,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=(
             "This bundled canonical dataset remains intentionally unsplit for now "
             "because the current SAMA monthly report surface publishes the core "
@@ -163,6 +174,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.QUARTERLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=(
             "This first GASTAT GDP entry normalizes supported headline real GDP "
             "release cards from the official stats.gov.sa gdp-filtered news page.",
@@ -184,6 +196,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.CATALOG_ONLY,
         caveats=(
             "This is a hand-curated registry entry, not a complete SAMA catalog entry.",
         ),
@@ -201,6 +214,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.CATALOG_ONLY,
         caveats=(
             "This is a hand-curated registry entry, not a complete SAMA catalog entry.",
             "This descriptor intentionally shares the same SAMA report locator as "
@@ -220,6 +234,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.WEEKLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=(
             "This canonical dataset normalizes supported weekly aggregate tables "
             "from the official weekly money-supply page.",
@@ -238,6 +253,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.AD_HOC,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=(
             "This canonical dataset normalizes supported published date and rate "
             "rows from the official repo-rate table on the official page.",
@@ -256,6 +272,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.WEEKLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.LIMITED,
         caveats=(
             "This first-wave Tier B entry reuses the same official POS page payload "
             "as the weekly POS hot-set entry.",
@@ -276,6 +293,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.WEEKLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=(
             "This canonical dataset normalizes supported weekly summary content "
             "from the official POS report bundle linked from the official POS page.",
@@ -296,6 +314,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.AD_HOC,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=(
             "This canonical dataset normalizes supported policy-change rows from "
             "the official reverse-repo-rate table published on the official page.",
@@ -317,6 +336,7 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.QUARTERLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=(
             "This first GASTAT labor entry normalizes supported labor-market release "
             "cards from the official stats.gov.sa unemployment-filtered news page.",

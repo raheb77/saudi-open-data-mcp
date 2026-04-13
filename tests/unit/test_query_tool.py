@@ -22,6 +22,7 @@ from saudi_open_data_mcp.normalization.sama_pos_by_city import (
     SAMA_POS_BY_CITY_JSON_REPORT_BUNDLE_LIMITATION,
 )
 from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
     DatasetDescriptor,
     DatasetHealthStatus,
     UpdateFrequency,
@@ -49,6 +50,7 @@ def _descriptor(dataset_id: str = "sama-money-supply") -> DatasetDescriptor:
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=("Publication timing may vary by release cycle.",),
         known_issues=("Historical revisions may occur.",),
     )

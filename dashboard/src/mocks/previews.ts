@@ -5,6 +5,7 @@ const MOCK_PREVIEWS: DatasetPreviewResult[] = [
   {
     dataset_id: "sama-pos-weekly",
     status: "record_derivable",
+    coverage_status: "queryable",
     resolution_outcome: "serve_local",
     data_origin: "local_snapshot",
     freshness_status: "fresh",
@@ -19,6 +20,7 @@ const MOCK_PREVIEWS: DatasetPreviewResult[] = [
   {
     dataset_id: "sama-exchange-rates-current",
     status: "record_derivable",
+    coverage_status: "queryable",
     resolution_outcome: "refresh_then_serve",
     data_origin: "live_refresh",
     freshness_status: "fresh",
@@ -33,6 +35,7 @@ const MOCK_PREVIEWS: DatasetPreviewResult[] = [
   {
     dataset_id: "sama-repo-rate",
     status: "record_derivable",
+    coverage_status: "queryable",
     resolution_outcome: "serve_local",
     data_origin: "local_snapshot",
     freshness_status: "unknown",
@@ -47,6 +50,7 @@ const MOCK_PREVIEWS: DatasetPreviewResult[] = [
   {
     dataset_id: "stats-gov-sa-cpi-headline-monthly",
     status: "limited",
+    coverage_status: "limited",
     resolution_outcome: "serve_stale_with_notice",
     data_origin: "stale_snapshot",
     freshness_status: "stale",
@@ -63,6 +67,7 @@ const MOCK_PREVIEWS: DatasetPreviewResult[] = [
   {
     dataset_id: "stats-gov-sa-real-gdp-growth-quarterly",
     status: "record_derivable",
+    coverage_status: "queryable",
     resolution_outcome: "serve_local",
     data_origin: "local_snapshot",
     freshness_status: "fresh",
@@ -77,6 +82,7 @@ const MOCK_PREVIEWS: DatasetPreviewResult[] = [
   {
     dataset_id: "mof-budget-balance-quarterly",
     status: "record_derivable",
+    coverage_status: "queryable",
     resolution_outcome: "serve_local",
     data_origin: "local_snapshot",
     freshness_status: "fresh",

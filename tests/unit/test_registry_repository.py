@@ -6,6 +6,7 @@ import sqlite3
 from pathlib import Path
 
 from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
     DatasetDescriptor,
     DatasetHealthStatus,
     HealthMetadata,
@@ -29,6 +30,7 @@ def _descriptor(
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=health_status,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=("Official source formatting may change.",),
         known_issues=("Historical revisions may occur.",),
     )
@@ -60,9 +62,10 @@ def test_repository_initialization_creates_required_tables(tmp_path: Path) -> No
         }
 
     assert "source_locator" in columns
+    assert "coverage_status" in columns
 
 
-def test_repository_initialization_adds_source_locator_to_existing_descriptor_table(
+def test_repository_initialization_adds_new_descriptor_columns_to_existing_table(
     tmp_path: Path,
 ) -> None:
     database_path = tmp_path / "registry.sqlite"

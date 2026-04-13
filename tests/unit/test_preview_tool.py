@@ -18,6 +18,7 @@ from saudi_open_data_mcp.normalization.field_mapping import (
     SNAPSHOT_INCOMPATIBLE_WITH_CURRENT_NORMALIZATION_LIMITATION,
 )
 from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
     DatasetDescriptor,
     DatasetHealthStatus,
     UpdateFrequency,
@@ -63,6 +64,7 @@ def _repository(
     dataset_id: str = DATASET_ID,
     source_locator: str = REPORT_LOCATOR,
     update_frequency: UpdateFrequency = UpdateFrequency.MONTHLY,
+    coverage_status: DatasetCoverageStatus = DatasetCoverageStatus.QUERYABLE,
 ) -> RegistryRepository:
     repository = RegistryRepository(tmp_path / "registry.sqlite")
     repository.upsert_dataset(
@@ -75,6 +77,7 @@ def _repository(
             schema_version="0.1.0",
             update_frequency=update_frequency,
             health_status=DatasetHealthStatus.UNKNOWN,
+            coverage_status=coverage_status,
             caveats=("Publication timing may vary by release cycle.",),
             known_issues=("Historical revisions may occur.",),
         )
@@ -528,6 +531,7 @@ async def test_fresh_snapshot_is_served_locally(tmp_path: Path) -> None:
 
     assert isinstance(result, DatasetPreviewResult)
     assert result.status is PreviewStatus.RECORD_DERIVABLE
+    assert result.coverage_status is DatasetCoverageStatus.QUERYABLE
     assert result.resolution_outcome is PreviewResolutionOutcome.SERVE_LOCAL
     assert result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT
     assert result.freshness_status is SnapshotFreshnessStatus.FRESH
@@ -568,6 +572,7 @@ async def test_sama_pos_weekly_fresh_snapshot_is_served_as_queryable_html_previe
     )
 
     assert result.status is PreviewStatus.RECORD_DERIVABLE
+    assert result.coverage_status is DatasetCoverageStatus.QUERYABLE
     assert result.resolution_outcome is PreviewResolutionOutcome.SERVE_LOCAL
     assert result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT
     assert result.freshness_status is SnapshotFreshnessStatus.FRESH
@@ -617,6 +622,45 @@ async def test_sama_pos_weekly_fresh_snapshot_is_served_as_queryable_report_bund
     assert result.records[-1].fields["week_end_date"] == "2026-04-04"
     assert result.records[-1].fields["transaction_count"] == 246506000
     assert result.records[-1].fields["transaction_value_sar"] == 14707441000.0
+
+
+@pytest.mark.asyncio
+async def test_sama_pos_by_city_preview_preserves_governed_limited_coverage(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(
+        tmp_path,
+        dataset_id="sama-pos-by-city",
+        source_locator="/en-US/Indices/Pages/POS.aspx",
+        update_frequency=UpdateFrequency.WEEKLY,
+        coverage_status=DatasetCoverageStatus.LIMITED,
+    )
+    store = _snapshot_store(tmp_path)
+    _write_snapshot_with_mtime(
+        store,
+        locator="/en-US/Indices/Pages/POS.aspx",
+        modified_at=datetime(2026, 4, 5, 12, 0, tzinfo=UTC),
+        body=_pos_weekly_report_bundle_json(),
+        content_type="application/json",
+    )
+    tool = DatasetPreviewTool(
+        repository,
+        SourceConnectorResolver({"sama": _ConnectorSpy([])}),
+        snapshot_store=store,
+    )
+
+    result = await tool.preview_dataset(
+        "sama-pos-by-city",
+        reference_time=datetime(2026, 4, 6, 12, 0, tzinfo=UTC),
+    )
+
+    assert result.status is PreviewStatus.LIMITED
+    assert result.coverage_status is DatasetCoverageStatus.LIMITED
+    assert result.records == ()
+    assert (
+        "sama_pos_by_city_json_requires_supported_city_table_report_bundle"
+        in result.limitations
+    )
 
 
 @pytest.mark.asyncio
@@ -729,6 +773,7 @@ async def test_sama_exchange_rates_current_fresh_snapshot_is_served_as_queryable
     )
 
     assert result.status is PreviewStatus.RECORD_DERIVABLE
+    assert result.coverage_status is DatasetCoverageStatus.QUERYABLE
     assert result.resolution_outcome is PreviewResolutionOutcome.SERVE_LOCAL
     assert result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT
     assert result.freshness_status is SnapshotFreshnessStatus.FRESH
@@ -769,6 +814,7 @@ async def test_sama_exchange_rates_current_legacy_html_snapshot_is_explicitly_li
     )
 
     assert result.status is PreviewStatus.LIMITED
+    assert result.coverage_status is DatasetCoverageStatus.LIMITED
     assert result.resolution_outcome is PreviewResolutionOutcome.SERVE_LOCAL
     assert result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT
     assert result.freshness_status is SnapshotFreshnessStatus.FRESH
@@ -1241,6 +1287,7 @@ async def test_preview_tool_returns_explicit_missing_result_for_unknown_dataset(
     result = await tool.preview_dataset("missing-dataset")
 
     assert result.status is PreviewStatus.MISSING
+    assert result.coverage_status is DatasetCoverageStatus.UNAVAILABLE
     assert result.dataset_id == "missing-dataset"
     assert result.resolution_outcome is None
     assert result.data_origin is None
@@ -1265,6 +1312,7 @@ async def test_non_connector_failures_keep_standard_string_representation(
     result = await tool.preview_dataset(DATASET_ID, reference_time=REFERENCE_TIME)
 
     assert result.status is PreviewStatus.FAILED
+    assert result.coverage_status is DatasetCoverageStatus.UNAVAILABLE
     assert result.resolution_outcome is PreviewResolutionOutcome.FAIL_CLOSED
     assert result.failure is not None
     assert result.failure.stage is PreviewFailureStage.FETCH

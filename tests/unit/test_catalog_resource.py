@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from saudi_open_data_mcp.registry.bootstrap import bootstrap_registry
 from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
     DatasetDescriptor,
     DatasetHealthStatus,
     UpdateFrequency,
@@ -31,6 +32,7 @@ def _descriptor(*, dataset_id: str, title: str) -> DatasetDescriptor:
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=("Official labeling may change.",),
         known_issues=(
             "This upstream mapping is hand-curated for v0.1 and may need revision "

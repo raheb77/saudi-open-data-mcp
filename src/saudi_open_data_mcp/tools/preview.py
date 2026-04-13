@@ -24,7 +24,11 @@ from saudi_open_data_mcp.observability import (
     log_audit_event,
     log_event,
 )
-from saudi_open_data_mcp.registry.models import DatasetDescriptor, UpdateFrequency
+from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
+    DatasetDescriptor,
+    UpdateFrequency,
+)
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.security.rate_limit import (
     InMemoryRateLimiter,
@@ -47,6 +51,9 @@ from saudi_open_data_mcp.tools.result_metadata import (
 LOGGER = get_logger(__name__)
 LOCAL_PREVIEW_MISS_NOTICE = "local preview artifact was unavailable; refreshed live instead"
 STALE_FALLBACK_NOTICE = "serving stale snapshot because live refresh failed"
+REGISTRY_COVERAGE_RESTRICTS_QUERYABLE_PREVIEW_LIMITATION = (
+    "dataset_registry_declares_no_current_queryable_support"
+)
 
 
 class PreviewStatus(StrEnum):
@@ -176,6 +183,7 @@ class DatasetPreviewResult(BaseModel):
 
     dataset_id: str
     status: PreviewStatus
+    coverage_status: DatasetCoverageStatus
     resolution_outcome: PreviewResolutionOutcome | None = None
     data_origin: PreviewDataOrigin | None = None
     freshness_status: SnapshotFreshnessStatus | None = None
@@ -190,6 +198,8 @@ class DatasetPreviewResult(BaseModel):
     @model_validator(mode="after")
     def _validate_status_consistency(self) -> Self:
         if self.status is PreviewStatus.MISSING:
+            if self.coverage_status is not DatasetCoverageStatus.UNAVAILABLE:
+                raise ValueError("missing preview results must expose unavailable coverage_status")
             if (
                 self.failure is not None
                 or self.records
@@ -258,6 +268,8 @@ class DatasetPreviewResult(BaseModel):
             )
 
         if self.status is PreviewStatus.FAILED:
+            if self.coverage_status is not DatasetCoverageStatus.UNAVAILABLE:
+                raise ValueError("failed preview results must expose unavailable coverage_status")
             if self.failure is None:
                 raise ValueError("failure details must be present when preview status is failed")
             if self.failure_stage is not self.failure.stage:
@@ -280,6 +292,13 @@ class DatasetPreviewResult(BaseModel):
                 "fallback after refresh failure"
             )
         if self.status is PreviewStatus.LIMITED:
+            if self.coverage_status not in {
+                DatasetCoverageStatus.LIMITED,
+                DatasetCoverageStatus.CATALOG_ONLY,
+            }:
+                raise ValueError(
+                    "limited preview results must expose limited or catalog_only coverage_status"
+                )
             if self.records:
                 raise ValueError("limited preview results must not include records")
             if not self.limitations:
@@ -305,6 +324,10 @@ class DatasetPreviewResult(BaseModel):
             raise ValueError(
                 "record-derivable preview results must not include degradation_reason "
                 "unless they represent stale fallback after refresh failure"
+            )
+        if self.coverage_status is not DatasetCoverageStatus.QUERYABLE:
+            raise ValueError(
+                "record-derivable preview results must expose queryable coverage_status"
             )
         if self.limitations:
             raise ValueError("record-derivable preview results must not include limitations")
@@ -394,6 +417,7 @@ class DatasetPreviewTool:
             result = DatasetPreviewResult(
                 dataset_id=requested_dataset_id,
                 status=PreviewStatus.MISSING,
+                coverage_status=DatasetCoverageStatus.UNAVAILABLE,
             )
             self._record_result(result)
             return result
@@ -579,6 +603,7 @@ class DatasetPreviewTool:
             return DatasetPreviewResult(
                 dataset_id=normalization_result.dataset_id,
                 status=PreviewStatus.FAILED,
+                coverage_status=DatasetCoverageStatus.UNAVAILABLE,
                 resolution_outcome=resolution_outcome,
                 data_origin=data_origin,
                 freshness_status=freshness.status,
@@ -600,9 +625,38 @@ class DatasetPreviewTool:
                 ),
             )
 
+        if (
+            normalization_result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
+            and descriptor.coverage_status is not DatasetCoverageStatus.QUERYABLE
+        ):
+            return DatasetPreviewResult(
+                dataset_id=normalization_result.dataset_id,
+                status=PreviewStatus.LIMITED,
+                coverage_status=_resolve_preview_coverage_status(
+                    declared_coverage_status=descriptor.coverage_status,
+                    preview_status=PreviewStatus.LIMITED,
+                ),
+                resolution_outcome=resolution_outcome,
+                data_origin=data_origin,
+                freshness_status=freshness.status,
+                failure_stage=failure_stage,
+                degradation_reason=(
+                    degradation_reason
+                    if degradation_reason is not None
+                    else ResultDegradationReason.NORMALIZATION_LIMITED
+                ),
+                snapshot_modified_at=freshness.snapshot_modified_at,
+                resolution_notice=resolution_notice,
+                limitations=(REGISTRY_COVERAGE_RESTRICTS_QUERYABLE_PREVIEW_LIMITATION,),
+            )
+
         return DatasetPreviewResult(
             dataset_id=normalization_result.dataset_id,
             status=PreviewStatus(normalization_result.status.value),
+            coverage_status=_resolve_preview_coverage_status(
+                declared_coverage_status=descriptor.coverage_status,
+                preview_status=PreviewStatus(normalization_result.status.value),
+            ),
             resolution_outcome=resolution_outcome,
             data_origin=data_origin,
             freshness_status=freshness.status,
@@ -644,6 +698,7 @@ class DatasetPreviewTool:
         return DatasetPreviewResult(
             dataset_id=dataset_id,
             status=PreviewStatus.FAILED,
+            coverage_status=DatasetCoverageStatus.UNAVAILABLE,
             failure_stage=PreviewFailureStage.LOOKUP,
             failure=PreviewFailure(
                 stage=PreviewFailureStage.LOOKUP,
@@ -663,6 +718,7 @@ class DatasetPreviewTool:
         return DatasetPreviewResult(
             dataset_id=descriptor.dataset_id,
             status=PreviewStatus.FAILED,
+            coverage_status=DatasetCoverageStatus.UNAVAILABLE,
             resolution_outcome=PreviewResolutionOutcome.FAIL_CLOSED,
             freshness_status=freshness.status,
             failure_stage=stage,
@@ -689,12 +745,14 @@ class DatasetPreviewTool:
                 logging.INFO,
                 "preview.request.missing",
                 dataset_id=result.dataset_id,
+                coverage_status=result.coverage_status.value,
             )
             log_audit_event(
                 "preview_dataset",
                 result_status=result.status.value,
                 level=audit_level,
                 dataset_id=result.dataset_id,
+                coverage_status=result.coverage_status.value,
             )
             return
 
@@ -707,6 +765,7 @@ class DatasetPreviewTool:
 
         log_fields = {
             "dataset_id": result.dataset_id,
+            "coverage_status": result.coverage_status.value,
             "resolution_outcome": (
                 result.resolution_outcome.value
                 if result.resolution_outcome is not None
@@ -743,6 +802,7 @@ class DatasetPreviewTool:
                 result_status=result.status.value,
                 level=audit_level,
                 dataset_id=result.dataset_id,
+                coverage_status=result.coverage_status.value,
                 resolution_outcome=(
                     result.resolution_outcome.value
                     if result.resolution_outcome is not None
@@ -781,6 +841,7 @@ class DatasetPreviewTool:
             result_status=result.status.value,
             level=audit_level,
             dataset_id=result.dataset_id,
+            coverage_status=result.coverage_status.value,
             resolution_outcome=(
                 result.resolution_outcome.value
                 if result.resolution_outcome is not None
@@ -863,6 +924,32 @@ def _collect_limitations(normalization_result: NormalizationResult) -> tuple[str
         raise ValueError("limited normalization result must include explicit limitations")
 
     return ()
+
+
+def _resolve_preview_coverage_status(
+    *,
+    declared_coverage_status: DatasetCoverageStatus,
+    preview_status: PreviewStatus,
+) -> DatasetCoverageStatus:
+    """Resolve effective preview coverage from governed support plus runtime outcome."""
+
+    if preview_status in {PreviewStatus.MISSING, PreviewStatus.FAILED}:
+        return DatasetCoverageStatus.UNAVAILABLE
+    if preview_status is PreviewStatus.RECORD_DERIVABLE:
+        return (
+            DatasetCoverageStatus.QUERYABLE
+            if declared_coverage_status is DatasetCoverageStatus.QUERYABLE
+            else declared_coverage_status
+        )
+    if preview_status is PreviewStatus.LIMITED:
+        return (
+            DatasetCoverageStatus.CATALOG_ONLY
+            if declared_coverage_status is DatasetCoverageStatus.CATALOG_ONLY
+            else DatasetCoverageStatus.LIMITED
+        )
+    raise ValueError(
+        f"unsupported preview status for coverage resolution: {preview_status.value}"
+    )
 
 
 def _public_failure_message(error: Exception) -> str:

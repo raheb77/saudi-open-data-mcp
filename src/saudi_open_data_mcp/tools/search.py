@@ -8,6 +8,7 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
     DatasetDescriptor,
     DatasetHealthStatus,
     NonEmptyText,
@@ -41,6 +42,7 @@ class DatasetSearchMatch(BaseModel):
     title: NonEmptyText
     update_frequency: UpdateFrequency
     health_status: DatasetHealthStatus
+    coverage_status: DatasetCoverageStatus
 
     @classmethod
     def from_descriptor(cls, descriptor: DatasetDescriptor) -> Self:
@@ -52,6 +54,7 @@ class DatasetSearchMatch(BaseModel):
             title=descriptor.title,
             update_frequency=descriptor.update_frequency,
             health_status=descriptor.health_status,
+            coverage_status=descriptor.coverage_status,
         )
 
 

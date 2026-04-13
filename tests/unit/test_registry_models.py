@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
     DatasetDescriptor,
     DatasetHealthStatus,
     HealthMetadata,
@@ -23,6 +24,7 @@ def test_dataset_descriptor_accepts_valid_metadata() -> None:
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.QUARTERLY,
         health_status=DatasetHealthStatus.HEALTHY,
+        coverage_status=DatasetCoverageStatus.CATALOG_ONLY,
         caveats=("Publication timing may vary by release cycle.",),
         known_issues=("Historical backfills may change reported totals.",),
     )
@@ -46,6 +48,7 @@ def test_dataset_descriptor_defaults_issue_collections_to_typed_empty_tuples() -
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.CATALOG_ONLY,
     )
 
     assert descriptor.caveats == ()
@@ -65,10 +68,12 @@ def test_dataset_descriptor_rejects_invalid_enum_values() -> None:
             schema_version="0.1.0",
             update_frequency="hourly",
             health_status="green",
+            coverage_status="ready",
         )
 
     assert "update_frequency" in str(exc_info.value)
     assert "health_status" in str(exc_info.value)
+    assert "coverage_status" in str(exc_info.value)
 
 
 def test_dataset_descriptor_requires_declared_fields() -> None:
@@ -80,6 +85,7 @@ def test_dataset_descriptor_requires_declared_fields() -> None:
             schema_version="0.1.0",
             update_frequency=UpdateFrequency.MONTHLY,
             health_status=DatasetHealthStatus.HEALTHY,
+            coverage_status=DatasetCoverageStatus.CATALOG_ONLY,
         )
 
     assert "source_locator" in str(exc_info.value)
@@ -97,6 +103,7 @@ def test_dataset_descriptor_rejects_invalid_schema_version() -> None:
             schema_version="latest",
             update_frequency=UpdateFrequency.QUARTERLY,
             health_status=DatasetHealthStatus.HEALTHY,
+            coverage_status=DatasetCoverageStatus.CATALOG_ONLY,
         )
 
     assert "schema_version" in str(exc_info.value)
@@ -113,6 +120,7 @@ def test_dataset_descriptor_rejects_invalid_note_values() -> None:
             schema_version="0.1.0",
             update_frequency=UpdateFrequency.MONTHLY,
             health_status=DatasetHealthStatus.DEGRADED,
+            coverage_status=DatasetCoverageStatus.LIMITED,
             caveats=("   ",),
         )
 
@@ -130,6 +138,7 @@ def test_dataset_descriptor_forbids_extra_fields() -> None:
             schema_version="0.1.0",
             update_frequency=UpdateFrequency.MONTHLY,
             health_status=DatasetHealthStatus.HEALTHY,
+            coverage_status=DatasetCoverageStatus.QUERYABLE,
             unexpected_field="not allowed",
         )
 
@@ -141,3 +150,18 @@ def test_health_metadata_uses_operational_enum() -> None:
     )
 
     assert metadata.health_status is DatasetHealthStatus.DEGRADED
+
+
+def test_dataset_descriptor_rejects_unavailable_coverage_status() -> None:
+    with pytest.raises(ValidationError, match="coverage_status"):
+        DatasetDescriptor(
+            dataset_id="sama-foreign-assets",
+            source="sama",
+            source_locator="report.aspx?cid=41",
+            title="Foreign Assets",
+            description="Official foreign assets dataset published by SAMA.",
+            schema_version="0.1.0",
+            update_frequency=UpdateFrequency.MONTHLY,
+            health_status=DatasetHealthStatus.UNKNOWN,
+            coverage_status=DatasetCoverageStatus.UNAVAILABLE,
+        )

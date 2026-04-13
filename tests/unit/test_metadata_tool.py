@@ -6,6 +6,7 @@ import ast
 from pathlib import Path
 
 from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
     DatasetDescriptor,
     DatasetHealthStatus,
     UpdateFrequency,
@@ -28,6 +29,7 @@ def _descriptor(dataset_id: str = "sama-money-supply") -> DatasetDescriptor:
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=("Publication timing may vary by release cycle.",),
         known_issues=("Historical revisions may occur.",),
     )
@@ -54,6 +56,7 @@ def test_get_dataset_metadata_returns_typed_metadata_for_valid_dataset_id(
         schema_version=descriptor.schema_version,
         update_frequency=descriptor.update_frequency,
         health_status=descriptor.health_status,
+        coverage_status=descriptor.coverage_status,
         caveats=descriptor.caveats,
         known_issues=descriptor.known_issues,
     )

@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
     DatasetDescriptor,
     DatasetHealthStatus,
     UpdateFrequency,
@@ -37,6 +38,7 @@ def _descriptor(
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=health_status,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=("Publication timing may vary by release cycle.",),
         known_issues=("Historical revisions may occur.",),
     )
@@ -67,6 +69,7 @@ def test_search_datasets_returns_typed_matches_for_known_query(tmp_path: Path) -
             title="Money Supply",
             update_frequency=UpdateFrequency.MONTHLY,
             health_status=DatasetHealthStatus.HEALTHY,
+            coverage_status=DatasetCoverageStatus.QUERYABLE,
         ),
     )
 
@@ -155,6 +158,7 @@ def test_search_result_rejects_no_results_status_with_non_empty_matches() -> Non
                     title="Money Supply",
                     update_frequency=UpdateFrequency.MONTHLY,
                     health_status=DatasetHealthStatus.UNKNOWN,
+                    coverage_status=DatasetCoverageStatus.QUERYABLE,
                 ),
             ),
         )

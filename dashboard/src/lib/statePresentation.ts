@@ -1,21 +1,11 @@
 import { ar } from "../i18n/ar";
 import type {
+  DatasetCoverageStatus,
   DatasetHealthStatus,
   PreviewStatus,
   ResultDataOrigin,
   SnapshotFreshnessStatus,
 } from "../types/core";
-
-export type DatasetCoverageStatus =
-  | "queryable"
-  | "limited"
-  | "catalog_only"
-  | "unavailable";
-
-const GENERIC_CATALOG_ONLY_LIMITATIONS = new Set([
-  "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
-  "json_body_requires_supported_object_list_shape_for_record_normalization",
-]);
 
 export function getPreviewStatusNarrative(status: PreviewStatus): string {
   switch (status) {
@@ -73,33 +63,6 @@ export function getDataOriginNarrative(origin: ResultDataOrigin): string {
   }
 }
 
-export function getDatasetCoverageStatus({
-  previewStatus,
-  previewLimitations = [],
-  previewErrorMessage = null,
-}: {
-  previewStatus?: PreviewStatus | null;
-  previewLimitations?: string[];
-  previewErrorMessage?: string | null;
-}): DatasetCoverageStatus {
-  if (previewErrorMessage) {
-    return "unavailable";
-  }
-
-  switch (previewStatus) {
-    case "record_derivable":
-      return "queryable";
-    case "limited":
-      return areCatalogOnlyLimitations(previewLimitations)
-        ? "catalog_only"
-        : "limited";
-    case "failed":
-    case "missing":
-    default:
-      return "unavailable";
-  }
-}
-
 export function getCoverageNarrative(status: DatasetCoverageStatus): string {
   switch (status) {
     case "queryable":
@@ -144,13 +107,4 @@ export function getLimitedPracticalMeaning(limitations: string[]): string {
   }
 
   return ar.limited.practicalMeanings.generic;
-}
-
-function areCatalogOnlyLimitations(limitations: string[]): boolean {
-  return (
-    limitations.length > 0 &&
-    limitations.every((limitation) =>
-      GENERIC_CATALOG_ONLY_LIMITATIONS.has(limitation),
-    )
-  );
 }

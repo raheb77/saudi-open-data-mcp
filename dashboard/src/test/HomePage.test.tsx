@@ -33,6 +33,7 @@ const FEATURED_DATASETS: DatasetCatalogEntry[] = [
     title: "نقاط البيع الأسبوعية",
     update_frequency: "weekly",
     health_status: "healthy",
+    coverage_status: "queryable",
   },
   {
     dataset_id: FEATURED_DATASET_IDS[1],
@@ -40,6 +41,7 @@ const FEATURED_DATASETS: DatasetCatalogEntry[] = [
     title: "أسعار الصرف الحالية",
     update_frequency: "daily",
     health_status: "healthy",
+    coverage_status: "queryable",
   },
   {
     dataset_id: FEATURED_DATASET_IDS[2],
@@ -47,6 +49,7 @@ const FEATURED_DATASETS: DatasetCatalogEntry[] = [
     title: "سعر إعادة الشراء الرسمي",
     update_frequency: "daily",
     health_status: "healthy",
+    coverage_status: "queryable",
   },
   {
     dataset_id: FEATURED_DATASET_IDS[3],
@@ -54,6 +57,7 @@ const FEATURED_DATASETS: DatasetCatalogEntry[] = [
     title: "التضخم العام لمؤشر أسعار المستهلك شهريًا",
     update_frequency: "monthly",
     health_status: "healthy",
+    coverage_status: "queryable",
   },
   {
     dataset_id: FEATURED_DATASET_IDS[4],
@@ -61,6 +65,7 @@ const FEATURED_DATASETS: DatasetCatalogEntry[] = [
     title: "نمو الناتج المحلي الحقيقي فصليًا",
     update_frequency: "quarterly",
     health_status: "healthy",
+    coverage_status: "queryable",
   },
   {
     dataset_id: FEATURED_DATASET_IDS[5],
@@ -68,6 +73,7 @@ const FEATURED_DATASETS: DatasetCatalogEntry[] = [
     title: "الرصيد المالي الفصلي",
     update_frequency: "quarterly",
     health_status: "healthy",
+    coverage_status: "queryable",
   },
 ];
 
@@ -78,6 +84,7 @@ function makePreviewResult(
   return {
     dataset_id: datasetId,
     status: "record_derivable",
+    coverage_status: "queryable",
     resolution_outcome: "serve_local",
     data_origin: "local_snapshot",
     freshness_status: "fresh",
@@ -107,6 +114,7 @@ function makeHealthResult(
     status: "found",
     source,
     health_status: "healthy",
+    coverage_status: "queryable",
     schema_version: "1.0.0",
     caveats: [],
     known_issues: [],
@@ -175,6 +183,7 @@ describe("HomePage", () => {
         return {
           dataset_id: datasetId,
           status: "limited",
+          coverage_status: "catalog_only",
           resolution_outcome: "serve_local",
           data_origin: "local_snapshot",
           freshness_status: "fresh",

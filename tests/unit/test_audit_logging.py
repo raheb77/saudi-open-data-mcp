@@ -18,6 +18,7 @@ from saudi_open_data_mcp.registry.bootstrap import (
     bootstrap_registry,
 )
 from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
     DatasetDescriptor,
     DatasetHealthStatus,
     UpdateFrequency,
@@ -82,6 +83,7 @@ def _repository(tmp_path: Path) -> RegistryRepository:
             schema_version="0.1.0",
             update_frequency=UpdateFrequency.MONTHLY,
             health_status=DatasetHealthStatus.UNKNOWN,
+            coverage_status=DatasetCoverageStatus.QUERYABLE,
             caveats=("Publication timing may vary by release cycle.",),
             known_issues=("Historical revisions may occur.",),
         )

@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 from saudi_open_data_mcp.observability import log_audit_event
 from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
     DatasetDescriptor,
     DatasetHealthStatus,
     NonEmptyText,
@@ -31,6 +32,7 @@ class PublicDatasetMetadata(BaseModel):
     schema_version: SchemaVersion
     update_frequency: UpdateFrequency
     health_status: DatasetHealthStatus
+    coverage_status: DatasetCoverageStatus
     caveats: tuple[RegistryNote, ...]
     known_issues: tuple[RegistryNote, ...]
 
@@ -46,6 +48,7 @@ class PublicDatasetMetadata(BaseModel):
             schema_version=descriptor.schema_version,
             update_frequency=descriptor.update_frequency,
             health_status=descriptor.health_status,
+            coverage_status=descriptor.coverage_status,
             caveats=descriptor.caveats,
             known_issues=descriptor.known_issues,
         )

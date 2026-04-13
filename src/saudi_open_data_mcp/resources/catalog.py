@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from pydantic import BaseModel, ConfigDict, Field
 
 from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
     DatasetDescriptor,
     DatasetHealthStatus,
     NonEmptyText,
@@ -25,6 +26,7 @@ class CatalogDatasetSummary(BaseModel):
     title: NonEmptyText
     update_frequency: UpdateFrequency
     health_status: DatasetHealthStatus
+    coverage_status: DatasetCoverageStatus
 
     @classmethod
     def from_descriptor(cls, descriptor: DatasetDescriptor) -> CatalogDatasetSummary:
@@ -36,6 +38,7 @@ class CatalogDatasetSummary(BaseModel):
             title=descriptor.title,
             update_frequency=descriptor.update_frequency,
             health_status=descriptor.health_status,
+            coverage_status=descriptor.coverage_status,
         )
 
 

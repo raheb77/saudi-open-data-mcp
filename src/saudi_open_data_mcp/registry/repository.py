@@ -32,6 +32,7 @@ class RegistryRepository:
                     schema_version TEXT NOT NULL,
                     update_frequency TEXT NOT NULL,
                     health_status TEXT NOT NULL,
+                    coverage_status TEXT NOT NULL,
                     caveats_json TEXT NOT NULL,
                     known_issues_json TEXT NOT NULL
                 );
@@ -59,9 +60,10 @@ class RegistryRepository:
                     schema_version,
                     update_frequency,
                     health_status,
+                    coverage_status,
                     caveats_json,
                     known_issues_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     descriptor.dataset_id,
@@ -72,6 +74,7 @@ class RegistryRepository:
                     descriptor.schema_version,
                     descriptor.update_frequency.value,
                     descriptor.health_status.value,
+                    descriptor.coverage_status.value,
                     self._dump_notes(descriptor.caveats),
                     self._dump_notes(descriptor.known_issues),
                 ),
@@ -97,6 +100,14 @@ class RegistryRepository:
                 (descriptor.dataset_id,),
             ).fetchone()
             if existing_descriptor is not None:
+                connection.execute(
+                    """
+                    UPDATE dataset_descriptors
+                    SET coverage_status = ?
+                    WHERE dataset_id = ?
+                    """,
+                    (descriptor.coverage_status.value, descriptor.dataset_id),
+                )
                 return
 
             connection.execute(
@@ -110,9 +121,10 @@ class RegistryRepository:
                     schema_version,
                     update_frequency,
                     health_status,
+                    coverage_status,
                     caveats_json,
                     known_issues_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     descriptor.dataset_id,
@@ -123,6 +135,7 @@ class RegistryRepository:
                     descriptor.schema_version,
                     descriptor.update_frequency.value,
                     descriptor.health_status.value,
+                    descriptor.coverage_status.value,
                     self._dump_notes(descriptor.caveats),
                     self._dump_notes(descriptor.known_issues),
                 ),
@@ -150,6 +163,7 @@ class RegistryRepository:
                     schema_version,
                     update_frequency,
                     health_status,
+                    coverage_status,
                     caveats_json,
                     known_issues_json
                 FROM dataset_descriptors
@@ -178,6 +192,7 @@ class RegistryRepository:
                     schema_version,
                     update_frequency,
                     health_status,
+                    coverage_status,
                     caveats_json,
                     known_issues_json
                 FROM dataset_descriptors
@@ -208,6 +223,7 @@ class RegistryRepository:
                     schema_version,
                     update_frequency,
                     health_status,
+                    coverage_status,
                     caveats_json,
                     known_issues_json
                 FROM dataset_descriptors
@@ -291,6 +307,13 @@ class RegistryRepository:
                 ADD COLUMN source_locator TEXT NOT NULL DEFAULT ''
                 """
             )
+        if "coverage_status" not in columns:
+            connection.execute(
+                """
+                ALTER TABLE dataset_descriptors
+                ADD COLUMN coverage_status TEXT NOT NULL DEFAULT 'catalog_only'
+                """
+            )
 
     @staticmethod
     def _dump_notes(notes: tuple[str, ...]) -> str:
@@ -315,6 +338,7 @@ class RegistryRepository:
                 "schema_version": row["schema_version"],
                 "update_frequency": row["update_frequency"],
                 "health_status": row["health_status"],
+                "coverage_status": row["coverage_status"],
                 "caveats": self._load_notes(row["caveats_json"]),
                 "known_issues": self._load_notes(row["known_issues_json"]),
             }

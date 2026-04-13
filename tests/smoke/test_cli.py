@@ -171,7 +171,12 @@ def test_cli_list_invokes_search_tool_and_emits_json(
                 {
                     "status": "results",
                     "match_count": 1,
-                    "matches": [{"dataset_id": "sama-pos-weekly"}],
+                    "matches": [
+                        {
+                            "dataset_id": "sama-pos-weekly",
+                            "coverage_status": "queryable",
+                        }
+                    ],
                 }
             )
         }
@@ -186,7 +191,12 @@ def test_cli_list_invokes_search_tool_and_emits_json(
     captured = capsys.readouterr()
     assert json.loads(captured.out) == {
         "match_count": 1,
-        "matches": [{"dataset_id": "sama-pos-weekly"}],
+        "matches": [
+            {
+                "dataset_id": "sama-pos-weekly",
+                "coverage_status": "queryable",
+            }
+        ],
         "status": "results",
     }
 
@@ -265,6 +275,7 @@ def test_cli_health_invokes_health_tool(
                     "status": "found",
                     "dataset_id": "mof-budget-balance-quarterly",
                     "health_status": "unknown",
+                    "coverage_status": "queryable",
                 }
             )
         }
@@ -278,6 +289,7 @@ def test_cli_health_invokes_health_tool(
     assert app.calls["dataset_health"] == [{"dataset_id": "mof-budget-balance-quarterly"}]
     captured = capsys.readouterr()
     assert json.loads(captured.out)["dataset_id"] == "mof-budget-balance-quarterly"
+    assert json.loads(captured.out)["coverage_status"] == "queryable"
 
 
 def test_cli_preview_invokes_preview_tool(
@@ -290,6 +302,7 @@ def test_cli_preview_invokes_preview_tool(
                 {
                     "status": "record_derivable",
                     "dataset_id": "stats-gov-sa-cpi-headline-monthly",
+                    "coverage_status": "queryable",
                     "resolution_outcome": "serve_local",
                 }
             )
@@ -306,6 +319,7 @@ def test_cli_preview_invokes_preview_tool(
     ]
     captured = capsys.readouterr()
     assert json.loads(captured.out)["resolution_outcome"] == "serve_local"
+    assert json.loads(captured.out)["coverage_status"] == "queryable"
 
 
 def test_cli_refresh_invokes_materialize_tool(
@@ -415,6 +429,7 @@ def test_cli_export_writes_excel_artifact_with_health_metadata(
                     "dataset_id": "sama-pos-weekly",
                     "status": "found",
                     "health_status": "healthy",
+                    "coverage_status": "queryable",
                     "schema_version": "0.1.0",
                     "caveats": [],
                     "known_issues": [],

@@ -39,6 +39,7 @@ const STATUS_DATASETS: DatasetCatalogEntry[] = [
     title: "نقاط البيع الأسبوعية",
     update_frequency: "weekly",
     health_status: "healthy",
+    coverage_status: "queryable",
   },
   {
     dataset_id: "stats-gov-sa-cpi-headline-monthly",
@@ -46,6 +47,7 @@ const STATUS_DATASETS: DatasetCatalogEntry[] = [
     title: "التضخم العام لمؤشر أسعار المستهلك شهريًا",
     update_frequency: "monthly",
     health_status: "healthy",
+    coverage_status: "queryable",
   },
 ];
 
@@ -97,6 +99,7 @@ function makeHealthResult(
     status: "found",
     source,
     health_status: "healthy",
+    coverage_status: "queryable",
     schema_version: "1.0.0",
     caveats: [],
     known_issues: [],
@@ -121,6 +124,7 @@ function makePreviewResult(
   return {
     dataset_id: datasetId,
     status: "record_derivable",
+    coverage_status: "queryable",
     resolution_outcome: "serve_local",
     data_origin: "local_snapshot",
     freshness_status: "fresh",
@@ -252,6 +256,7 @@ describe("SystemStatusPage", () => {
         return {
           ...makePreviewResult(datasetId, entry.source),
           status: "limited",
+          coverage_status: "limited",
           limitations: ["sama_pos_weekly_json_requires_supported_report_text_bundle"],
           degradation_reason: "normalization_limited",
         };

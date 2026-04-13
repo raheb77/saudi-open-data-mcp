@@ -57,6 +57,12 @@ export type DatasetHealthStatus =
   | "unavailable"
   | "unknown";
 
+export type DatasetCoverageStatus =
+  | "queryable"
+  | "limited"
+  | "catalog_only"
+  | "unavailable";
+
 export type UpdateFrequency =
   | "daily"
   | "weekly"
@@ -114,6 +120,7 @@ export interface PreviewFailure {
 export interface DatasetPreviewResult {
   dataset_id: string;
   status: PreviewStatus;
+  coverage_status: DatasetCoverageStatus;
   resolution_outcome: PreviewResolutionOutcome | null;
   data_origin: ResultDataOrigin | null;
   freshness_status: SnapshotFreshnessStatus | null;
@@ -151,6 +158,7 @@ export interface DatasetHealthLookupResult {
   status: "found" | "missing";
   source: SourceName | null;
   health_status: DatasetHealthStatus | null;
+  coverage_status: DatasetCoverageStatus | null;
   schema_version: string | null;
   caveats: string[];
   known_issues: string[];
@@ -165,6 +173,7 @@ export interface DatasetCatalogEntry {
   title: string;
   update_frequency: UpdateFrequency;
   health_status: DatasetHealthStatus;
+  coverage_status: DatasetCoverageStatus;
 }
 
 export interface DatasetCatalogSummary {

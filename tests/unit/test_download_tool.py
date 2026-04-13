@@ -9,6 +9,7 @@ from pathlib import Path
 
 from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
     DatasetDescriptor,
     DatasetHealthStatus,
     UpdateFrequency,
@@ -35,6 +36,7 @@ def _descriptor(dataset_id: str = "sama-money-supply") -> DatasetDescriptor:
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=("Publication timing may vary by release cycle.",),
         known_issues=("Historical revisions may occur.",),
     )

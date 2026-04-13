@@ -11,6 +11,7 @@ export const MOCK_DATASETS: DatasetCatalogEntry[] = [
     title: "نقاط البيع الأسبوعية (SAMA)",
     update_frequency: "weekly",
     health_status: "healthy",
+    coverage_status: "queryable",
   },
   {
     dataset_id: "sama-exchange-rates-current",
@@ -18,6 +19,7 @@ export const MOCK_DATASETS: DatasetCatalogEntry[] = [
     title: "أسعار الصرف الحالية (SAMA)",
     update_frequency: "daily",
     health_status: "healthy",
+    coverage_status: "queryable",
   },
   {
     dataset_id: "sama-repo-rate",
@@ -25,6 +27,7 @@ export const MOCK_DATASETS: DatasetCatalogEntry[] = [
     title: "سعر إعادة الشراء الرسمي (SAMA)",
     update_frequency: "ad_hoc",
     health_status: "healthy",
+    coverage_status: "queryable",
   },
   {
     dataset_id: "stats-gov-sa-cpi-headline-monthly",
@@ -32,6 +35,7 @@ export const MOCK_DATASETS: DatasetCatalogEntry[] = [
     title: "مؤشر أسعار المستهلك الشهري (الهيئة العامة للإحصاء)",
     update_frequency: "monthly",
     health_status: "degraded",
+    coverage_status: "queryable",
   },
   {
     dataset_id: "stats-gov-sa-real-gdp-growth-quarterly",
@@ -39,6 +43,7 @@ export const MOCK_DATASETS: DatasetCatalogEntry[] = [
     title: "نمو الناتج المحلي الحقيقي الفصلي (الهيئة العامة للإحصاء)",
     update_frequency: "quarterly",
     health_status: "healthy",
+    coverage_status: "queryable",
   },
   {
     dataset_id: "mof-budget-balance-quarterly",
@@ -46,6 +51,7 @@ export const MOCK_DATASETS: DatasetCatalogEntry[] = [
     title: "الرصيد المالي الفصلي (وزارة المالية)",
     update_frequency: "quarterly",
     health_status: "healthy",
+    coverage_status: "queryable",
   },
 ];
 

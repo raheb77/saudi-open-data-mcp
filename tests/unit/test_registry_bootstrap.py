@@ -14,6 +14,7 @@ from saudi_open_data_mcp.registry.bootstrap import (
     bootstrap_registry,
 )
 from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
     DatasetDescriptor,
     DatasetHealthStatus,
     HealthMetadata,
@@ -108,6 +109,18 @@ def test_bootstrap_inserts_expected_initial_descriptors(tmp_path: Path) -> None:
         for known_issue in descriptors_by_id["mof-budget-balance-quarterly"].known_issues
     )
     assert any(descriptor.source == "mof" for descriptor in bootstrapped_descriptors)
+    assert (
+        descriptors_by_id["sama-pos-weekly"].coverage_status
+        is DatasetCoverageStatus.QUERYABLE
+    )
+    assert (
+        descriptors_by_id["sama-pos-by-city"].coverage_status
+        is DatasetCoverageStatus.LIMITED
+    )
+    assert (
+        descriptors_by_id["sama-interest-rates"].coverage_status
+        is DatasetCoverageStatus.CATALOG_ONLY
+    )
 
 
 def test_bootstrap_is_idempotent_and_deterministic(tmp_path: Path) -> None:

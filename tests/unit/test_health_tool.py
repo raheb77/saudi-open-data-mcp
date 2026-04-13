@@ -9,6 +9,7 @@ from pathlib import Path
 
 from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
     DatasetDescriptor,
     DatasetHealthStatus,
     HealthMetadata,
@@ -36,6 +37,7 @@ def _descriptor(dataset_id: str = "sama-money-supply") -> DatasetDescriptor:
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=("Publication timing may vary by release cycle.",),
         known_issues=("Historical revisions may occur.",),
     )
@@ -54,6 +56,7 @@ def test_get_dataset_health_returns_typed_health_for_known_dataset(tmp_path: Pat
     assert result.status == "found"
     assert result.dataset_id == descriptor.dataset_id
     assert result.health_status is DatasetHealthStatus.UNKNOWN
+    assert result.coverage_status is DatasetCoverageStatus.QUERYABLE
     assert result.schema_version == descriptor.schema_version
     assert result.caveats == descriptor.caveats
     assert result.known_issues == descriptor.known_issues
@@ -76,6 +79,7 @@ def test_get_dataset_health_returns_explicit_missing_result_for_unknown_dataset(
     assert result.status == "missing"
     assert result.dataset_id == "missing-dataset"
     assert result.health_status is None
+    assert result.coverage_status is None
     assert result.schema_version is None
     assert result.caveats == ()
     assert result.known_issues == ()

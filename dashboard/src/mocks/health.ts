@@ -33,6 +33,7 @@ const MOCK_HEALTH: DatasetHealthLookupResult[] = [
     status: "found",
     source: "sama",
     health_status: "healthy",
+    coverage_status: "queryable",
     schema_version: "1.0.0",
     caveats: [
       "صفحة SAMA الأسبوعية تتغير عرضًا في أسماء الأعمدة بين الإصدارات.",
@@ -55,6 +56,7 @@ const MOCK_HEALTH: DatasetHealthLookupResult[] = [
     status: "found",
     source: "sama",
     health_status: "healthy",
+    coverage_status: "queryable",
     schema_version: "1.0.0",
     caveats: [],
     known_issues: [],
@@ -75,6 +77,7 @@ const MOCK_HEALTH: DatasetHealthLookupResult[] = [
     status: "found",
     source: "sama",
     health_status: "healthy",
+    coverage_status: "queryable",
     schema_version: "1.0.0",
     caveats: ["السعر يتغير فقط عند قرار رسمي."],
     known_issues: [],
@@ -95,6 +98,7 @@ const MOCK_HEALTH: DatasetHealthLookupResult[] = [
     status: "found",
     source: "stats-gov-sa",
     health_status: "degraded",
+    coverage_status: "queryable",
     schema_version: "1.0.0",
     caveats: ["البطاقات الإخبارية تتغير في صياغة العنوان أحيانًا."],
     known_issues: [
@@ -117,6 +121,7 @@ const MOCK_HEALTH: DatasetHealthLookupResult[] = [
     status: "found",
     source: "stats-gov-sa",
     health_status: "healthy",
+    coverage_status: "queryable",
     schema_version: "1.0.0",
     caveats: [],
     known_issues: [],
@@ -137,6 +142,7 @@ const MOCK_HEALTH: DatasetHealthLookupResult[] = [
     status: "found",
     source: "mof",
     health_status: "healthy",
+    coverage_status: "queryable",
     schema_version: "1.0.0",
     caveats: [
       "هذا العقد يغطي الرصيد الإجمالي فقط، وليس بنود الإيرادات أو المصروفات.",

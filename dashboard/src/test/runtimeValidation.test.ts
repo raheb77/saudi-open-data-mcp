@@ -53,6 +53,7 @@ describe("runtimeValidation", () => {
       parseDatasetPreviewResult({
         dataset_id: "stats-gov-sa-cpi-headline-monthly",
         status: "success",
+        coverage_status: "queryable",
       }),
     ).toThrow(/Invalid DatasetPreviewResult/);
   });
@@ -63,6 +64,7 @@ describe("runtimeValidation", () => {
         dataset_id: "stats-gov-sa-cpi-headline-monthly",
         status: "found",
         health_status: "healthy",
+        coverage_status: "queryable",
         schema_version: "1.0.0",
         caveats: [],
         known_issues: [],
@@ -87,6 +89,7 @@ describe("runtimeValidation", () => {
         dataset_id: "sama-pos-weekly",
         status: "found",
         health_status: "unknown",
+        coverage_status: "queryable",
         schema_version: "0.1.0",
         caveats: [],
         known_issues: [],
@@ -137,6 +140,7 @@ describe("runtimeValidation", () => {
           title: "Budget Balance Quarterly",
           update_frequency: "quarterly",
           health_status: "unknown",
+          coverage_status: "queryable",
         },
       ],
     });

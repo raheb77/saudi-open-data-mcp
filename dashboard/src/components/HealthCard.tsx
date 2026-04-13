@@ -60,9 +60,9 @@ export function HealthCard({
       </header>
 
       <CoverageSignal
-        previewStatus={preview?.status ?? null}
-        previewLimitations={preview?.limitations ?? []}
-        previewErrorMessage={previewErrorMessage}
+        coverageStatus={
+          previewErrorMessage ? "unavailable" : (preview?.coverage_status ?? null)
+        }
       />
 
       <DatasetStateOverview

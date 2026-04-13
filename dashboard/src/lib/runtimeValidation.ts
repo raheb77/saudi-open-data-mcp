@@ -1,10 +1,11 @@
 import type {
   CanonicalRecord,
+  DatasetCatalogEntry,
   DatasetCatalogSummary,
+  DatasetCoverageStatus,
   DatasetHealthLookupResult,
   DatasetPreviewResult,
   DatasetQueryResult,
-  DatasetCatalogEntry,
   DatasetHealthStatus,
   MaterializationSummary,
   ObservabilityCounterGroup,
@@ -233,6 +234,11 @@ export function parseDatasetPreviewResult(value: unknown): DatasetPreviewResult 
       ["missing", "record_derivable", "limited", "failed"] as const,
       "DatasetPreviewResult.status",
     ) as PreviewStatus,
+    coverage_status: expectOneOf(
+      result.coverage_status,
+      ["queryable", "limited", "catalog_only", "unavailable"] as const,
+      "DatasetPreviewResult.coverage_status",
+    ) as DatasetCoverageStatus,
     resolution_outcome: expectNullableOneOf(
       result.resolution_outcome,
       [
@@ -352,6 +358,11 @@ function parseDatasetCatalogEntry(
       ["healthy", "degraded", "unavailable", "unknown"] as const,
       `${context}.health_status`,
     ) as DatasetHealthStatus,
+    coverage_status: expectOneOf(
+      entry.coverage_status,
+      ["queryable", "limited", "catalog_only", "unavailable"] as const,
+      `${context}.coverage_status`,
+    ) as DatasetCoverageStatus,
   };
 }
 
@@ -473,6 +484,11 @@ export function parseDatasetHealthLookupResult(
       ["healthy", "degraded", "unavailable", "unknown"] as const,
       "DatasetHealthLookupResult.health_status",
     ) as DatasetHealthStatus | null,
+    coverage_status: expectNullableOneOf(
+      health.coverage_status,
+      ["queryable", "limited", "catalog_only", "unavailable"] as const,
+      "DatasetHealthLookupResult.coverage_status",
+    ) as DatasetCoverageStatus | null,
     schema_version: expectNullableString(
       health.schema_version,
       "DatasetHealthLookupResult.schema_version",
