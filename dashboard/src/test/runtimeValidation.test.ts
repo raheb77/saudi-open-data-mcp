@@ -12,6 +12,7 @@ describe("runtimeValidation", () => {
     const result = parseDatasetQueryResult({
       dataset_id: "sama-pos-weekly",
       status: "success",
+      coverage_status: "queryable",
       source: "sama",
       data_origin: "local_snapshot",
       applied_filters: {},
@@ -32,6 +33,7 @@ describe("runtimeValidation", () => {
       parseDatasetQueryResult({
         dataset_id: "sama-pos-weekly",
         status: "success",
+        coverage_status: "queryable",
         source: "sama",
         data_origin: "local_snapshot",
         applied_filters: {

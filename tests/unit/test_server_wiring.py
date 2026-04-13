@@ -315,6 +315,7 @@ async def test_server_registers_current_mcp_surface(
     )
     assert missing_query_result.structured_content["dataset_id"] == "sama-money-supply"
     assert missing_query_result.structured_content["status"] == "snapshot_missing"
+    assert missing_query_result.structured_content["coverage_status"] == "unavailable"
     assert missing_query_result.structured_content["source"] == "sama"
     assert missing_query_result.structured_content["matched_records"] == []
 
@@ -337,19 +338,16 @@ async def test_server_registers_current_mcp_surface(
         }
     )
     assert filtered_query_result.structured_content["dataset_id"] == "sama-money-supply"
-    assert filtered_query_result.structured_content["status"] == "success"
+    assert filtered_query_result.structured_content["status"] == "limited"
+    assert filtered_query_result.structured_content["coverage_status"] == "catalog_only"
     assert filtered_query_result.structured_content["source"] == "sama"
     assert filtered_query_result.structured_content["applied_filters"] == {
         "period": "2026-02"
     }
-    assert filtered_query_result.structured_content["total_records_before_filter"] == 2
-    assert filtered_query_result.structured_content["matched_records"] == [
-        {
-            "dataset_id": "sama-money-supply",
-            "source": "sama",
-            "record_index": 1,
-            "fields": {"period": "2026-02", "value": 2},
-        }
+    assert filtered_query_result.structured_content["total_records_before_filter"] is None
+    assert filtered_query_result.structured_content["matched_records"] == []
+    assert filtered_query_result.structured_content["limitations"] == [
+        "dataset_registry_declares_no_current_queryable_support"
     ]
 
     limited_query_result = await tools["query_dataset"].run(
@@ -358,17 +356,14 @@ async def test_server_registers_current_mcp_surface(
             "limit": 1,
         }
     )
-    assert limited_query_result.structured_content["status"] == "success"
+    assert limited_query_result.structured_content["status"] == "limited"
     assert limited_query_result.structured_content["dataset_id"] == "sama-money-supply"
+    assert limited_query_result.structured_content["coverage_status"] == "catalog_only"
     assert limited_query_result.structured_content["limit"] == 1
-    assert limited_query_result.structured_content["total_records_before_filter"] == 2
-    assert limited_query_result.structured_content["matched_records"] == [
-        {
-            "dataset_id": "sama-money-supply",
-            "source": "sama",
-            "record_index": 0,
-            "fields": {"period": "2026-01", "value": 1},
-        }
+    assert limited_query_result.structured_content["total_records_before_filter"] is None
+    assert limited_query_result.structured_content["matched_records"] == []
+    assert limited_query_result.structured_content["limitations"] == [
+        "dataset_registry_declares_no_current_queryable_support"
     ]
 
     search_result = await tools["search_datasets"].run({"query": "money"})
@@ -626,6 +621,7 @@ async def test_server_missing_dataset_lookup_stays_explicit(
     assert query_result.structured_content == {
         "dataset_id": "missing-dataset",
         "status": "missing",
+        "coverage_status": "unavailable",
         "source": None,
         "data_origin": None,
         "applied_filters": {},

@@ -97,6 +97,7 @@ export type QueryFilterValue = string | number | boolean | null;
 export interface DatasetQueryResult {
   dataset_id: string;
   status: DatasetQueryStatus;
+  coverage_status: DatasetCoverageStatus;
   source: SourceName | null;
   data_origin: ResultDataOrigin | null;
   applied_filters: Record<string, QueryFilterValue>;

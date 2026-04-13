@@ -211,6 +211,7 @@ def test_cli_query_parses_scalar_filters_and_limit(
                 {
                     "status": "success",
                     "dataset_id": "stats-gov-sa-cpi-headline-monthly",
+                    "coverage_status": "queryable",
                     "matched_records": [],
                 }
             )
@@ -252,6 +253,7 @@ def test_cli_query_parses_scalar_filters_and_limit(
     ]
     captured = capsys.readouterr()
     assert json.loads(captured.out)["status"] == "success"
+    assert json.loads(captured.out)["coverage_status"] == "queryable"
 
 
 def test_cli_query_rejects_positional_and_flag_dataset_id_together(capsys) -> None:
@@ -360,6 +362,7 @@ def test_cli_export_writes_query_result_to_output_file_and_respects_quiet(
                 {
                     "status": "success",
                     "dataset_id": "sama-pos-weekly",
+                    "coverage_status": "queryable",
                     "matched_records": [{"dataset_id": "sama-pos-weekly"}],
                 }
             )
@@ -388,6 +391,7 @@ def test_cli_export_writes_query_result_to_output_file_and_respects_quiet(
     ]
     captured = capsys.readouterr()
     assert captured.out == ""
+    assert json.loads(output_path.read_text())["coverage_status"] == "queryable"
     assert json.loads(output_path.read_text())["matched_records"] == [
         {"dataset_id": "sama-pos-weekly"}
     ]
@@ -405,6 +409,7 @@ def test_cli_export_writes_excel_artifact_with_health_metadata(
                 {
                     "dataset_id": "sama-pos-weekly",
                     "status": "success",
+                    "coverage_status": "queryable",
                     "source": "sama",
                     "data_origin": "local_snapshot",
                     "applied_filters": {},
@@ -669,13 +674,14 @@ async def test_source_tree_cli_stdio_supports_data_gov_sa_query_with_explicit_ru
             },
         )
 
-    assert result.structured_content["status"] == "success"
+    assert result.structured_content["status"] == "limited"
     assert result.structured_content["dataset_id"] == DATA_GOV_SA_DATASET_ID
+    assert result.structured_content["coverage_status"] == "catalog_only"
     assert result.structured_content["source"] == "data-gov-sa"
-    assert result.structured_content["matched_records"][0]["dataset_id"] == (
-        DATA_GOV_SA_DATASET_ID
-    )
-    assert result.structured_content["matched_records"][0]["source"] == "data-gov-sa"
+    assert result.structured_content["matched_records"] == []
+    assert result.structured_content["limitations"] == [
+        "dataset_registry_declares_no_current_queryable_support"
+    ]
 
 
 @pytest.mark.asyncio

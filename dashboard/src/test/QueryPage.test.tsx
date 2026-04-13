@@ -91,9 +91,16 @@ function makeQueryResult(
   status: DatasetQueryResult["status"] = "success",
   failure: QueryFailure | null = null,
 ): DatasetQueryResult {
+  const coverageStatus =
+    status === "success"
+      ? "queryable"
+      : status === "limited"
+        ? "limited"
+        : "unavailable";
   return {
     dataset_id: datasetId,
     status,
+    coverage_status: coverageStatus,
     source,
     data_origin: "local_snapshot",
     applied_filters: {},

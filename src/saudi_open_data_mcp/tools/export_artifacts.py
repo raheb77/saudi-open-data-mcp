@@ -29,6 +29,7 @@ class QueryExportContext:
     source: str | None
     exported_at: str
     query_status: str
+    coverage_status: str
     freshness_status: str | None
     data_origin: str | None
     matched_record_count: int
@@ -117,6 +118,7 @@ def _build_query_export_context(
         source=result.source,
         exported_at=export_time.isoformat().replace("+00:00", "Z"),
         query_status=result.status.value,
+        coverage_status=result.coverage_status.value,
         freshness_status=freshness_status,
         data_origin=(result.data_origin.value if result.data_origin is not None else None),
         matched_record_count=len(result.matched_records),
@@ -247,6 +249,7 @@ def _build_pdf_lines(
         pdf["result_context_section"],
         f'{pdf["labels"]["exported_at"]}: {context.exported_at}',
         f'{pdf["labels"]["query_status"]}: {context.query_status}',
+        f'{pdf["labels"]["coverage_status"]}: {context.coverage_status}',
         f'{pdf["labels"]["freshness_status"]}: {_display_value(context.freshness_status)}',
         f'{pdf["labels"]["data_origin"]}: {_display_value(context.data_origin)}',
         f'{pdf["labels"]["matched_record_count"]}: {context.matched_record_count}',
@@ -456,6 +459,8 @@ def _metadata_field_value(context: QueryExportContext, field_name: str) -> Any:
         return context.exported_at
     if field_name == "query_status":
         return context.query_status
+    if field_name == "coverage_status":
+        return context.coverage_status
     if field_name == "freshness_status":
         return context.freshness_status
     if field_name == "data_origin":

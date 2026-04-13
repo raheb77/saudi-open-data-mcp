@@ -30,6 +30,7 @@ interface QueryExportContext {
   source: string | null;
   exportedAt: string;
   queryStatus: string;
+  coverageStatus: string;
   freshnessStatus: string | null;
   dataOrigin: string | null;
   matchedRecordCount: number;
@@ -51,6 +52,7 @@ type ExportMetadataField =
   | "source"
   | "exported_at"
   | "query_status"
+  | "coverage_status"
   | "freshness_status"
   | "data_origin"
   | "matched_record_count"
@@ -136,6 +138,7 @@ function buildQueryExportContext(
     source: result.source,
     exportedAt: canonicalizeIsoTimestamp(exportedAt ?? new Date().toISOString()),
     queryStatus: result.status,
+    coverageStatus: result.coverage_status,
     freshnessStatus,
     dataOrigin: result.data_origin,
     matchedRecordCount: result.matched_records.length,
@@ -348,6 +351,7 @@ function buildPdfLines(
     pdf.result_context_section,
     `${pdf.labels.exported_at}: ${context.exportedAt}`,
     `${pdf.labels.query_status}: ${context.queryStatus}`,
+    `${pdf.labels.coverage_status}: ${context.coverageStatus}`,
     `${pdf.labels.freshness_status}: ${displayValue(context.freshnessStatus)}`,
     `${pdf.labels.data_origin}: ${displayValue(context.dataOrigin)}`,
     `${pdf.labels.matched_record_count}: ${context.matchedRecordCount}`,
@@ -534,6 +538,8 @@ function metadataFieldValue(
       return context.exportedAt;
     case "query_status":
       return context.queryStatus;
+    case "coverage_status":
+      return context.coverageStatus;
     case "freshness_status":
       return context.freshnessStatus;
     case "data_origin":

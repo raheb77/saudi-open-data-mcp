@@ -17,7 +17,11 @@ from saudi_open_data_mcp.normalization.pipeline import (
     NormalizationResult,
 )
 from saudi_open_data_mcp.observability import log_audit_event
-from saudi_open_data_mcp.registry.models import DatasetDescriptor, NonEmptyText
+from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
+    DatasetDescriptor,
+    NonEmptyText,
+)
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.security.sanitization import (
     sanitize_dataset_id,
@@ -32,6 +36,9 @@ from saudi_open_data_mcp.tools.result_metadata import (
 
 QueryFilterValue = str | int | float | bool | None
 MAX_QUERY_RESULT_LIMIT = 1000
+REGISTRY_COVERAGE_RESTRICTS_QUERYABLE_QUERY_LIMITATION = (
+    "dataset_registry_declares_no_current_queryable_support"
+)
 
 
 class DatasetQueryStatus(StrEnum):
@@ -68,6 +75,7 @@ class DatasetQueryResult(BaseModel):
 
     dataset_id: NonEmptyText
     status: DatasetQueryStatus
+    coverage_status: DatasetCoverageStatus
     source: NonEmptyText | None = None
     data_origin: ResultDataOrigin | None = None
     applied_filters: dict[str, QueryFilterValue] = Field(default_factory=dict)
@@ -82,6 +90,8 @@ class DatasetQueryResult(BaseModel):
     @model_validator(mode="after")
     def _validate_consistency(self) -> Self:
         if self.status is DatasetQueryStatus.MISSING:
+            if self.coverage_status is not DatasetCoverageStatus.UNAVAILABLE:
+                raise ValueError("missing results must expose unavailable coverage_status")
             if self.source is not None or self.data_origin is not None:
                 raise ValueError("missing results must not include source or data_origin")
             if self.total_records_before_filter is not None:
@@ -103,6 +113,10 @@ class DatasetQueryResult(BaseModel):
             raise ValueError("known dataset query results must include source")
 
         if self.status is DatasetQueryStatus.SNAPSHOT_MISSING:
+            if self.coverage_status is not DatasetCoverageStatus.UNAVAILABLE:
+                raise ValueError(
+                    "snapshot_missing results must expose unavailable coverage_status"
+                )
             if self.data_origin is not None:
                 raise ValueError("snapshot_missing results must not include data_origin")
             if self.total_records_before_filter is not None:
@@ -126,6 +140,13 @@ class DatasetQueryResult(BaseModel):
             raise ValueError("query results backed by local artifacts must expose data_origin")
 
         if self.status is DatasetQueryStatus.LIMITED:
+            if self.coverage_status not in {
+                DatasetCoverageStatus.LIMITED,
+                DatasetCoverageStatus.CATALOG_ONLY,
+            }:
+                raise ValueError(
+                    "limited results must expose limited or catalog_only coverage_status"
+                )
             if not self.limitations:
                 raise ValueError("limited results must include explicit limitations")
             if self.total_records_before_filter is not None or self.matched_records:
@@ -141,6 +162,8 @@ class DatasetQueryResult(BaseModel):
             return self
 
         if self.status is DatasetQueryStatus.FAILED:
+            if self.coverage_status is not DatasetCoverageStatus.UNAVAILABLE:
+                raise ValueError("failed results must expose unavailable coverage_status")
             if self.failure is None:
                 raise ValueError("failed results must include failure details")
             if self.failure_stage is not self.failure.stage:
@@ -155,6 +178,8 @@ class DatasetQueryResult(BaseModel):
                 )
             return self
 
+        if self.coverage_status is not DatasetCoverageStatus.QUERYABLE:
+            raise ValueError("successful query results must expose queryable coverage_status")
         if self.failure is not None or self.failure_stage is not None or self.limitations:
             raise ValueError(
                 "successful query results must not include failure, failure_stage, or limitations"
@@ -189,6 +214,7 @@ class DatasetQueryResult(BaseModel):
         return cls(
             dataset_id=dataset_id,
             status=DatasetQueryStatus.MISSING,
+            coverage_status=DatasetCoverageStatus.UNAVAILABLE,
             applied_filters=applied_filters,
             limit=limit,
         )
@@ -206,6 +232,7 @@ class DatasetQueryResult(BaseModel):
         return cls(
             dataset_id=descriptor.dataset_id,
             status=DatasetQueryStatus.SNAPSHOT_MISSING,
+            coverage_status=DatasetCoverageStatus.UNAVAILABLE,
             source=descriptor.source,
             applied_filters=applied_filters,
             limit=limit,
@@ -216,22 +243,34 @@ class DatasetQueryResult(BaseModel):
         cls,
         *,
         descriptor: DatasetDescriptor,
-        normalization_result: NormalizationResult,
         applied_filters: dict[str, QueryFilterValue],
         limit: int | None,
+        normalization_result: NormalizationResult | None = None,
+        limitations: tuple[str, ...] | None = None,
     ) -> Self:
         """Build a limited result when local normalization cannot expose records."""
 
-        limitations = _collect_limitations(normalization_result)
+        resolved_limitations = (
+            limitations
+            if limitations is not None
+            else _collect_limitations(normalization_result)
+            if normalization_result is not None
+            else ()
+        )
+        if not resolved_limitations:
+            raise ValueError("limited query results must include explicit limitations")
         return cls(
             dataset_id=descriptor.dataset_id,
             status=DatasetQueryStatus.LIMITED,
+            coverage_status=_resolve_limited_query_coverage_status(
+                descriptor.coverage_status
+            ),
             source=descriptor.source,
             data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
             applied_filters=applied_filters,
             limit=limit,
             degradation_reason=ResultDegradationReason.NORMALIZATION_LIMITED,
-            limitations=limitations,
+            limitations=resolved_limitations,
         )
 
     @classmethod
@@ -250,6 +289,7 @@ class DatasetQueryResult(BaseModel):
         return cls(
             dataset_id=descriptor.dataset_id,
             status=DatasetQueryStatus.FAILED,
+            coverage_status=DatasetCoverageStatus.UNAVAILABLE,
             source=descriptor.source,
             data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
             applied_filters=applied_filters,
@@ -277,6 +317,7 @@ class DatasetQueryResult(BaseModel):
         return cls(
             dataset_id=descriptor.dataset_id,
             status=DatasetQueryStatus.SUCCESS,
+            coverage_status=DatasetCoverageStatus.QUERYABLE,
             source=descriptor.source,
             data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
             applied_filters=applied_filters,
@@ -390,6 +431,18 @@ class DatasetQueryTool:
             _audit_query_result(result)
             return result
 
+        if descriptor.coverage_status is not DatasetCoverageStatus.QUERYABLE:
+            result = DatasetQueryResult.limited(
+                descriptor=descriptor,
+                applied_filters=normalized_filters,
+                limit=normalized_limit,
+                limitations=(
+                    REGISTRY_COVERAGE_RESTRICTS_QUERYABLE_QUERY_LIMITATION,
+                ),
+            )
+            _audit_query_result(result)
+            return result
+
         filtered_records = _apply_filters(
             _bind_canonical_dataset_id(
                 descriptor=descriptor,
@@ -493,6 +546,7 @@ def _audit_query_result(result: DatasetQueryResult) -> None:
         result_status=result.status.value,
         dataset_id=result.dataset_id,
         source=result.source,
+        coverage_status=result.coverage_status.value,
         data_origin=result.data_origin.value if result.data_origin is not None else None,
         filter_keys=tuple(sorted(result.applied_filters)),
         limit=result.limit,
@@ -540,6 +594,16 @@ def _collect_limitations(normalization_result: NormalizationResult) -> tuple[str
             return limitations
 
     raise ValueError("limited normalization result must include explicit limitations")
+
+
+def _resolve_limited_query_coverage_status(
+    declared_coverage_status: DatasetCoverageStatus,
+) -> DatasetCoverageStatus:
+    """Resolve effective limited-state coverage for query results."""
+
+    if declared_coverage_status is DatasetCoverageStatus.CATALOG_ONLY:
+        return DatasetCoverageStatus.CATALOG_ONLY
+    return DatasetCoverageStatus.LIMITED
 
 
 def _normalization_error_type(failure: NormalizationFailure | None) -> str:

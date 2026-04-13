@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from saudi_open_data_mcp.normalization.pipeline import CanonicalRecord
+from saudi_open_data_mcp.registry.models import DatasetCoverageStatus
 from saudi_open_data_mcp.tools.export_artifacts import (
     render_query_result_excel_artifact,
     render_query_result_pdf_artifact,
@@ -17,6 +18,7 @@ def _success_result() -> DatasetQueryResult:
     return DatasetQueryResult(
         dataset_id="mof-budget-balance-quarterly",
         status="success",
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         source="mof",
         data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
         applied_filters={"observation_quarter": "2025-Q4"},
@@ -62,6 +64,8 @@ def test_render_query_result_excel_artifact_includes_metadata_and_records() -> N
     assert "mof-budget-balance-quarterly" in rendered
     assert "Ministry of Finance (MoF) [mof]" in rendered
     assert "headline_budget_balance" in rendered
+    assert "coverage_status" in rendered
+    assert "queryable" in rendered
     assert "fresh" in rendered
 
 
@@ -69,6 +73,7 @@ def test_render_query_result_excel_artifact_cleans_empty_filter_presentation() -
     result = DatasetQueryResult(
         dataset_id="stats-gov-sa-cpi-headline-monthly",
         status="limited",
+        coverage_status=DatasetCoverageStatus.LIMITED,
         source="stats-gov-sa",
         data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
         applied_filters={},
@@ -95,6 +100,7 @@ def test_render_query_result_pdf_artifact_keeps_degraded_status_visible() -> Non
     result = DatasetQueryResult(
         dataset_id="stats-gov-sa-cpi-headline-monthly",
         status="limited",
+        coverage_status=DatasetCoverageStatus.LIMITED,
         source="stats-gov-sa",
         data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
         applied_filters={},
@@ -119,6 +125,7 @@ def test_render_query_result_pdf_artifact_keeps_degraded_status_visible() -> Non
     assert "GASTAT" in rendered
     assert "stats-gov-sa" in rendered
     assert "Result Status: limited" in rendered
+    assert "Coverage Status: limited" in rendered
     assert "Freshness Status: stale" in rendered
     assert "Applied Filters: none" in rendered
     assert "Notes / Limitations" in rendered

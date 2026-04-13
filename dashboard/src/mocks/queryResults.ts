@@ -4,6 +4,7 @@
 
 import type {
   CanonicalRecord,
+  DatasetCoverageStatus,
   DatasetQueryResult,
   QueryFilterValue,
 } from "../types/core";
@@ -151,6 +152,14 @@ const SOURCE_FOR_DATASET: Record<string, "sama" | "stats-gov-sa" | "mof"> = {
   "mof-budget-balance-quarterly": "mof",
 };
 
+function coverageStatusForScenario(
+  scenario: QueryScenarioName,
+): DatasetCoverageStatus {
+  if (scenario === "success" || scenario === "stale") return "queryable";
+  if (scenario === "limited") return "limited";
+  return "unavailable";
+}
+
 function applyMockFilters(
   records: CanonicalRecord[],
   filters: Record<string, QueryFilterValue>,
@@ -175,6 +184,7 @@ export function buildMockQueryResult(
     return parseDatasetQueryResult({
       dataset_id,
       status: "missing",
+      coverage_status: coverageStatusForScenario(scenario),
       source: null,
       data_origin: null,
       applied_filters: filters,
@@ -192,6 +202,7 @@ export function buildMockQueryResult(
     return parseDatasetQueryResult({
       dataset_id,
       status: "snapshot_missing",
+      coverage_status: coverageStatusForScenario(scenario),
       source,
       data_origin: null,
       applied_filters: filters,
@@ -209,6 +220,7 @@ export function buildMockQueryResult(
     return parseDatasetQueryResult({
       dataset_id,
       status: "limited",
+      coverage_status: coverageStatusForScenario(scenario),
       source,
       data_origin: "local_snapshot",
       applied_filters: filters,
@@ -229,6 +241,7 @@ export function buildMockQueryResult(
     return parseDatasetQueryResult({
       dataset_id,
       status: "failed",
+      coverage_status: coverageStatusForScenario(scenario),
       source,
       data_origin: "local_snapshot",
       applied_filters: filters,
@@ -256,6 +269,7 @@ export function buildMockQueryResult(
     return parseDatasetQueryResult({
       dataset_id,
       status: "success",
+      coverage_status: coverageStatusForScenario(scenario),
       source,
       data_origin: "local_snapshot",
       applied_filters: filters,
@@ -275,6 +289,7 @@ export function buildMockQueryResult(
   return parseDatasetQueryResult({
     dataset_id,
     status: "success",
+    coverage_status: coverageStatusForScenario("success"),
     source,
     data_origin: "local_snapshot",
     applied_filters: filters,

@@ -169,6 +169,11 @@ export function parseDatasetQueryResult(value: unknown): DatasetQueryResult {
       ["missing", "snapshot_missing", "limited", "failed", "success"] as const,
       "DatasetQueryResult.status",
     ),
+    coverage_status: expectOneOf(
+      result.coverage_status,
+      ["queryable", "limited", "catalog_only", "unavailable"] as const,
+      "DatasetQueryResult.coverage_status",
+    ) as DatasetCoverageStatus,
     source: expectNullableOneOf(
       result.source,
       ["sama", "stats-gov-sa", "mof", "data-gov-sa"] as const,

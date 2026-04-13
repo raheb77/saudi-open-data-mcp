@@ -30,6 +30,7 @@ from saudi_open_data_mcp.registry.models import (
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 from saudi_open_data_mcp.tools.query import (
+    REGISTRY_COVERAGE_RESTRICTS_QUERYABLE_QUERY_LIMITATION,
     DatasetQueryStatus,
     DatasetQueryTool,
     QueryFailureStage,
@@ -449,6 +450,7 @@ def test_query_dataset_returns_explicit_missing_result_for_unknown_dataset(
     result = tool.query_dataset("missing-dataset")
 
     assert result.status is DatasetQueryStatus.MISSING
+    assert result.coverage_status is DatasetCoverageStatus.UNAVAILABLE
     assert result.dataset_id == "missing-dataset"
     assert result.source is None
     assert result.total_records_before_filter is None
@@ -467,6 +469,7 @@ def test_query_dataset_returns_explicit_snapshot_missing_result(
     result = tool.query_dataset(descriptor.dataset_id)
 
     assert result.status is DatasetQueryStatus.SNAPSHOT_MISSING
+    assert result.coverage_status is DatasetCoverageStatus.UNAVAILABLE
     assert result.dataset_id == descriptor.dataset_id
     assert result.source == descriptor.source
     assert result.total_records_before_filter is None
@@ -491,6 +494,7 @@ def test_query_dataset_uses_source_locator_not_canonical_dataset_id_for_snapshot
     result = tool.query_dataset(descriptor.dataset_id)
 
     assert result.status is DatasetQueryStatus.SNAPSHOT_MISSING
+    assert result.coverage_status is DatasetCoverageStatus.UNAVAILABLE
     assert result.dataset_id == descriptor.dataset_id
     assert result.source == descriptor.source
 
@@ -518,6 +522,7 @@ def test_query_dataset_returns_local_canonical_records_for_supported_json_snapsh
     result = tool.query_dataset(descriptor.dataset_id)
 
     assert result.status is DatasetQueryStatus.SUCCESS
+    assert result.coverage_status is DatasetCoverageStatus.QUERYABLE
     assert result.dataset_id == descriptor.dataset_id
     assert result.source == "sama"
     assert result.total_records_before_filter == 2
@@ -546,6 +551,7 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_pos_weekly_h
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.WEEKLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=("HTML extraction currently covers the supported weekly summary table only.",),
         known_issues=("City-level tables remain outside this canonical contract.",),
     )
@@ -571,6 +577,7 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_pos_weekly_h
     )
 
     assert result.status is DatasetQueryStatus.SUCCESS
+    assert result.coverage_status is DatasetCoverageStatus.QUERYABLE
     assert result.total_records_before_filter == 2
     assert result.applied_filters == {"week_end_date": "2026-03-14"}
     assert len(result.matched_records) == 1
@@ -601,6 +608,7 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_pos_weekly_r
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.WEEKLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=("PDF-backed extraction covers the supported weekly summary table only.",),
         known_issues=("City-level tables remain outside this canonical contract.",),
     )
@@ -626,6 +634,7 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_pos_weekly_r
     )
 
     assert result.status is DatasetQueryStatus.SUCCESS
+    assert result.coverage_status is DatasetCoverageStatus.QUERYABLE
     assert result.total_records_before_filter == 5
     assert result.applied_filters == {"week_end_date": "2026-04-04"}
     assert len(result.matched_records) == 1
@@ -661,6 +670,7 @@ def test_query_dataset_returns_queryable_time_series_records_for_sama_money_supp
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.WEEKLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=("HTML extraction currently covers the supported weekly aggregate table only.",),
         known_issues=("Only recognized monetary aggregate columns are normalized.",),
     )
@@ -755,6 +765,7 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_deposits_cor
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=(
             "Current canonical extraction remains bundled because the source publishes "
             "these components inside one shared monthly report payload.",
@@ -813,6 +824,7 @@ def test_query_dataset_returns_queryable_canonical_records_for_stats_gov_sa_cpi_
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.MONTHLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=(
             "Current canonical extraction covers supported official headline "
             "CPI release cards only.",
@@ -887,6 +899,7 @@ def test_query_dataset_returns_queryable_labor_records_for_stats_gov_sa(
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.QUARTERLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=(
             "Current canonical extraction covers supported total-unemployment release "
             "cards only.",
@@ -962,6 +975,7 @@ def test_query_dataset_returns_queryable_gdp_records_for_stats_gov_sa(
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.QUARTERLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=(
             "Current canonical extraction covers supported headline real GDP release "
             "cards only.",
@@ -1038,6 +1052,7 @@ def test_query_dataset_returns_queryable_mof_budget_balance_records(
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.QUARTERLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=(
             "Current canonical extraction covers one supported top-line budget-balance "
             "series only.",
@@ -1108,6 +1123,7 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_exchange_rat
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.DAILY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=(
             "Current canonical extraction covers supported latest-date closing-price "
             "pages from the official SAMA currency surface.",
@@ -1142,6 +1158,7 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_exchange_rat
     )
 
     assert result.status is DatasetQueryStatus.SUCCESS
+    assert result.coverage_status is DatasetCoverageStatus.QUERYABLE
     assert result.total_records_before_filter == 2
     assert result.applied_filters == {
         "as_of_date": "2026-03-21",
@@ -1177,6 +1194,7 @@ def test_query_dataset_returns_explicitly_limited_for_legacy_exchange_rates_snap
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.DAILY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=("Legacy raw snapshots may require a live refresh.",),
         known_issues=("Only the current JSON page-bundle contract is queryable.",),
     )
@@ -1199,6 +1217,7 @@ def test_query_dataset_returns_explicitly_limited_for_legacy_exchange_rates_snap
     result = tool.query_dataset(descriptor.dataset_id)
 
     assert result.status is DatasetQueryStatus.LIMITED
+    assert result.coverage_status is DatasetCoverageStatus.LIMITED
     assert result.data_origin is ResultDataOrigin.LOCAL_SNAPSHOT
     assert result.degradation_reason is ResultDegradationReason.NORMALIZATION_LIMITED
     assert result.limitations == (
@@ -1222,6 +1241,7 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_repo_rate(
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.AD_HOC,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=("Current canonical extraction covers supported published repo-rate rows.",),
         known_issues=("Only supported Publish Date / Rate (%) table layouts are normalized.",),
     )
@@ -1250,6 +1270,7 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_repo_rate(
     )
 
     assert result.status is DatasetQueryStatus.SUCCESS
+    assert result.coverage_status is DatasetCoverageStatus.QUERYABLE
     assert result.total_records_before_filter == 3
     assert result.applied_filters == {
         "effective_date": "2025-10-29",
@@ -1283,6 +1304,7 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_reverse_repo
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.AD_HOC,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=("Current canonical extraction covers supported effective-date and rate text.",),
         known_issues=("Only supported page text or simple table layouts are normalized.",),
     )
@@ -1311,6 +1333,7 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_reverse_repo
     )
 
     assert result.status is DatasetQueryStatus.SUCCESS
+    assert result.coverage_status is DatasetCoverageStatus.QUERYABLE
     assert result.total_records_before_filter == 1
     assert result.applied_filters == {
         "effective_date": "2026-03-21",
@@ -1351,6 +1374,7 @@ def test_query_dataset_applies_limit_deterministically(
     result = tool.query_dataset(descriptor.dataset_id, limit=2)
 
     assert result.status is DatasetQueryStatus.SUCCESS
+    assert result.coverage_status is DatasetCoverageStatus.QUERYABLE
     assert result.total_records_before_filter == 3
     assert result.limit == 2
     assert [record.record_index for record in result.matched_records] == [0, 1]
@@ -1374,6 +1398,7 @@ def test_query_dataset_returns_explicit_limited_result_for_unsupported_json_shap
     result = tool.query_dataset(descriptor.dataset_id)
 
     assert result.status is DatasetQueryStatus.LIMITED
+    assert result.coverage_status is DatasetCoverageStatus.LIMITED
     assert result.source == "sama"
     assert result.data_origin is ResultDataOrigin.LOCAL_SNAPSHOT
     assert result.total_records_before_filter is None
@@ -1399,6 +1424,7 @@ def test_query_dataset_returns_source_specific_limited_result_for_sama_pos_by_ci
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.WEEKLY,
         health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.LIMITED,
         caveats=("City extraction is not implemented for the shared POS report bundle.",),
         known_issues=("Only the shared POS bundle is materialized at this stage.",),
     )
@@ -1421,6 +1447,7 @@ def test_query_dataset_returns_source_specific_limited_result_for_sama_pos_by_ci
     result = tool.query_dataset(descriptor.dataset_id)
 
     assert result.status is DatasetQueryStatus.LIMITED
+    assert result.coverage_status is DatasetCoverageStatus.LIMITED
     assert result.source == "sama"
     assert result.data_origin is ResultDataOrigin.LOCAL_SNAPSHOT
     assert result.total_records_before_filter is None
@@ -1474,6 +1501,7 @@ def test_query_dataset_returns_explicit_failed_result_for_failed_normalization(
     result = tool.query_dataset(descriptor.dataset_id)
 
     assert result.status is DatasetQueryStatus.FAILED
+    assert result.coverage_status is DatasetCoverageStatus.UNAVAILABLE
     assert result.source == "sama"
     assert result.data_origin is ResultDataOrigin.LOCAL_SNAPSHOT
     assert result.matched_records == ()
@@ -1483,6 +1511,34 @@ def test_query_dataset_returns_explicit_failed_result_for_failed_normalization(
     assert result.failure.stage is QueryFailureStage.NORMALIZATION
     assert result.failure.error_type == "ValueError"
     assert result.failure.message == "forced normalization failure"
+
+
+def test_query_dataset_respects_registry_coverage_for_catalog_only_dataset(
+    tmp_path: Path,
+) -> None:
+    repository = RegistryRepository(tmp_path / "registry.sqlite")
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    descriptor = _descriptor().model_copy(
+        update={"coverage_status": DatasetCoverageStatus.CATALOG_ONLY}
+    )
+    tool = DatasetQueryTool(repository, snapshot_store)
+
+    repository.upsert_dataset(descriptor)
+    _write_snapshot(
+        snapshot_store,
+        snapshot_dataset_id=descriptor.source_locator,
+        body={"rows": [{"period": "2026-01", "value": 1}]},
+    )
+
+    result = tool.query_dataset(descriptor.dataset_id)
+
+    assert result.status is DatasetQueryStatus.LIMITED
+    assert result.coverage_status is DatasetCoverageStatus.CATALOG_ONLY
+    assert result.total_records_before_filter is None
+    assert result.matched_records == ()
+    assert result.limitations == (
+        REGISTRY_COVERAGE_RESTRICTS_QUERYABLE_QUERY_LIMITATION,
+    )
 
 
 def test_query_tool_module_does_not_import_connectors_directly() -> None:
