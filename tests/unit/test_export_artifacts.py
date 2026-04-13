@@ -18,7 +18,11 @@ from saudi_open_data_mcp.tools.export_artifacts import (
     render_query_result_pdf_artifact,
 )
 from saudi_open_data_mcp.tools.query import DatasetQueryResult
-from saudi_open_data_mcp.tools.result_metadata import ResultDataOrigin
+from saudi_open_data_mcp.tools.result_metadata import (
+    ObservationRecencyAssessment,
+    ObservationRecencyStatus,
+    ResultDataOrigin,
+)
 
 
 def _success_result() -> DatasetQueryResult:
@@ -92,6 +96,66 @@ def test_render_query_result_excel_artifact_includes_metadata_and_records() -> N
     assert "coverage_status" in rendered
     assert "queryable" in rendered
     assert "fresh" in rendered
+
+
+def test_render_query_result_artifacts_include_observation_recency_metadata() -> None:
+    result = DatasetQueryResult(
+        dataset_id="stats-gov-sa-cpi-headline-monthly",
+        status="success",
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
+        source="stats-gov-sa",
+        data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
+        applied_filters={"observation_month": "2025-12"},
+        limit=10,
+        total_records_before_filter=1,
+        observation_recency=ObservationRecencyAssessment(
+            latest_observation="2025-12",
+            latest_observation_field="observation_month",
+            status=ObservationRecencyStatus.STALE,
+            warning=(
+                "latest observation 2025-12 is materially behind the expected monthly "
+                "recency window"
+            ),
+        ),
+        matched_records=(
+            CanonicalRecord(
+                dataset_id="stats-gov-sa-cpi-headline-monthly",
+                source="stats-gov-sa",
+                record_index=0,
+                fields={
+                    "observation_month": "2025-12",
+                    "inflation_series_code": "headline_cpi_all_items",
+                    "yoy_rate_percent": 2.1,
+                },
+            ),
+        ),
+    )
+
+    excel_artifact = render_query_result_excel_artifact(
+        result,
+        freshness_status="fresh",
+        exported_at=datetime(2026, 4, 7, 8, 30, tzinfo=UTC),
+    )
+    rendered_excel = excel_artifact.decode("utf-8")
+
+    assert "latest_observation" in rendered_excel
+    assert "observation_recency_status" in rendered_excel
+    assert "2025-12" in rendered_excel
+    assert "stale" in rendered_excel
+    assert "latest observation 2025-12 is materially behind" in rendered_excel
+
+    pdf_artifact = render_query_result_pdf_artifact(
+        result,
+        freshness_status="fresh",
+        exported_at=datetime(2026, 4, 7, 8, 30, tzinfo=UTC),
+    )
+    rendered_pdf = _normalized_pdf_text(pdf_artifact)
+
+    assert "Latest Observation" in rendered_pdf
+    assert "Observation Recency Status" in rendered_pdf
+    assert "2025-12" in rendered_pdf
+    assert "stale" in rendered_pdf
+    assert "latest observation 2025-12 is materially behind" in rendered_pdf
 
 
 def test_render_query_result_excel_artifact_cleans_empty_filter_presentation() -> None:

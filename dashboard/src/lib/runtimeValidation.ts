@@ -10,6 +10,7 @@ import type {
   MaterializationSummary,
   ObservabilityCounterGroup,
   ObservabilitySummary,
+  ObservationRecencyAssessment,
   PreviewFailureStage,
   PreviewResolutionOutcome,
   PreviewStatus,
@@ -145,6 +146,38 @@ function parseCanonicalRecord(value: unknown): CanonicalRecord {
   };
 }
 
+function parseObservationRecencyAssessment(
+  value: unknown,
+): ObservationRecencyAssessment | null {
+  const assessment = expectNullableRecord(
+    value,
+    "DatasetQueryResult.observation_recency",
+  );
+  if (assessment === null) {
+    return null;
+  }
+
+  return {
+    latest_observation: expectString(
+      assessment.latest_observation,
+      "DatasetQueryResult.observation_recency.latest_observation",
+    ),
+    latest_observation_field: expectString(
+      assessment.latest_observation_field,
+      "DatasetQueryResult.observation_recency.latest_observation_field",
+    ),
+    status: expectOneOf(
+      assessment.status,
+      ["current", "stale", "not_applicable"] as const,
+      "DatasetQueryResult.observation_recency.status",
+    ),
+    warning: expectNullableString(
+      assessment.warning,
+      "DatasetQueryResult.observation_recency.warning",
+    ),
+  };
+}
+
 export function parseDatasetQueryResult(value: unknown): DatasetQueryResult {
   const result = expectRecord(value, "DatasetQueryResult");
   const appliedFiltersRecord = expectRecord(
@@ -200,6 +233,9 @@ export function parseDatasetQueryResult(value: unknown): DatasetQueryResult {
       ["normalization_limited", "stale_fallback_after_refresh_failure"] as const,
       "DatasetQueryResult.degradation_reason",
     ) as ResultDegradationReason | null,
+    observation_recency: parseObservationRecencyAssessment(
+      result.observation_recency ?? null,
+    ),
     matched_records: matchedRecords.map(parseCanonicalRecord),
     limitations: expectStringArray(
       result.limitations,

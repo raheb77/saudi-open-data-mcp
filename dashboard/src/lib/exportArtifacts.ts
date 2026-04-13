@@ -32,6 +32,8 @@ interface QueryExportContext {
   queryStatus: string;
   coverageStatus: string;
   freshnessStatus: string | null;
+  latestObservation: string | null;
+  observationRecencyStatus: string | null;
   dataOrigin: string | null;
   matchedRecordCount: number;
   totalRecordsBeforeFilter: number | null;
@@ -54,6 +56,8 @@ type ExportMetadataField =
   | "query_status"
   | "coverage_status"
   | "freshness_status"
+  | "latest_observation"
+  | "observation_recency_status"
   | "data_origin"
   | "matched_record_count"
   | "total_records_before_filter"
@@ -140,6 +144,8 @@ function buildQueryExportContext(
     queryStatus: result.status,
     coverageStatus: result.coverage_status,
     freshnessStatus,
+    latestObservation: result.observation_recency?.latest_observation ?? null,
+    observationRecencyStatus: result.observation_recency?.status ?? null,
     dataOrigin: result.data_origin,
     matchedRecordCount: result.matched_records.length,
     totalRecordsBeforeFilter: result.total_records_before_filter,
@@ -149,7 +155,12 @@ function buildQueryExportContext(
     failureStage: result.failure_stage,
     failureType: result.failure?.error_type ?? null,
     failureMessage: result.failure?.message ?? null,
-    notes: [...result.limitations],
+    notes: [
+      ...(result.observation_recency?.warning
+        ? [result.observation_recency.warning]
+        : []),
+      ...result.limitations,
+    ],
   };
 }
 
@@ -542,6 +553,10 @@ function metadataFieldValue(
       return context.coverageStatus;
     case "freshness_status":
       return context.freshnessStatus;
+    case "latest_observation":
+      return context.latestObservation;
+    case "observation_recency_status":
+      return context.observationRecencyStatus;
     case "data_origin":
       return context.dataOrigin;
     case "matched_record_count":

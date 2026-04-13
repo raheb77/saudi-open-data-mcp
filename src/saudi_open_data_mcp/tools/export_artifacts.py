@@ -33,6 +33,8 @@ _PDF_METADATA_LABELS = {
     "query_status": "حالة الاستعلام / Result Status",
     "coverage_status": "حالة التغطية / Coverage Status",
     "freshness_status": "حداثة اللقطة / Freshness Status",
+    "latest_observation": "أحدث ملاحظة / Latest Observation",
+    "observation_recency_status": "حالة حداثة الملاحظة / Observation Recency Status",
     "data_origin": "أصل البيانات / Data Origin",
     "matched_record_count": "السجلات المطابقة / Matched Records",
     "total_records_before_filter": "الإجمالي قبل التصفية / Total Before Filter",
@@ -95,6 +97,8 @@ class QueryExportContext:
     query_status: str
     coverage_status: str
     freshness_status: str | None
+    latest_observation: str | None
+    observation_recency_status: str | None
     data_origin: str | None
     matched_record_count: int
     total_records_before_filter: int | None
@@ -184,6 +188,16 @@ def _build_query_export_context(
         query_status=result.status.value,
         coverage_status=result.coverage_status.value,
         freshness_status=freshness_status,
+        latest_observation=(
+            result.observation_recency.latest_observation
+            if result.observation_recency is not None
+            else None
+        ),
+        observation_recency_status=(
+            result.observation_recency.status.value
+            if result.observation_recency is not None
+            else None
+        ),
         data_origin=(result.data_origin.value if result.data_origin is not None else None),
         matched_record_count=len(result.matched_records),
         total_records_before_filter=result.total_records_before_filter,
@@ -203,7 +217,7 @@ def _build_query_export_context(
         ),
         failure_type=(result.failure.error_type if result.failure is not None else None),
         failure_message=(result.failure.message if result.failure is not None else None),
-        notes=result.limitations,
+        notes=_build_export_notes(result),
     )
 
 
@@ -314,6 +328,13 @@ def _build_pdf_lines(
     freshness_status_label = _pdf_metadata_label(
         "freshness_status", pdf["labels"]["freshness_status"]
     )
+    latest_observation_label = _pdf_metadata_label(
+        "latest_observation", pdf["labels"]["latest_observation"]
+    )
+    observation_recency_status_label = _pdf_metadata_label(
+        "observation_recency_status",
+        pdf["labels"]["observation_recency_status"],
+    )
     data_origin_label = _pdf_metadata_label("data_origin", pdf["labels"]["data_origin"])
     matched_record_count_label = _pdf_metadata_label(
         "matched_record_count", pdf["labels"]["matched_record_count"]
@@ -339,6 +360,8 @@ def _build_pdf_lines(
         f"{query_status_label}: {context.query_status}",
         f"{coverage_status_label}: {context.coverage_status}",
         f"{freshness_status_label}: {_display_value(context.freshness_status)}",
+        f"{latest_observation_label}: {_display_value(context.latest_observation)}",
+        f"{observation_recency_status_label}: {_display_value(context.observation_recency_status)}",
         f"{data_origin_label}: {_display_value(context.data_origin)}",
         f"{matched_record_count_label}: {context.matched_record_count}",
         f"{total_before_filter_label}: {_display_value(context.total_records_before_filter)}",
@@ -629,6 +652,10 @@ def _metadata_field_value(context: QueryExportContext, field_name: str) -> Any:
         return context.coverage_status
     if field_name == "freshness_status":
         return context.freshness_status
+    if field_name == "latest_observation":
+        return context.latest_observation
+    if field_name == "observation_recency_status":
+        return context.observation_recency_status
     if field_name == "data_origin":
         return context.data_origin
     if field_name == "matched_record_count":
@@ -648,6 +675,18 @@ def _metadata_field_value(context: QueryExportContext, field_name: str) -> Any:
     if field_name == "failure_message":
         return context.failure_message
     raise ValueError(f"unknown export metadata field: {field_name}")
+
+
+def _build_export_notes(result: DatasetQueryResult) -> tuple[str, ...]:
+    """Build export notes from limitations plus observation-recency warning."""
+
+    notes = list(result.limitations)
+    if (
+        result.observation_recency is not None
+        and result.observation_recency.warning is not None
+    ):
+        notes.insert(0, result.observation_recency.warning)
+    return tuple(notes)
 
 
 def _escape_xml(value: str) -> str:

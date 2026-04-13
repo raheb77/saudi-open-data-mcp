@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ast
 import os
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 from saudi_open_data_mcp.connectors.base import RawPayload
@@ -36,6 +36,7 @@ from saudi_open_data_mcp.tools.query import (
     QueryFailureStage,
 )
 from saudi_open_data_mcp.tools.result_metadata import (
+    ObservationRecencyStatus,
     ResultDataOrigin,
     ResultDegradationReason,
 )
@@ -885,6 +886,59 @@ def test_query_dataset_returns_queryable_canonical_records_for_stats_gov_sa_cpi_
     }
 
 
+def test_query_dataset_exposes_stale_observation_recency_for_monthly_dataset(
+    tmp_path: Path,
+) -> None:
+    repository = RegistryRepository(tmp_path / "registry.sqlite")
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    descriptor = DatasetDescriptor(
+        dataset_id="stats-gov-sa-cpi-headline-monthly",
+        source="stats-gov-sa",
+        source_locator="/en/news?q=inflation&delta=20&start=0",
+        title="CPI Headline Inflation Monthly",
+        description="Official headline CPI release cards published by stats.gov.sa.",
+        schema_version="0.1.0",
+        update_frequency=UpdateFrequency.MONTHLY,
+        health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
+        caveats=(
+            "Current canonical extraction covers supported official headline "
+            "CPI release cards only.",
+        ),
+        known_issues=("Category tables and index values remain outside this first contract.",),
+    )
+    tool = DatasetQueryTool(
+        repository,
+        snapshot_store,
+        observation_reference_date_provider=lambda: date(2026, 4, 13),
+    )
+
+    repository.upsert_dataset(descriptor)
+    snapshot_store.write_snapshot(
+        RawPayload(
+            source="stats-gov-sa",
+            dataset_id=descriptor.source_locator,
+            content={
+                "url": "https://www.stats.gov.sa/en/news?q=inflation&delta=20&start=0",
+                "status_code": 200,
+                "content_type": "text/html",
+                "body": _stats_gov_sa_cpi_headline_monthly_html(),
+            },
+        )
+    )
+
+    result = tool.query_dataset(descriptor.dataset_id)
+
+    assert result.observation_recency is not None
+    assert result.observation_recency.latest_observation == "2025-12"
+    assert result.observation_recency.latest_observation_field == "observation_month"
+    assert result.observation_recency.status is ObservationRecencyStatus.STALE
+    assert (
+        result.observation_recency.warning
+        == "latest observation 2025-12 is materially behind the expected monthly recency window"
+    )
+
+
 def test_query_dataset_returns_queryable_labor_records_for_stats_gov_sa(
     tmp_path: Path,
 ) -> None:
@@ -1109,6 +1163,65 @@ def test_query_dataset_returns_queryable_mof_budget_balance_records(
     }
 
 
+def test_query_dataset_exposes_stale_observation_recency_for_quarterly_dataset(
+    tmp_path: Path,
+) -> None:
+    repository = RegistryRepository(tmp_path / "registry.sqlite")
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    descriptor = DatasetDescriptor(
+        dataset_id="mof-budget-balance-quarterly",
+        source="mof",
+        source_locator="/en/financialreport/2025/Pages/default.aspx",
+        title="Budget Balance Quarterly",
+        description="Official headline budget-balance series from MoF quarterly reports.",
+        schema_version="0.1.0",
+        update_frequency=UpdateFrequency.QUARTERLY,
+        health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
+        caveats=(
+            "Current canonical extraction covers one supported top-line budget-balance "
+            "series only.",
+        ),
+        known_issues=(
+            "Revenue, expenditure, financing sources, and broader fiscal statements "
+            "remain outside this first contract.",
+        ),
+    )
+    tool = DatasetQueryTool(
+        repository,
+        snapshot_store,
+        observation_reference_date_provider=lambda: date(2026, 4, 13),
+    )
+
+    repository.upsert_dataset(descriptor)
+    snapshot_store.write_snapshot(
+        RawPayload(
+            source="mof",
+            dataset_id=descriptor.source_locator,
+            content={
+                "url": "https://www.mof.gov.sa/en/financialreport/2025/Pages/default.aspx",
+                "status_code": 200,
+                "content_type": "application/json",
+                "body": _mof_budget_balance_quarterly_body(),
+            },
+        )
+    )
+
+    result = tool.query_dataset(
+        descriptor.dataset_id,
+        filters={"observation_quarter": "2025-Q2"},
+    )
+
+    assert result.observation_recency is not None
+    assert result.observation_recency.latest_observation == "2025-Q2"
+    assert result.observation_recency.latest_observation_field == "observation_quarter"
+    assert result.observation_recency.status is ObservationRecencyStatus.STALE
+    assert (
+        result.observation_recency.warning
+        == "latest observation 2025-Q2 is materially behind the expected quarterly recency window"
+    )
+
+
 def test_query_dataset_returns_queryable_canonical_records_for_sama_exchange_rates_current(
     tmp_path: Path,
 ) -> None:
@@ -1288,6 +1401,56 @@ def test_query_dataset_returns_queryable_canonical_records_for_sama_repo_rate(
         "source_rate_text": "4.5",
         "source_change_points_text": "-25",
     }
+
+
+def test_query_dataset_marks_observation_recency_not_applicable_for_ad_hoc_dataset(
+    tmp_path: Path,
+) -> None:
+    repository = RegistryRepository(tmp_path / "registry.sqlite")
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    descriptor = DatasetDescriptor(
+        dataset_id="sama-repo-rate",
+        source="sama",
+        source_locator="/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
+        title="Official Repo Rate",
+        description="Official SAMA repo rate page.",
+        schema_version="0.1.0",
+        update_frequency=UpdateFrequency.AD_HOC,
+        health_status=DatasetHealthStatus.UNKNOWN,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
+        caveats=("Current canonical extraction covers supported published repo-rate rows.",),
+        known_issues=("Only supported Publish Date / Rate (%) table layouts are normalized.",),
+    )
+    tool = DatasetQueryTool(
+        repository,
+        snapshot_store,
+        observation_reference_date_provider=lambda: date(2026, 4, 13),
+    )
+
+    repository.upsert_dataset(descriptor)
+    snapshot_store.write_snapshot(
+        RawPayload(
+            source="sama",
+            dataset_id=descriptor.source_locator,
+            content={
+                "url": "https://www.sama.gov.sa/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
+                "status_code": 200,
+                "content_type": "text/html",
+                "body": _repo_rate_html(),
+            },
+        )
+    )
+
+    result = tool.query_dataset(
+        descriptor.dataset_id,
+        filters={"effective_date": "2025-10-29"},
+    )
+
+    assert result.observation_recency is not None
+    assert result.observation_recency.latest_observation == "2025-12-10"
+    assert result.observation_recency.latest_observation_field == "effective_date"
+    assert result.observation_recency.status is ObservationRecencyStatus.NOT_APPLICABLE
+    assert result.observation_recency.warning is None
 
 
 def test_query_dataset_returns_queryable_canonical_records_for_sama_reverse_repo_rate(

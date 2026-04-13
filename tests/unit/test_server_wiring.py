@@ -624,6 +624,7 @@ async def test_server_missing_dataset_lookup_stays_explicit(
         "coverage_status": "unavailable",
         "source": None,
         "data_origin": None,
+        "observation_recency": None,
         "applied_filters": {},
         "limit": None,
         "total_records_before_filter": None,

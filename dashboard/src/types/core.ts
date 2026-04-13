@@ -22,6 +22,11 @@ export type ResultDegradationReason =
   | "normalization_limited"
   | "stale_fallback_after_refresh_failure";
 
+export type ObservationRecencyStatus =
+  | "current"
+  | "stale"
+  | "not_applicable";
+
 export type DatasetQueryStatus =
   | "missing"
   | "snapshot_missing"
@@ -94,6 +99,13 @@ export interface QueryFailure {
 
 export type QueryFilterValue = string | number | boolean | null;
 
+export interface ObservationRecencyAssessment {
+  latest_observation: string;
+  latest_observation_field: string;
+  status: ObservationRecencyStatus;
+  warning: string | null;
+}
+
 export interface DatasetQueryResult {
   dataset_id: string;
   status: DatasetQueryStatus;
@@ -105,6 +117,7 @@ export interface DatasetQueryResult {
   total_records_before_filter: number | null;
   failure_stage: QueryFailureStage | null;
   degradation_reason: ResultDegradationReason | null;
+  observation_recency?: ObservationRecencyAssessment | null;
   matched_records: CanonicalRecord[];
   limitations: string[];
   failure: QueryFailure | null;

@@ -20,12 +20,20 @@ describe("runtimeValidation", () => {
       total_records_before_filter: 1,
       failure_stage: null,
       degradation_reason: null,
+      observation_recency: {
+        latest_observation: "2025-12",
+        latest_observation_field: "observation_month",
+        status: "stale",
+        warning:
+          "latest observation 2025-12 is materially behind the expected monthly recency window",
+      },
       matched_records: [],
       limitations: [],
       failure: null,
     });
 
     expect(result.status).toBe("success");
+    expect(result.observation_recency?.status).toBe("stale");
   });
 
   it("rejects a query result payload whose applied filters are not scalar values", () => {

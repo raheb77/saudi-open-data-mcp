@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import UTC, date, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Protocol, Self
+from typing import Any, Callable, Protocol, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -29,7 +30,9 @@ from saudi_open_data_mcp.security.sanitization import (
     sanitize_query_filter_string_value,
 )
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
+from saudi_open_data_mcp.tools.observation_recency import assess_observation_recency
 from saudi_open_data_mcp.tools.result_metadata import (
+    ObservationRecencyAssessment,
     ResultDataOrigin,
     ResultDegradationReason,
 )
@@ -83,6 +86,7 @@ class DatasetQueryResult(BaseModel):
     total_records_before_filter: int | None = Field(default=None, ge=0)
     failure_stage: QueryFailureStage | None = None
     degradation_reason: ResultDegradationReason | None = None
+    observation_recency: ObservationRecencyAssessment | None = None
     matched_records: tuple[CanonicalRecord, ...] = Field(default_factory=tuple)
     limitations: tuple[str, ...] = Field(default_factory=tuple)
     failure: QueryFailure | None = None
@@ -102,10 +106,11 @@ class DatasetQueryResult(BaseModel):
                 or self.failure is not None
                 or self.failure_stage is not None
                 or self.degradation_reason is not None
+                or self.observation_recency is not None
             ):
                 raise ValueError(
                     "missing results must not include records, limitations, failure, "
-                    "failure_stage, or degradation_reason"
+                    "failure_stage, degradation_reason, or observation_recency"
                 )
             return self
 
@@ -129,10 +134,11 @@ class DatasetQueryResult(BaseModel):
                 or self.failure is not None
                 or self.failure_stage is not None
                 or self.degradation_reason is not None
+                or self.observation_recency is not None
             ):
                 raise ValueError(
                     "snapshot_missing results must not include records, limitations, "
-                    "failure, failure_stage, or degradation_reason"
+                    "failure, failure_stage, degradation_reason, or observation_recency"
                 )
             return self
 
@@ -176,6 +182,8 @@ class DatasetQueryResult(BaseModel):
                 raise ValueError(
                     "failed results must not include limitations or degradation_reason"
                 )
+            if self.observation_recency is not None:
+                raise ValueError("failed results must not include observation_recency")
             return self
 
         if self.coverage_status is not DatasetCoverageStatus.QUERYABLE:
@@ -247,6 +255,7 @@ class DatasetQueryResult(BaseModel):
         limit: int | None,
         normalization_result: NormalizationResult | None = None,
         limitations: tuple[str, ...] | None = None,
+        observation_recency: ObservationRecencyAssessment | None = None,
     ) -> Self:
         """Build a limited result when local normalization cannot expose records."""
 
@@ -270,6 +279,7 @@ class DatasetQueryResult(BaseModel):
             applied_filters=applied_filters,
             limit=limit,
             degradation_reason=ResultDegradationReason.NORMALIZATION_LIMITED,
+            observation_recency=observation_recency,
             limitations=resolved_limitations,
         )
 
@@ -311,6 +321,7 @@ class DatasetQueryResult(BaseModel):
         total_records_before_filter: int,
         applied_filters: dict[str, QueryFilterValue],
         limit: int | None,
+        observation_recency: ObservationRecencyAssessment | None = None,
     ) -> Self:
         """Build a successful local query result."""
 
@@ -323,6 +334,7 @@ class DatasetQueryResult(BaseModel):
             applied_filters=applied_filters,
             limit=limit,
             total_records_before_filter=total_records_before_filter,
+            observation_recency=observation_recency,
             matched_records=records,
         )
 
@@ -348,6 +360,7 @@ class DatasetQueryTool:
         snapshot_store: SnapshotStore | Path,
         *,
         normalization_pipeline: QueryPipeline | None = None,
+        observation_reference_date_provider: Callable[[], date] | None = None,
     ) -> None:
         self._repository = repository
         self._snapshot_store = (
@@ -356,6 +369,10 @@ class DatasetQueryTool:
             else SnapshotStore(snapshot_store)
         )
         self._normalization_pipeline = normalization_pipeline or NormalizationPipeline()
+        self._observation_reference_date_provider = (
+            observation_reference_date_provider
+            or (lambda: datetime.now(UTC).date())
+        )
 
     def query_dataset(
         self,
@@ -431,6 +448,12 @@ class DatasetQueryTool:
             _audit_query_result(result)
             return result
 
+        observation_recency = assess_observation_recency(
+            records=normalization_result.records,
+            update_frequency=descriptor.update_frequency,
+            reference_date=self._observation_reference_date_provider(),
+        )
+
         if descriptor.coverage_status is not DatasetCoverageStatus.QUERYABLE:
             result = DatasetQueryResult.limited(
                 descriptor=descriptor,
@@ -439,6 +462,7 @@ class DatasetQueryTool:
                 limitations=(
                     REGISTRY_COVERAGE_RESTRICTS_QUERYABLE_QUERY_LIMITATION,
                 ),
+                observation_recency=observation_recency,
             )
             _audit_query_result(result)
             return result
@@ -461,6 +485,7 @@ class DatasetQueryTool:
             total_records_before_filter=len(normalization_result.records),
             applied_filters=normalized_filters,
             limit=normalized_limit,
+            observation_recency=observation_recency,
         )
         _audit_query_result(result)
         return result
