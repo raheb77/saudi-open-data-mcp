@@ -9,6 +9,7 @@ import {
 } from "../components/StateBlocks";
 import { ar } from "../i18n/ar";
 import { SOURCE_LABELS } from "../lib/catalogPresentation";
+import { groupDatasetSurfaceEntries } from "../lib/datasetSurface";
 import { formatNumber } from "../lib/format";
 import {
   getDatasetHealthResult,
@@ -379,6 +380,17 @@ function MaterializationPanel({
 }
 
 function SourcesPanel({ cards }: { cards: SourceHealthCardData[] }) {
+  const sections = groupDatasetSurfaceEntries(cards, {
+    getCoverageStatus: (entry) =>
+      entry.previewError
+        ? "unavailable"
+        : (entry.preview?.coverage_status ??
+          entry.health?.coverage_status ??
+          entry.catalog.coverage_status),
+    getDatasetId: (entry) => entry.catalog.dataset_id,
+    getTitle: (entry) => entry.catalog.title,
+  });
+
   return (
     <section className="flex flex-col gap-3" aria-labelledby="sources-heading">
       <header className="flex flex-col">
@@ -387,20 +399,47 @@ function SourcesPanel({ cards }: { cards: SourceHealthCardData[] }) {
         </h3>
         <p className="text-xs text-ink-500">{ar.status.sources.summary}</p>
       </header>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {cards.map((entry) =>
-          entry.health && entry.health.status === "found" ? (
-            <HealthCard
-              key={entry.catalog.dataset_id}
-              title={entry.catalog.title}
-              health={entry.health}
-              preview={entry.preview}
-              previewErrorMessage={entry.previewError?.message ?? null}
-            />
-          ) : (
-            <HealthFailureCard key={entry.catalog.dataset_id} entry={entry} />
-          ),
-        )}
+      <div className="flex flex-col gap-6">
+        {sections.map((section) => (
+          <section
+            key={section.coverageStatus}
+            className="flex flex-col gap-3"
+            aria-labelledby={`status-dataset-section-${section.coverageStatus}`}
+            data-testid={`status-dataset-section-${section.coverageStatus}`}
+          >
+            <header className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-col gap-1">
+                <h4
+                  id={`status-dataset-section-${section.coverageStatus}`}
+                  className="text-sm font-semibold text-ink-900"
+                >
+                  {section.title}
+                </h4>
+                <p className="max-w-3xl text-xs leading-relaxed text-ink-500">
+                  {section.body}
+                </p>
+              </div>
+              <span className="rounded-full bg-ink-100 px-2 py-0.5 text-xs font-medium text-ink-700">
+                {ar.datasetSurface.countLabel}: {section.entries.length}
+              </span>
+            </header>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {section.entries.map((entry) =>
+                entry.health && entry.health.status === "found" ? (
+                  <HealthCard
+                    key={entry.catalog.dataset_id}
+                    title={entry.catalog.title}
+                    health={entry.health}
+                    preview={entry.preview}
+                    previewErrorMessage={entry.previewError?.message ?? null}
+                  />
+                ) : (
+                  <HealthFailureCard key={entry.catalog.dataset_id} entry={entry} />
+                ),
+              )}
+            </div>
+          </section>
+        ))}
       </div>
     </section>
   );

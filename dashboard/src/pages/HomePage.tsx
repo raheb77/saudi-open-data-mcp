@@ -9,10 +9,10 @@ import {
 } from "../components/StateBlocks";
 import { ar } from "../i18n/ar";
 import {
-  FEATURED_DATASET_IDS,
   SOURCE_LABELS,
   localizeDatasetTitle,
 } from "../lib/catalogPresentation";
+import { groupDatasetSurfaceEntries } from "../lib/datasetSurface";
 import {
   getDatasetHealthResult,
   getDatasetPreviewResult,
@@ -49,22 +49,8 @@ export function HomePage() {
     void (async () => {
       try {
         const catalog = await listDatasets(controller.signal);
-        const catalogById = new Map(
-          catalog.map((entry) => [entry.dataset_id, entry] as const),
-        );
         const cards = await Promise.all(
-          FEATURED_DATASET_IDS.map(async (datasetId) => {
-            const entry = catalogById.get(datasetId) ?? null;
-            if (!entry) {
-              return {
-                datasetId,
-                catalog: null,
-                preview: null,
-                health: undefined,
-                previewError: null,
-              } satisfies HomeCardData;
-            }
-
+          catalog.map(async (entry) => {
             const [previewResult, healthResult] = await Promise.allSettled([
               getDatasetPreviewResult(entry.dataset_id, controller.signal),
               getDatasetHealthResult(
@@ -162,11 +148,49 @@ export function HomePage() {
       )}
 
       {state.kind === "ready" && (
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {state.cards.map((card) => (
-            <HomeCard key={card.datasetId} card={card} />
+        <div className="flex flex-col gap-6">
+          {groupDatasetSurfaceEntries(state.cards, {
+            getCoverageStatus: (card) =>
+              card.previewError
+                ? "unavailable"
+                : (card.preview?.coverage_status ??
+                  card.catalog?.coverage_status ??
+                  "unavailable"),
+            getDatasetId: (card) => card.datasetId,
+            getTitle: (card) =>
+              card.catalog?.title ??
+              localizeDatasetTitle(card.datasetId, card.datasetId),
+          }).map((section) => (
+            <section
+              key={section.coverageStatus}
+              className="flex flex-col gap-3"
+              aria-labelledby={`home-dataset-section-${section.coverageStatus}`}
+              data-testid={`home-dataset-section-${section.coverageStatus}`}
+            >
+              <header className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-col gap-1">
+                  <h3
+                    id={`home-dataset-section-${section.coverageStatus}`}
+                    className="text-sm font-semibold text-ink-900"
+                  >
+                    {section.title}
+                  </h3>
+                  <p className="max-w-3xl text-xs leading-relaxed text-ink-500">
+                    {section.body}
+                  </p>
+                </div>
+                <span className="rounded-full bg-ink-100 px-2 py-0.5 text-xs font-medium text-ink-700">
+                  {ar.datasetSurface.countLabel}: {section.entries.length}
+                </span>
+              </header>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {section.entries.map((card) => (
+                  <HomeCard key={card.datasetId} card={card} />
+                ))}
+              </div>
+            </section>
           ))}
-        </section>
+        </div>
       )}
     </div>
   );

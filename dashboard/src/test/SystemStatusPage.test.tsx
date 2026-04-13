@@ -49,6 +49,22 @@ const STATUS_DATASETS: DatasetCatalogEntry[] = [
     health_status: "healthy",
     coverage_status: "queryable",
   },
+  {
+    dataset_id: "sama-pos-by-city",
+    source: "sama",
+    title: "نقاط البيع حسب المدينة",
+    update_frequency: "weekly",
+    health_status: "healthy",
+    coverage_status: "limited",
+  },
+  {
+    dataset_id: "data-gov-sa-census-marital-status",
+    source: "data-gov-sa",
+    title: "الحالة الاجتماعية في التعداد",
+    update_frequency: "annual",
+    health_status: "unknown",
+    coverage_status: "catalog_only",
+  },
 ];
 
 function makeReadinessReport(): ReadinessReport {
@@ -93,13 +109,14 @@ function makeObservabilitySummary(): ObservabilitySummary {
 function makeHealthResult(
   datasetId: string,
   source: SourceName,
+  coverageStatus: DatasetCatalogEntry["coverage_status"] = "queryable",
 ): DatasetHealthLookupResult {
   return {
     dataset_id: datasetId,
     status: "found",
     source,
     health_status: "healthy",
-    coverage_status: "queryable",
+    coverage_status: coverageStatus,
     schema_version: "1.0.0",
     caveats: [],
     known_issues: [],
@@ -120,27 +137,39 @@ function makeHealthResult(
 function makePreviewResult(
   datasetId: string,
   source: SourceName,
+  coverageStatus: DatasetCatalogEntry["coverage_status"] = "queryable",
 ): DatasetPreviewResult {
   return {
     dataset_id: datasetId,
-    status: "record_derivable",
-    coverage_status: "queryable",
+    status: coverageStatus === "queryable" ? "record_derivable" : "limited",
+    coverage_status: coverageStatus,
     resolution_outcome: "serve_local",
     data_origin: "local_snapshot",
     freshness_status: "fresh",
-    failure_stage: null,
-    degradation_reason: null,
+    failure_stage: coverageStatus === "queryable" ? null : "normalization",
+    degradation_reason:
+      coverageStatus === "queryable" ? null : "normalization_limited",
     snapshot_modified_at: "2026-04-08T07:00:00Z",
     resolution_notice: null,
-    records: [
-      {
-        dataset_id: datasetId,
-        source,
-        record_index: 1,
-        fields: { observation_date: "2026-04-08", value: 1 },
-      },
-    ],
-    limitations: [],
+    records:
+      coverageStatus === "queryable"
+        ? [
+            {
+              dataset_id: datasetId,
+              source,
+              record_index: 1,
+              fields: { observation_date: "2026-04-08", value: 1 },
+            },
+          ]
+        : [],
+    limitations:
+      coverageStatus === "limited"
+        ? ["sama_pos_by_city_json_requires_supported_city_table_report_bundle"]
+        : coverageStatus === "catalog_only"
+          ? [
+              "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+            ]
+          : [],
     failure: null,
   };
 }
@@ -165,11 +194,16 @@ describe("SystemStatusPage", () => {
     getObservabilityMock.mockResolvedValue(makeObservabilitySummary());
     listDatasetsMock.mockResolvedValue(STATUS_DATASETS);
     getDatasetHealthResultMock.mockImplementation(async (datasetId, sourceFallback) =>
-      makeHealthResult(datasetId, sourceFallback ?? "sama"),
+      makeHealthResult(
+        datasetId,
+        sourceFallback ?? "sama",
+        STATUS_DATASETS.find((item) => item.dataset_id === datasetId)
+          ?.coverage_status ?? "queryable",
+      ),
     );
     getDatasetPreviewResultMock.mockImplementation(async (datasetId) => {
       const entry = STATUS_DATASETS.find((item) => item.dataset_id === datasetId)!;
-      return makePreviewResult(datasetId, entry.source);
+      return makePreviewResult(datasetId, entry.source, entry.coverage_status);
     });
 
     render(<SystemStatusPage />);
@@ -177,8 +211,17 @@ describe("SystemStatusPage", () => {
     expect(await screen.findByText("الجاهزية")).toBeInTheDocument();
     expect(screen.getByText("جاهز")).toBeInTheDocument();
     expect(screen.getByText("ملخص عدّادات التحديث")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("status-dataset-section-queryable"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("status-dataset-section-limited")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("status-dataset-section-catalog_only"),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("التغطية الحالية").length).toBeGreaterThan(0);
     expect(screen.getAllByText("مدعومة الآن").length).toBeGreaterThan(0);
+    expect(screen.getByText("دعم جزئي")).toBeInTheDocument();
+    expect(screen.getByText("فهرس فقط")).toBeInTheDocument();
     expect(screen.getAllByText("قابلية الاستعلام").length).toBeGreaterThan(0);
     expect(screen.getAllByText("وقت اللقطة").length).toBeGreaterThan(0);
     expect(screen.getAllByText("sama-pos-weekly").length).toBeGreaterThan(0);
@@ -196,7 +239,7 @@ describe("SystemStatusPage", () => {
     listDatasetsMock.mockResolvedValue(STATUS_DATASETS);
     getDatasetPreviewResultMock.mockImplementation(async (datasetId) => {
       const entry = STATUS_DATASETS.find((item) => item.dataset_id === datasetId)!;
-      return makePreviewResult(datasetId, entry.source);
+      return makePreviewResult(datasetId, entry.source, entry.coverage_status);
     });
 
     render(<SystemStatusPage />);
@@ -220,11 +263,16 @@ describe("SystemStatusPage", () => {
     getObservabilityMock.mockResolvedValue(makeObservabilitySummary());
     listDatasetsMock.mockResolvedValue(STATUS_DATASETS);
     getDatasetHealthResultMock.mockImplementation(async (datasetId, sourceFallback) =>
-      makeHealthResult(datasetId, sourceFallback ?? "sama"),
+      makeHealthResult(
+        datasetId,
+        sourceFallback ?? "sama",
+        STATUS_DATASETS.find((item) => item.dataset_id === datasetId)
+          ?.coverage_status ?? "queryable",
+      ),
     );
     getDatasetPreviewResultMock.mockImplementation(async (datasetId) => {
       const entry = STATUS_DATASETS.find((item) => item.dataset_id === datasetId)!;
-      return makePreviewResult(datasetId, entry.source);
+      return makePreviewResult(datasetId, entry.source, entry.coverage_status);
     });
 
     render(<SystemStatusPage />);
@@ -248,25 +296,31 @@ describe("SystemStatusPage", () => {
     getObservabilityMock.mockResolvedValue(makeObservabilitySummary());
     listDatasetsMock.mockResolvedValue(STATUS_DATASETS);
     getDatasetHealthResultMock.mockImplementation(async (datasetId, sourceFallback) =>
-      makeHealthResult(datasetId, sourceFallback ?? "sama"),
+      makeHealthResult(
+        datasetId,
+        sourceFallback ?? "sama",
+        STATUS_DATASETS.find((item) => item.dataset_id === datasetId)
+          ?.coverage_status ?? "queryable",
+      ),
     );
     getDatasetPreviewResultMock.mockImplementation(async (datasetId) => {
       const entry = STATUS_DATASETS.find((item) => item.dataset_id === datasetId)!;
-      if (datasetId === "sama-pos-weekly") {
+      if (datasetId === "sama-pos-by-city") {
         return {
-          ...makePreviewResult(datasetId, entry.source),
+          ...makePreviewResult(datasetId, entry.source, "limited"),
           status: "limited",
           coverage_status: "limited",
           limitations: ["sama_pos_weekly_json_requires_supported_report_text_bundle"],
           degradation_reason: "normalization_limited",
         };
       }
-      return makePreviewResult(datasetId, entry.source);
+      return makePreviewResult(datasetId, entry.source, entry.coverage_status);
     });
 
     render(<SystemStatusPage />);
 
     expect(await screen.findByText("حالة المصادر ومجموعات البيانات")).toBeInTheDocument();
+    expect(screen.getByTestId("status-dataset-section-limited")).toBeInTheDocument();
     expect(screen.getAllByText("التغطية الحالية").length).toBeGreaterThan(0);
     expect(screen.getByText("دعم جزئي")).toBeInTheDocument();
     expect(
@@ -278,11 +332,66 @@ describe("SystemStatusPage", () => {
     expect(screen.getAllByText("حالة اللقطة").length).toBeGreaterThan(0);
     expect(screen.getAllByText("صحة المصدر").length).toBeGreaterThan(0);
     expect(screen.getAllByText("حديث").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: /التفاصيل التقنية/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /التفاصيل التقنية/i })[0]);
     expect(
       screen.getByText(
         "sama_pos_weekly_json_requires_supported_report_text_bundle",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("keeps supported status cards ahead of partial and catalog-only cards", async () => {
+    getReadinessMock.mockResolvedValue(makeReadinessReport());
+    getObservabilityMock.mockResolvedValue(makeObservabilitySummary());
+    listDatasetsMock.mockResolvedValue(STATUS_DATASETS);
+    getDatasetHealthResultMock.mockImplementation(async (datasetId, sourceFallback) =>
+      makeHealthResult(
+        datasetId,
+        sourceFallback ?? "sama",
+        STATUS_DATASETS.find((item) => item.dataset_id === datasetId)
+          ?.coverage_status ?? "queryable",
+      ),
+    );
+    getDatasetPreviewResultMock.mockImplementation(async (datasetId) => {
+      const entry = STATUS_DATASETS.find((item) => item.dataset_id === datasetId)!;
+      if (datasetId === "sama-pos-by-city") {
+        return {
+          ...makePreviewResult(datasetId, entry.source, "limited"),
+          status: "limited",
+          coverage_status: "limited",
+          records: [],
+          limitations: ["sama_pos_by_city_json_requires_supported_city_table_report_bundle"],
+          degradation_reason: "normalization_limited",
+        };
+      }
+      if (datasetId === "data-gov-sa-census-marital-status") {
+        return {
+          ...makePreviewResult(datasetId, entry.source, "catalog_only"),
+          status: "limited",
+          coverage_status: "catalog_only",
+          records: [],
+          limitations: [
+            "text_or_html_body_requires_source_specific_extraction_before_record_normalization",
+          ],
+          degradation_reason: "normalization_limited",
+        };
+      }
+      return makePreviewResult(datasetId, entry.source, entry.coverage_status);
+    });
+
+    render(<SystemStatusPage />);
+
+    const queryableSection = await screen.findByTestId(
+      "status-dataset-section-queryable",
+    );
+    const limitedSection = screen.getByTestId("status-dataset-section-limited");
+    const catalogOnlySection = screen.getByTestId(
+      "status-dataset-section-catalog_only",
+    );
+
+    expect(queryableSection).toHaveTextContent("نقاط البيع الأسبوعية");
+    expect(queryableSection).not.toHaveTextContent("نقاط البيع حسب المدينة");
+    expect(limitedSection).toHaveTextContent("نقاط البيع حسب المدينة");
+    expect(catalogOnlySection).toHaveTextContent("الحالة الاجتماعية في التعداد");
   });
 });
