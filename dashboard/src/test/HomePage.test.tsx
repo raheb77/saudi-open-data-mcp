@@ -206,12 +206,16 @@ describe("HomePage", () => {
       screen.getByTestId("home-dataset-section-catalog_only"),
     ).toBeInTheDocument();
     expect(screen.getByText("نقاط البيع الأسبوعية")).toBeInTheDocument();
-    expect(screen.getAllByText("التغطية الحالية").length).toBeGreaterThan(0);
+    // Coverage badges appear in the always-visible badges row; the coverage
+    // signal section inside the collapsed accordion also contains them (DOM
+    // present, visually hidden via grid-template-rows: 0fr).
     expect(screen.getAllByText("مدعومة الآن").length).toBeGreaterThan(0);
-    expect(screen.getByText("دعم جزئي")).toBeInTheDocument();
-    expect(screen.getByText("فهرس فقط")).toBeInTheDocument();
-    expect(screen.getAllByText("قابلية الاستعلام").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("وقت اللقطة").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("متاح جزئياً").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("فهرس فقط").length).toBeGreaterThan(0);
+    // Cards start collapsed — details hidden behind accordion.
+    expect(
+      screen.getAllByRole("button", { name: "عرض التفاصيل" }).length,
+    ).toBeGreaterThan(0);
     expect(
       screen.getAllByRole("link", { name: "افتح في صفحة الاستعلام" }).length,
     ).toBeGreaterThan(0);
@@ -254,10 +258,17 @@ describe("HomePage", () => {
     renderHomePage();
 
     expect(await screen.findByTestId("home-dataset-section-limited")).toBeInTheDocument();
-    expect(screen.getByTestId("home-dataset-section-limited")).toBeInTheDocument();
     expect(screen.getByText("نقاط البيع حسب المدينة")).toBeInTheDocument();
+    expect(screen.getAllByText("فهرس فقط").length).toBeGreaterThan(0);
+
+    // Expand the limited card's accordion to reveal inner detail sections.
+    const limitedSection = screen.getByTestId("home-dataset-section-limited");
+    const detailsButton = limitedSection.querySelector<HTMLButtonElement>(
+      'button[aria-expanded="false"]',
+    )!;
+    fireEvent.click(detailsButton);
+
     expect(screen.getAllByText("التغطية الحالية").length).toBeGreaterThan(0);
-    expect(screen.getByText("فهرس فقط")).toBeInTheDocument();
     expect(screen.getAllByText("قابلية الاستعلام").length).toBeGreaterThan(0);
     expect(screen.getAllByText("حالة اللقطة").length).toBeGreaterThan(0);
     expect(

@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { ar } from "../i18n/ar";
 import { MetadataStrip } from "../components/MetadataStrip";
 
 describe("MetadataStrip", () => {
@@ -45,7 +46,7 @@ describe("MetadataStrip", () => {
     expect(strip).toHaveTextContent("stats-gov-sa-cpi-headline-monthly");
   });
 
-  it("renders a degradation reason with its raw identifier", () => {
+  it("renders the Arabic degradation explanation without the raw identifier", () => {
     render(
       <MetadataStrip
         dataset_id="stats-gov-sa-cpi-headline-monthly"
@@ -58,7 +59,8 @@ describe("MetadataStrip", () => {
     );
 
     const strip = screen.getByTestId("metadata-strip");
-    expect(strip).toHaveTextContent("normalization_limited");
+    expect(strip).toHaveTextContent(ar.state.normalizationLimited);
+    expect(strip).not.toHaveTextContent("normalization_limited");
   });
 
   it("renders preview and health status families explicitly", () => {
@@ -73,7 +75,7 @@ describe("MetadataStrip", () => {
     );
 
     expect(screen.getByTestId("metadata-strip")).toHaveTextContent(
-      "record_derivable",
+      ar.state.recordDerivable,
     );
 
     rerender(
@@ -86,7 +88,7 @@ describe("MetadataStrip", () => {
       />,
     );
 
-    expect(screen.getByTestId("metadata-strip")).toHaveTextContent("degraded");
+    expect(screen.getByTestId("metadata-strip")).toHaveTextContent(ar.state.degraded);
   });
 
   it("supports a flat embedded variant without changing metadata content", () => {
@@ -108,8 +110,10 @@ describe("MetadataStrip", () => {
     expect(strip.className).toContain("bg-transparent");
     expect(strip.className).toContain("shadow-none");
     expect(strip).toHaveTextContent("mof-budget-balance-quarterly");
-    expect(strip).toHaveTextContent("healthy");
-    expect(strip).toHaveTextContent("local_snapshot");
+    expect(strip).toHaveTextContent(ar.state.healthy);
+    expect(strip).toHaveTextContent(ar.state.localSnapshot);
+    expect(strip).not.toHaveTextContent("healthy");
+    expect(strip).not.toHaveTextContent("local_snapshot");
   });
 
   it("can hide duplicate embedded rows and collapse when nothing unique remains", () => {
@@ -139,7 +143,8 @@ describe("MetadataStrip", () => {
     const strip = screen.getByTestId("metadata-strip");
     expect(strip).not.toHaveTextContent("sama-pos-weekly");
     expect(strip).not.toHaveTextContent("local_snapshot");
-    expect(strip).toHaveTextContent("normalization_limited");
+    expect(strip).toHaveTextContent(ar.state.normalizationLimited);
+    expect(strip).not.toHaveTextContent("normalization_limited");
 
     rerender(
       <MetadataStrip

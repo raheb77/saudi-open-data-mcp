@@ -106,7 +106,7 @@ export function FilterForm({
                   aria-label={`${ar.query.removeFilter} ${index + 1}`}
                   aria-describedby={rowLabelId}
                   onClick={() => remove(rowId)}
-                  className="text-xs text-rose-700 hover:underline"
+                  className="text-tone-bad text-xs hover:underline"
                 >
                   {ar.query.removeFilter}
                 </button>

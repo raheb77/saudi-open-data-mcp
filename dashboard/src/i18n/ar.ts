@@ -17,6 +17,10 @@ export const ar = {
       query: "الاستعلام",
       systemStatus: "حالة النظام",
     },
+    breadcrumbs: {
+      label: "التنقل التفصيلي",
+      backToCatalog: "العودة لقائمة المجموعات",
+    },
     role: {
       label: "الدور",
       viewer: "مُطّلع",
@@ -51,6 +55,9 @@ export const ar = {
     knownIssues: "إشكالات معروفة",
     showDetails: "أظهر التفاصيل",
     hideDetails: "أخفِ التفاصيل",
+    showCardDetails: "عرض التفاصيل",
+    hideCardDetails: "إخفاء التفاصيل",
+    extraTechnicalInfo: "معلومات تقنية إضافية",
   },
 
   query: {
@@ -78,7 +85,7 @@ export const ar = {
     resultOverviewBody:
       "يعرض هذا الملخص ما يهم في القراءة الأولى: العدد المطابق، الحجم قبل الترشيح، المرشحات النشطة، والحد المطبق.",
     filterCount: "عدد المرشحات",
-    noAppliedFilters: "لا توجد مرشحات مطبقة على هذه النتيجة.",
+    noAppliedFilters: "جميع السجلات معروضة — أضف مرشحات للتخصيص",
     noLimitApplied: "بدون حد",
     exportCurrentTitle: "تصدير النتيجة الحالية",
     exportCurrentBody:
@@ -100,7 +107,7 @@ export const ar = {
       },
     },
     table: {
-      empty: "لا توجد سجلات مطابقة",
+      empty: "لا توجد سجلات لهذا الاستعلام",
       recordIndex: "#",
       noColumns: "لا توجد أعمدة قابلة للعرض",
       showMore: "أظهر المزيد",
@@ -194,13 +201,13 @@ export const ar = {
         "المجموعة متاحة، لكن عليها ملاحظات أو قيود تشغيلية يجب أخذها في الحسبان.",
       unavailable:
         "حالة الصحة الحالية غير متاحة بشكل صالح لهذه المجموعة.",
-      unknown: "لم تتوفر دلالة كافية للحكم على صحة هذه المجموعة الآن.",
+      unknown: "لم نتحقق من هذا المصدر بعد. البيانات قابلة للاستخدام.",
     },
     freshnessNarratives: {
       fresh: "اللقطة ضمن النافذة الزمنية المتوقعة.",
       stale: "اللقطة موجودة لكنها أقدم من النافذة الزمنية المتوقعة.",
       missing: "لا توجد لقطة محلية حالية لهذه المجموعة.",
-      unknown: "لا توجد أدلة كافية للحكم على حداثة اللقطة.",
+      unknown: "لم يتم تحديد جدول التحديث بعد",
     },
     originNarratives: {
       localSnapshot: "العرض الحالي يعتمد على لقطة محلية محفوظة.",
@@ -217,7 +224,7 @@ export const ar = {
         body: "هذه هي الواجهة الأساسية للمنتج الآن: مجموعات لها مسار استخراج وتطبيع عامل ويمكن الاستعلام عن سجلاتها بثقة أعلى من بقية الفهرس.",
       },
       limited: {
-        title: "مجموعات بدعم جزئي",
+        title: "مجموعات متاحة جزئياً",
         body: "هذه المجموعات معروفة ضمن النطاق الحالي، لكن استخدامها التحليلي ما زال جزئيًا بسبب قيود استخراج أو تطبيع معلنة.",
       },
       catalogOnly: {
@@ -238,14 +245,14 @@ export const ar = {
     dataOrigin: "أصل البيانات",
     freshness: "الحداثة",
     status: "الحالة",
-    degradation: "سبب التدهور",
+    degradation: "حالة الحقول",
     datasetId: "مُعرّف المجموعة",
     schemaVersion: "إصدار المخطط",
     snapshotAge: "عمر اللقطة",
   },
 
   state: {
-    loading: "جارٍ التحميل…",
+    loading: "جارٍ تحميل البيانات…",
     empty: "لا توجد بيانات لعرضها",
     success: "ناجح",
     limited: "محدود",
@@ -258,9 +265,9 @@ export const ar = {
     healthy: "سليم",
     degraded: "متدهور",
     unavailable: "غير متاح",
-    unknown: "غير معروف",
+    unknown: "قيد التحقق",
     fresh: "حديث",
-    freshnessUnknown: "غير محدد",
+    freshnessUnknown: "في انتظار التحديث",
     localSnapshot: "لقطة محلية",
     liveRefresh: "تحديث مباشر",
     staleSnapshot: "لقطة قديمة",
@@ -268,21 +275,21 @@ export const ar = {
     observationStale: "متأخر تحليليًا",
     observationNotApplicable: "لا ينطبق",
     coverageQueryable: "مدعومة الآن",
-    coverageLimited: "دعم جزئي",
+    coverageLimited: "متاح جزئياً",
     coverageCatalogOnly: "فهرس فقط",
     coverageUnavailable: "غير محسوم",
-    normalizationLimited: "تطبيع محدود",
+    normalizationLimited: "بعض الحقول غير متاحة حالياً",
     staleFallback: "احتياط بسبب فشل التحديث",
   },
 
   empty: {
-    title: "لا توجد بيانات",
-    body: "لا توجد سجلات مطابقة للمرشحات الحالية.",
+    title: "لا توجد سجلات لهذا الاستعلام",
+    body: "قد تكون الفترة الزمنية المحددة خارج نطاق البيانات المتوفرة لهذه المجموعة.",
   },
 
   error: {
-    title: "تعذّر إكمال العملية",
-    body: "أعادت النواة فشلًا واضحًا. لم نُخفِ التفاصيل خلف رسالة عامة.",
+    title: "تعذّر تحميل البيانات",
+    body: "تحقق من اتصالك بالإنترنت وأعد المحاولة. إن استمرت المشكلة، قد يكون المصدر غير متاح مؤقتًا.",
     stageLabel: "مرحلة الفشل",
     typeLabel: "نوع الخطأ",
   },
@@ -317,7 +324,7 @@ export const ar = {
   },
 
   missing: {
-    title: "مجموعة بيانات غير معروفة",
+    title: "مجموعة بيانات غير موجودة",
     body: "لا يوجد سجل في السجل المركزي يطابق هذا المُعرّف.",
   },
 

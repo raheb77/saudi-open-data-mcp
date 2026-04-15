@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DashboardApiError } from "../lib/mcpClient";
 import {
@@ -87,8 +88,44 @@ function makeObservabilitySummary(): ObservabilitySummary {
     process_local: true,
     groups: [
       {
-        name: "materialize",
-        summary: "ملخص عدّادات التحديث المحلية.",
+        name: "startup",
+        summary:
+          "Process-local server construction counters. Attempts, ready, and failures count startup lifecycle outcomes, not request traffic.",
+        counters: [
+          { name: "server.startup.attempts", value: 1 },
+          { name: "server.startup.ready", value: 1 },
+          { name: "server.startup.failures", value: 0 },
+        ],
+        detail_counters: [],
+      },
+      {
+        name: "auth",
+        summary:
+          "HTTP auth counters for the run-http serving path only. Accepted and rejected counts are outcomes within http.auth.requests. http.authz.* counters track 403 capability denials plus fail-closed coverage errors after token validation.",
+        counters: [
+          { name: "http.auth.requests", value: 5 },
+          { name: "http.auth.accepted", value: 4 },
+          { name: "http.auth.rejected", value: 1 },
+          { name: "http.auth.rejected.invalid", value: 1 },
+        ],
+        detail_counters: [],
+      },
+      {
+        name: "connectors",
+        summary:
+          "Top-level connector retry/failure totals. Per-source connector.request_* detail counters remain available below for source-specific inspection.",
+        counters: [
+          { name: "connector.retries", value: 2 },
+          { name: "connector.failures", value: 1 },
+        ],
+        detail_counters: [
+          { name: "connector.request_attempts.sama", value: 8 },
+        ],
+      },
+      {
+        name: "materialization",
+        summary:
+          "Hot-set materialization counters. materialize.requests counts top-level runs; successes and failures count per-dataset outcomes, including Tier A background refresh runs.",
         counters: [
           { name: "materialize.requests", value: 3 },
           { name: "materialize.successes", value: 2 },
@@ -98,11 +135,24 @@ function makeObservabilitySummary(): ObservabilitySummary {
       },
     ],
     raw_counters: {
+      "server.startup.attempts": 1,
+      "server.startup.ready": 1,
+      "server.startup.failures": 0,
+      "http.auth.requests": 5,
+      "http.auth.accepted": 4,
+      "http.auth.rejected": 1,
+      "http.auth.rejected.invalid": 1,
+      "connector.retries": 2,
+      "connector.failures": 1,
+      "connector.request_attempts.sama": 8,
       "materialize.requests": 3,
       "materialize.successes": 2,
       "materialize.failures": 1,
     },
-    notes: ["عدادات محلية فقط"],
+    notes: [
+      "Counters are process-local and reset on process restart.",
+      "Request counters and outcome counters are not interchangeable; see each group summary.",
+    ],
   };
 }
 
@@ -184,7 +234,11 @@ describe("SystemStatusPage", () => {
     getObservabilityMock.mockReturnValue(new Promise(() => {}));
     listDatasetsMock.mockReturnValue(new Promise(() => {}));
 
-    render(<SystemStatusPage />);
+    render(
+      <MemoryRouter>
+        <SystemStatusPage />
+      </MemoryRouter>,
+    );
 
     expect(screen.getByTestId("state-loading")).toBeInTheDocument();
   });
@@ -206,11 +260,26 @@ describe("SystemStatusPage", () => {
       return makePreviewResult(datasetId, entry.source, entry.coverage_status);
     });
 
-    render(<SystemStatusPage />);
+    render(
+      <MemoryRouter>
+        <SystemStatusPage />
+      </MemoryRouter>,
+    );
 
     expect(await screen.findByText("الجاهزية")).toBeInTheDocument();
     expect(screen.getByText("جاهز")).toBeInTheDocument();
     expect(screen.getByText("ملخص عدّادات التحديث")).toBeInTheDocument();
+    expect(screen.getByText("جاهزية التشغيل الداخلية")).toBeInTheDocument();
+    expect(screen.getByText("العملية تعمل")).toBeInTheDocument();
+    expect(screen.getByText("بدء التشغيل")).toBeInTheDocument();
+    expect(screen.getByText("المصادقة")).toBeInTheDocument();
+    expect(screen.getByText("الموصّلات")).toBeInTheDocument();
+    expect(screen.getByText("محاولات البدء")).toBeInTheDocument();
+    expect(screen.getByText("طلبات المصادقة")).toBeInTheDocument();
+    expect(screen.getByText("طلبات ساما")).toBeInTheDocument();
+    expect(
+      screen.getByText("تُعاد العدّادات إلى الصفر عند إعادة تشغيل العملية."),
+    ).toBeInTheDocument();
     expect(
       screen.getByTestId("status-dataset-section-queryable"),
     ).toBeInTheDocument();
@@ -220,11 +289,16 @@ describe("SystemStatusPage", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText("التغطية الحالية").length).toBeGreaterThan(0);
     expect(screen.getAllByText("مدعومة الآن").length).toBeGreaterThan(0);
-    expect(screen.getByText("دعم جزئي")).toBeInTheDocument();
+    expect(screen.getByText("متاح جزئياً")).toBeInTheDocument();
     expect(screen.getByText("فهرس فقط")).toBeInTheDocument();
     expect(screen.getAllByText("قابلية الاستعلام").length).toBeGreaterThan(0);
     expect(screen.getAllByText("وقت اللقطة").length).toBeGreaterThan(0);
     expect(screen.getAllByText("sama-pos-weekly").length).toBeGreaterThan(0);
+    expect(
+      screen.queryByText("server.startup.attempts"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("http.auth.requests")).not.toBeInTheDocument();
+    expect(screen.queryByText("connector.request_attempts.sama")).not.toBeInTheDocument();
   });
 
   it("keeps healthy sections visible when one live status section fails", async () => {
@@ -242,7 +316,11 @@ describe("SystemStatusPage", () => {
       return makePreviewResult(datasetId, entry.source, entry.coverage_status);
     });
 
-    render(<SystemStatusPage />);
+    render(
+      <MemoryRouter>
+        <SystemStatusPage />
+      </MemoryRouter>,
+    );
 
     expect(await screen.findByTestId("status-page-degraded")).toBeInTheDocument();
     expect(screen.getByText("تعذّر التحقق من حمولة الجاهزية الحية.")).toBeInTheDocument();
@@ -275,7 +353,11 @@ describe("SystemStatusPage", () => {
       return makePreviewResult(datasetId, entry.source, entry.coverage_status);
     });
 
-    render(<SystemStatusPage />);
+    render(
+      <MemoryRouter>
+        <SystemStatusPage />
+      </MemoryRouter>,
+    );
 
     expect(await screen.findByTestId("status-page-degraded")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "أعد المحاولة" }));
@@ -317,12 +399,16 @@ describe("SystemStatusPage", () => {
       return makePreviewResult(datasetId, entry.source, entry.coverage_status);
     });
 
-    render(<SystemStatusPage />);
+    render(
+      <MemoryRouter>
+        <SystemStatusPage />
+      </MemoryRouter>,
+    );
 
     expect(await screen.findByText("حالة المصادر ومجموعات البيانات")).toBeInTheDocument();
     expect(screen.getByTestId("status-dataset-section-limited")).toBeInTheDocument();
     expect(screen.getAllByText("التغطية الحالية").length).toBeGreaterThan(0);
-    expect(screen.getByText("دعم جزئي")).toBeInTheDocument();
+    expect(screen.getByText("متاح جزئياً")).toBeInTheDocument();
     expect(
       screen.getByText(
         "هذه المجموعة ضمن النطاق الحالي، لكن استخدامها التحليلي ما زال جزئيًا بسبب قيود استخراج أو تطبيع مُعلنة.",
@@ -379,7 +465,11 @@ describe("SystemStatusPage", () => {
       return makePreviewResult(datasetId, entry.source, entry.coverage_status);
     });
 
-    render(<SystemStatusPage />);
+    render(
+      <MemoryRouter>
+        <SystemStatusPage />
+      </MemoryRouter>,
+    );
 
     const queryableSection = await screen.findByTestId(
       "status-dataset-section-queryable",

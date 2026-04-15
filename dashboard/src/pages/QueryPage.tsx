@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Breadcrumbs } from "../components/Breadcrumbs";
 import { DatasetSelector } from "../components/DatasetSelector";
 import {
   FilterForm,
@@ -21,6 +22,7 @@ import {
   UnauthorizedState,
 } from "../components/StateBlocks";
 import { ar } from "../i18n/ar";
+import { translateObservationRecencyWarning } from "../lib/displayText";
 import {
   downloadQueryExportArtifact,
   type ExportArtifactFormat,
@@ -53,6 +55,8 @@ type QueryState =
 
 export function QueryPage() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const datasetFromUrl = searchParams.get("dataset");
   const [catalogState, setCatalogState] = useState<CatalogState>({
     kind: "loading",
   });
@@ -229,8 +233,31 @@ export function QueryPage() {
     queryState.result.status === "success" &&
     freshness?.status === "stale";
 
+  const breadcrumbItems = [
+    { label: ar.app.nav.home, to: "/" },
+    selectedCatalogEntry
+      ? { label: ar.app.nav.query, to: "/query" }
+      : { label: ar.app.nav.query },
+    ...(selectedCatalogEntry
+      ? [{ label: selectedCatalogEntry.title }]
+      : []),
+  ];
+
   return (
     <div className="flex flex-col gap-6">
+      <Breadcrumbs items={breadcrumbItems} />
+
+      {datasetFromUrl && selectedCatalogEntry && (
+        <button
+          type="button"
+          onClick={() => navigate("/")}
+          className="back-button self-start"
+        >
+          <span aria-hidden="true">→</span>
+          <span>{ar.app.breadcrumbs.backToCatalog}</span>
+        </button>
+      )}
+
       <section className="flex flex-col gap-2">
         <h2 className="text-lg font-semibold text-ink-900">
           {ar.query.heading}
@@ -587,14 +614,14 @@ function ObservationRecencyPanel({
 
       {assessment.warning && (
         <div
-          className="flex flex-col gap-1 rounded-lg border border-amber-200 bg-white/80 px-3 py-3"
+          className="state-tone-warn flex flex-col gap-1 rounded-lg border bg-white/80 px-3 py-3"
           data-testid="query-observation-recency-warning"
         >
           <p className="text-xs font-semibold text-ink-900">
             {ar.query.observationRecency.warningTitle}
           </p>
           <p className="text-xs leading-relaxed text-ink-700">
-            {assessment.warning}
+            {translateObservationRecencyWarning(assessment.warning)}
           </p>
         </div>
       )}
@@ -643,11 +670,11 @@ function getObservationRecencyToneClass(
 ): string {
   switch (status) {
     case "current":
-      return "border-emerald-200 bg-emerald-50/60";
+      return "state-tone-ok";
     case "stale":
-      return "border-amber-200 bg-amber-50/70";
+      return "state-tone-warn";
     case "not_applicable":
-      return "border-slate-200 bg-slate-50";
+      return "state-tone-neutral";
   }
 }
 

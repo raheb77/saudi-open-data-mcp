@@ -3,13 +3,189 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --font-family-arabic: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+    --font-weight-regular: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+
+    /* ── Semantic color palette ── */
+
+    /* Success (green) */
+    --color-success-surface: #ecfdf5;
+    --color-success-text: #047857;
+    --color-success-border: #a7f3d0;
+    --color-success-dot: #10b981;
+    --color-success-accent: #065f46;
+
+    /* Warning (amber) */
+    --color-warning-surface: #fffbeb;
+    --color-warning-text: #92400e;
+    --color-warning-border: #fcd34d;
+    --color-warning-dot: #f59e0b;
+    --color-warning-accent: #78350f;
+
+    /* Error (rose) */
+    --color-error-surface: #fff1f2;
+    --color-error-text: #be123c;
+    --color-error-border: #fda4af;
+    --color-error-dot: #f43f5e;
+    --color-error-accent: #9f1239;
+
+    /* Neutral (slate) */
+    --color-neutral-surface: #f8fafc;
+    --color-neutral-text: #475569;
+    --color-neutral-border: #cbd5e1;
+    --color-neutral-dot: #94a3b8;
+    --color-neutral-accent: #334155;
+  }
+
   html {
     direction: rtl;
   }
 
   body {
     @apply bg-ink-50 text-ink-900 font-sans antialiased;
+    font-family: var(--font-family-arabic);
+    font-size: 16px;
+    line-height: 1.6;
+    color: rgba(0, 0, 0, 0.88);
+    word-break: break-word;
+    -webkit-font-smoothing: antialiased;
     font-feature-settings: "kern", "liga";
+  }
+
+  h1 {
+    font-size: 32px;
+    font-weight: var(--font-weight-bold);
+    line-height: 1.3;
+    margin-bottom: 16px;
+  }
+
+  h2 {
+    font-size: 24px;
+    font-weight: var(--font-weight-semibold);
+    line-height: 1.4;
+    margin-bottom: 12px;
+  }
+
+  h3 {
+    font-size: 18px;
+    font-weight: var(--font-weight-semibold);
+    line-height: 1.4;
+    margin-bottom: 8px;
+  }
+
+  small, .caption {
+    font-size: 14px;
+    font-weight: var(--font-weight-regular);
+    line-height: 1.5;
+  }
+
+  /* ── Result table enhancements ── */
+
+  .result-table thead {
+    background: #ffffff;
+  }
+
+  .result-table thead th {
+    position: sticky;
+    top: 0;
+    background: #ffffff;
+    box-shadow:
+      inset 0 -1px 0 #cbd5e1,
+      0 1px 3px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+  }
+
+  .result-table.table-compact thead th {
+    padding: 10px 12px;
+    line-height: 1.35;
+  }
+
+  .result-table.table-compact tbody td {
+    padding: 8px 12px;
+    line-height: 1.4;
+  }
+
+  .result-table tbody tr:nth-child(odd) {
+    background-color: #ffffff;
+  }
+
+  .result-table tbody tr:nth-child(even) {
+    background-color: #f1f5f9;
+  }
+
+  .result-table tbody tr {
+    transition: background-color 0.15s ease;
+  }
+
+  .result-table tbody tr:hover > td {
+    background-color: #dbeafe !important;
+  }
+
+  .result-table tbody tr:hover > td:first-child {
+    box-shadow: inset -3px 0 0 #3b82f6;
+  }
+
+  /* CSS tooltip for truncated link cells */
+  .result-table td.truncate-cell {
+    position: relative;
+    cursor: help;
+  }
+
+  .result-table td.path-cell {
+    max-width: 120px;
+  }
+
+  .result-table td.truncate-cell::after {
+    content: attr(data-full-text);
+    position: absolute;
+    inset-inline-end: 0;
+    top: 100%;
+    z-index: 20;
+    background: #1e293b;
+    color: #ffffff;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    max-width: 400px;
+    white-space: normal;
+    word-break: break-all;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  .result-table td.truncate-cell:hover::after {
+    opacity: 1;
+  }
+
+  /* ── Accordion expand/collapse ── */
+
+  .accordion-grid {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.25s ease-out;
+  }
+
+  .accordion-grid[data-open="true"] {
+    grid-template-rows: 1fr;
+  }
+
+  .accordion-grid > .accordion-inner {
+    overflow: hidden;
+  }
+
+  .accordion-chevron {
+    transition: transform 0.25s ease-out;
+  }
+
+  .accordion-chevron[data-open="true"] {
+    transform: rotate(-90deg);
   }
 
   /* Latin numerals are kept everywhere in data-heavy displays.
@@ -26,6 +202,160 @@
     direction: ltr;
     unicode-bidi: isolate;
   }
+}
+
+@layer components {
+  /* ── Semantic tone utilities ── */
+
+  /* Status badge tones: surface + text + ring + leading status dot */
+  .badge-tone-ok,
+  .badge-tone-warn,
+  .badge-tone-bad,
+  .badge-tone-neutral {
+    --_badge-surface: var(--color-neutral-surface);
+    --_badge-text: var(--color-neutral-text);
+    --_badge-border: var(--color-neutral-border);
+    --_badge-dot: var(--color-neutral-dot);
+    background-color: var(--_badge-surface);
+    color: var(--_badge-text);
+    box-shadow: inset 0 0 0 1px var(--_badge-border);
+  }
+
+  .badge-tone-ok {
+    --_badge-surface: var(--color-success-surface);
+    --_badge-text: var(--color-success-text);
+    --_badge-border: var(--color-success-border);
+    --_badge-dot: var(--color-success-dot);
+  }
+
+  .badge-tone-warn {
+    --_badge-surface: var(--color-warning-surface);
+    --_badge-text: var(--color-warning-text);
+    --_badge-border: var(--color-warning-border);
+    --_badge-dot: var(--color-warning-dot);
+  }
+
+  .badge-tone-bad {
+    --_badge-surface: var(--color-error-surface);
+    --_badge-text: var(--color-error-text);
+    --_badge-border: var(--color-error-border);
+    --_badge-dot: var(--color-error-dot);
+  }
+
+  .badge-tone-ok::before,
+  .badge-tone-warn::before,
+  .badge-tone-bad::before,
+  .badge-tone-neutral::before {
+    content: "";
+    display: inline-block;
+    inline-size: 6px;
+    block-size: 6px;
+    border-radius: 9999px;
+    background-color: var(--_badge-dot);
+    flex-shrink: 0;
+  }
+
+  /* Larger tone blocks (state panels, facet cards, disclosures) */
+  .state-tone-ok,
+  .state-tone-warn,
+  .state-tone-bad,
+  .state-tone-neutral {
+    --_state-surface: var(--color-neutral-surface);
+    --_state-text: var(--color-neutral-accent);
+    --_state-border: var(--color-neutral-border);
+    background-color: var(--_state-surface);
+    color: var(--_state-text);
+    border-color: var(--_state-border);
+  }
+
+  .state-tone-ok {
+    --_state-surface: var(--color-success-surface);
+    --_state-text: var(--color-success-accent);
+    --_state-border: var(--color-success-border);
+  }
+
+  .state-tone-warn {
+    --_state-surface: var(--color-warning-surface);
+    --_state-text: var(--color-warning-accent);
+    --_state-border: var(--color-warning-border);
+  }
+
+  .state-tone-bad {
+    --_state-surface: var(--color-error-surface);
+    --_state-text: var(--color-error-accent);
+    --_state-border: var(--color-error-border);
+  }
+
+  /* ── Breadcrumbs ── */
+
+  .breadcrumbs {
+    padding: 12px 0;
+    margin-bottom: 4px;
+  }
+
+  .breadcrumbs ol {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .breadcrumbs li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+  }
+
+  .breadcrumbs a {
+    color: var(--color-neutral-accent);
+    text-decoration: none;
+    font-weight: var(--font-weight-medium);
+  }
+
+  .breadcrumbs a:hover {
+    text-decoration: underline;
+  }
+
+  .breadcrumbs [aria-current="page"] {
+    color: var(--color-neutral-text);
+  }
+
+  .breadcrumb-separator {
+    color: var(--color-neutral-text);
+    font-size: 12px;
+  }
+
+  /* ── Back button ── */
+
+  .back-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: transparent;
+    border: 1px solid var(--color-neutral-border);
+    border-radius: 6px;
+    color: var(--color-neutral-accent);
+    font-size: 14px;
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+
+  .back-button:hover {
+    background-color: var(--color-neutral-surface);
+    color: var(--color-neutral-accent);
+  }
+
+  /* Standalone text color utilities tied to the semantic palette. */
+  .text-tone-ok { color: var(--color-success-accent); }
+  .text-tone-warn { color: var(--color-warning-accent); }
+  .text-tone-bad { color: var(--color-error-accent); }
+  .text-tone-neutral { color: var(--color-neutral-accent); }
 }
 
 @layer utilities {

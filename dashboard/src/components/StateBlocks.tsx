@@ -16,9 +16,9 @@ interface BaseStateProps {
 }
 
 const TONE_CLASSES: Record<NonNullable<BaseStateProps["tone"]>, string> = {
-  neutral: "border-ink-300 bg-ink-50 text-ink-700",
-  warn: "border-amber-300 bg-amber-50 text-amber-900",
-  bad: "border-rose-300 bg-rose-50 text-rose-900",
+  neutral: "state-tone-neutral",
+  warn: "state-tone-warn",
+  bad: "state-tone-bad",
 };
 
 function StateBlock({
@@ -47,23 +47,38 @@ function StateBlock({
 
 export function EmptyState() {
   return (
-    <StateBlock
-      title={ar.empty.title}
-      body={ar.empty.body}
-      tone="neutral"
-      testId="state-empty"
-    />
+    <section
+      data-testid="state-empty"
+      className="flex flex-col items-center justify-center rounded-lg border border-ink-300 bg-ink-50 px-6 py-12 text-center"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <span className="text-4xl" aria-hidden="true">🔍</span>
+      <h3 className="mt-4 text-base font-semibold text-ink-900">
+        {ar.empty.title}
+      </h3>
+      <p className="mt-2 max-w-xs text-sm leading-relaxed text-ink-600">
+        {ar.empty.body}
+      </p>
+    </section>
   );
 }
 
 export function LoadingState() {
   return (
-    <StateBlock
-      title={ar.state.loading}
-      body=""
-      tone="neutral"
-      testId="state-loading"
-    />
+    <section
+      data-testid="state-loading"
+      className="flex flex-col items-center justify-center rounded-lg border border-ink-300 bg-ink-50 px-6 py-12 text-center"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <span className="text-2xl animate-pulse" aria-hidden="true">◠ ◡ ◠</span>
+      <h3 className="mt-4 text-sm font-semibold text-ink-700">
+        {ar.state.loading}
+      </h3>
+    </section>
   );
 }
 
@@ -97,7 +112,7 @@ export function LimitedState({ limitations }: { limitations: string[] }) {
       tone="warn"
       testId="state-limited"
     >
-      <div className="rounded-md border border-amber-200 bg-white/70 px-3 py-2 text-amber-900">
+      <div className="state-tone-warn rounded-md border bg-white/70 px-3 py-2">
         <p className="text-xs font-semibold">{ar.limited.practicalMeaningLabel}</p>
         <p className="mt-1 text-sm leading-relaxed">
           {getLimitedPracticalMeaning(limitations)}
@@ -105,12 +120,12 @@ export function LimitedState({ limitations }: { limitations: string[] }) {
       </div>
       {limitations.length > 0 && (
         <>
-          <p className="text-xs font-medium text-amber-900">
+          <p className="text-tone-warn text-xs font-medium">
             {ar.limited.limitationsLabel}
           </p>
           <ul className="mt-1 list-disc space-y-1 ps-5">
             {limitations.map((entry) => (
-              <li key={entry} className="id-mono text-amber-900">
+              <li key={entry} className="id-mono text-tone-warn">
                 {entry}
               </li>
             ))}
@@ -217,14 +232,21 @@ export function ErrorState({
   message?: string | null;
 }) {
   return (
-    <StateBlock
-      title={ar.error.title}
-      body={ar.error.body}
-      tone="bad"
-      testId="state-failed"
-      liveRole="alert"
+    <section
+      data-testid="state-failed"
+      className="state-tone-bad flex flex-col items-center justify-center rounded-lg border px-6 py-12 text-center"
+      role="alert"
+      aria-live="assertive"
+      aria-atomic="true"
     >
-      <FailureDetails stage={stage} errorType={errorType} message={message} />
-    </StateBlock>
+      <span className="text-4xl" aria-hidden="true">⚠️</span>
+      <h3 className="mt-4 text-base font-semibold">{ar.error.title}</h3>
+      <p className="mt-2 max-w-sm text-sm leading-relaxed">{ar.error.body}</p>
+      {(stage || errorType || message) && (
+        <div className="mt-4 w-full max-w-sm text-start text-sm">
+          <FailureDetails stage={stage} errorType={errorType} message={message} />
+        </div>
+      )}
+    </section>
   );
 }

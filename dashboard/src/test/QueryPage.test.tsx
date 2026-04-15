@@ -109,7 +109,7 @@ function makeQueryResult(
     limit: 100,
     total_records_before_filter: status === "success" ? 1 : null,
     failure_stage: failure?.stage ?? null,
-    degradation_reason: null,
+    degradation_reason: status === "limited" ? "normalization_limited" : null,
     observation_recency: observationRecency,
     matched_records:
       status === "success"
@@ -125,7 +125,10 @@ function makeQueryResult(
             },
           ]
         : [],
-    limitations: status === "limited" ? ["normalization_limited"] : [],
+    limitations:
+      status === "limited"
+        ? ["text_or_html_body_requires_source_specific_extraction_before_record_normalization"]
+        : [],
     failure,
   };
 }
@@ -349,10 +352,26 @@ describe("QueryPage", () => {
     expect(within(recencyPanel).getByText("observation_month")).toBeInTheDocument();
     expect(
       within(recencyPanel).getByText(
-        "latest observation 2025-12 is materially behind the expected monthly recency window",
+        "آخر رصد (2025-12) متأخر عن النافذة الزمنية المتوقعة للتحديث الشهري",
       ),
     ).toBeInTheDocument();
     expect(screen.getByTestId("metadata-strip")).toHaveTextContent(ar.state.fresh);
+  });
+
+  it("shows the Arabic degradation explanation without exposing the raw code", async () => {
+    listDatasetsMock.mockResolvedValue([datasets[1]]);
+    getDatasetHealthResultMock.mockResolvedValue(
+      makeHealthResult("mof-budget-balance-quarterly", "mof"),
+    );
+    getDatasetQueryResultMock.mockResolvedValue(
+      makeQueryResult("mof-budget-balance-quarterly", "mof", "limited"),
+    );
+
+    renderQueryPage("/query?dataset=mof-budget-balance-quarterly");
+
+    expect(await screen.findByTestId("metadata-strip")).toBeInTheDocument();
+    expect(screen.getByText(ar.state.normalizationLimited)).toBeInTheDocument();
+    expect(screen.queryByText("normalization_limited")).not.toBeInTheDocument();
   });
 
   it("shows a not-applicable observation recency state without a warning block", async () => {

@@ -47,6 +47,14 @@ describe("ResultTable", () => {
       "source_locator",
       "source_summary_text",
     ]);
+
+    const monthHeader = container.querySelector<HTMLTableCellElement>(
+      'th[data-column-key="observation_month"]',
+    );
+    expect(monthHeader?.textContent).toBe("شهر الرصد");
+    expect(monthHeader).toHaveAttribute("title", "observation_month");
+    expect(screen.getAllByText("مؤشر أسعار المستهلك").length).toBeGreaterThan(0);
+    expect(screen.queryByText("headline_cpi_all_items")).not.toBeInTheDocument();
   });
 
   it("renders verbose source text as expandable content and keeps provenance links clickable", () => {
@@ -83,6 +91,11 @@ describe("ResultTable", () => {
       "https://www.stats.gov.sa/en/w/news/155",
     );
     expect(link.className).not.toContain("ring-1");
+    expect(link.closest("td")).toHaveAttribute(
+      "data-full-text",
+      "https://www.stats.gov.sa/en/w/news/155",
+    );
+    expect(link.closest("td")?.className).toContain("truncate-cell");
 
     const toggle = screen.getByRole("button", { name: ar.query.table.showMore });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -176,5 +189,99 @@ describe("ResultTable", () => {
         "https://www.sama.gov.sa/en-US/FinExc/Pages/Currency.aspx?PageIndex=2",
     });
     expect(pageLink.className).toContain("text-[0.72rem]");
+
+    const locatorCell = screen.getAllByText("/en-US/.../Currency.aspx")[0];
+    expect(locatorCell).toHaveAttribute(
+      "title",
+      "/en-US/FinExc/Pages/Currency.aspx",
+    );
+    expect(locatorCell.closest("td")).toHaveAttribute(
+      "data-full-text",
+      "/en-US/FinExc/Pages/Currency.aspx",
+    );
+    expect(locatorCell.closest("td")?.className).toContain("path-cell");
+    expect(locatorCell.closest("td")?.className).toContain("truncate-cell");
+  });
+
+  it("shows Arabic-only column headers while keeping the raw field name in the tooltip", () => {
+    const records: CanonicalRecord[] = [
+      {
+        dataset_id: "sama-repo-rate",
+        source: "sama",
+        record_index: 1,
+        fields: {
+          effective_date: "2025-12-10",
+          policy_rate_code: "repo_rate",
+          policy_rate_name: "Official Repo Rate",
+          rate_percent: 4.5,
+          source_publish_date_text: "10/12/2025",
+          source_rate_text: "4.25",
+          source_change_points_text: "-25",
+          source_table_title: "Policy Rate History",
+          source_period_text: "2025-10-29 to 2025-12-10",
+        },
+      },
+    ];
+
+    const { container } = render(<ResultTable records={records} />);
+    const effectiveDateHeader = container.querySelector<HTMLTableCellElement>(
+      'th[data-column-key="effective_date"]',
+    );
+
+    expect(effectiveDateHeader?.textContent).toBe("تاريخ السريان");
+    expect(effectiveDateHeader).toHaveAttribute("title", "effective_date");
+    expect(effectiveDateHeader?.className).toContain("whitespace-nowrap");
+    expect(effectiveDateHeader?.className).toContain("min-w-[8rem]");
+    expect(screen.queryByText("effective_date")).not.toBeInTheDocument();
+    expect(screen.getByText("رمز السعر")).toBeInTheDocument();
+    expect(screen.getByText("اسم السعر")).toBeInTheDocument();
+    expect(screen.getByText("النسبة المئوية")).toBeInTheDocument();
+    expect(screen.getByText("تاريخ النشر")).toBeInTheDocument();
+    expect(screen.getByText("نص السعر")).toBeInTheDocument();
+    expect(screen.getByText("نقاط التغيير")).toBeInTheDocument();
+    expect(screen.getByText("عنوان الجدول")).toBeInTheDocument();
+    expect(screen.getByText("الفترة")).toBeInTheDocument();
+    expect(screen.getByText("سعر إعادة الشراء")).toBeInTheDocument();
+    expect(screen.getByText("سعر إعادة الشراء الرسمي")).toBeInTheDocument();
+    expect(screen.queryByText("policy_rate_code")).not.toBeInTheDocument();
+    expect(screen.queryByText("policy_rate_name")).not.toBeInTheDocument();
+    expect(screen.queryByText("rate_percent")).not.toBeInTheDocument();
+    expect(screen.queryByText("source_publish_date_text")).not.toBeInTheDocument();
+    expect(screen.queryByText("source_rate_text")).not.toBeInTheDocument();
+    expect(screen.queryByText("source_change_points_text")).not.toBeInTheDocument();
+    expect(screen.queryByText("source_table_title")).not.toBeInTheDocument();
+    expect(screen.queryByText("source_period_text")).not.toBeInTheDocument();
+    expect(screen.queryByText("repo_rate")).not.toBeInTheDocument();
+
+    const policyRateCodeCell = screen.getByText("سعر إعادة الشراء");
+    expect(policyRateCodeCell).toHaveAttribute("title", "repo_rate");
+  });
+
+  it("hides a duplicate report link column when it repeats the source link", () => {
+    const records: CanonicalRecord[] = [
+      {
+        dataset_id: "mof-budget-balance-quarterly",
+        source: "mof",
+        record_index: 1,
+        fields: {
+          observation_quarter: "2025-Q2",
+          value_sar_bn: -34.534,
+          source_url: "https://www.mof.gov.sa/en/budget/Pages/default.aspx",
+          source_report_url: "https://www.mof.gov.sa/en/budget/Pages/default.aspx",
+        },
+      },
+    ];
+
+    const { container } = render(<ResultTable records={records} />);
+
+    expect(
+      container.querySelector('th[data-column-key="source_report_url"]'),
+    ).not.toBeInTheDocument();
+    expect(container.querySelector('th[data-column-key="source_url"]')).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("link", {
+        name: "https://www.mof.gov.sa/en/budget/Pages/default.aspx",
+      }),
+    ).toHaveLength(1);
   });
 });

@@ -5,10 +5,9 @@ export default {
     extend: {
       fontFamily: {
         sans: [
-          '"Noto Kufi Arabic"',
-          '"Tajawal"',
+          '"IBM Plex Sans Arabic"',
+          '"Segoe UI"',
           "Tahoma",
-          "Arial",
           "sans-serif",
         ],
         mono: [

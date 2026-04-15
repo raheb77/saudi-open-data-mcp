@@ -131,12 +131,12 @@ function StateFacetCard({
       className={[
         "rounded-lg border px-3 py-3 shadow-none",
         tone === "ok"
-          ? "border-emerald-200 bg-emerald-50/60"
+          ? "state-tone-ok"
           : tone === "warn"
-            ? "border-amber-200 bg-amber-50/70"
+            ? "state-tone-warn"
             : tone === "bad"
-              ? "border-rose-200 bg-rose-50/70"
-              : "border-ink-200 bg-ink-50",
+              ? "state-tone-bad"
+              : "state-tone-neutral",
       ]
         .filter(Boolean)
         .join(" ")}

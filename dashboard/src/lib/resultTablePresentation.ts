@@ -20,6 +20,7 @@ export interface ResultTableColumn {
 
 const TIME_FIELDS = new Set([
   "as_of_date",
+  "effective_date",
   "observation_date",
   "observation_month",
   "observation_quarter",
@@ -29,6 +30,7 @@ const TIME_FIELDS = new Set([
 
 const SERIES_CODE_FIELDS = new Set([
   "currency_code",
+  "policy_rate_code",
   "series_code",
   "inflation_series_code",
   "gdp_series_code",
@@ -39,6 +41,7 @@ const SERIES_CODE_FIELDS = new Set([
 
 const SERIES_NAME_FIELDS = new Set([
   "currency_name",
+  "policy_rate_name",
   "series_name",
   "inflation_series_name",
   "gdp_series_name",
@@ -54,6 +57,7 @@ const CONTEXT_FIELDS = new Set([
 
 const MEASURE_FIELDS = new Set([
   "closing_rate_sar",
+  "rate_percent",
   "transaction_count",
   "transaction_value_sar",
   "average_ticket_sar",
@@ -93,6 +97,7 @@ const LINK_FIELDS = new Set([
 
 const TECHNICAL_TOKEN_FIELDS = new Set([
   "currency_code",
+  "policy_rate_code",
   "quote_currency_code",
   "series_code",
   "inflation_series_code",
@@ -106,6 +111,7 @@ const TECHNICAL_TOKEN_FIELDS = new Set([
 
 const EXPLICIT_COLUMN_ORDER = new Map([
   ["as_of_date", 10],
+  ["effective_date", 15],
   ["observation_date", 10],
   ["observation_month", 20],
   ["observation_quarter", 30],
@@ -121,6 +127,7 @@ const EXPLICIT_COLUMN_ORDER = new Map([
   ["yoy_rate_percent", 160],
   ["mom_rate_percent", 170],
   ["currency_name", 220],
+  ["policy_rate_name", 225],
   ["series_name", 220],
   ["inflation_series_name", 230],
   ["gdp_series_name", 240],
@@ -128,6 +135,7 @@ const EXPLICIT_COLUMN_ORDER = new Map([
   ["fiscal_series_name", 260],
   ["deposit_category_name", 270],
   ["currency_code", 300],
+  ["policy_rate_code", 305],
   ["series_code", 300],
   ["inflation_series_code", 310],
   ["gdp_series_code", 320],
@@ -137,13 +145,18 @@ const EXPLICIT_COLUMN_ORDER = new Map([
   ["quote_currency_name", 360],
   ["quote_currency_code", 370],
   ["release_date", 390],
+  ["source_table_title", 495],
   ["source_release_title", 500],
   ["source_release_url", 510],
   ["source_report_url", 520],
   ["source_url", 530],
+  ["source_period_text", 595],
   ["source_last_updated_date_text", 600],
   ["source_release_date_text", 600],
+  ["source_publish_date_text", 600],
   ["source_currency_text", 605],
+  ["source_change_points_text", 607],
+  ["source_rate_text", 608],
   ["source_locator", 610],
   ["source_page_number", 615],
   ["source_page_url", 620],

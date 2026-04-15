@@ -26,9 +26,7 @@ export function CardDisclosure({
     <section
       className={[
         "rounded-lg border px-3 py-2",
-        tone === "warn"
-          ? "border-amber-200 bg-amber-50/70"
-          : "border-ink-200 bg-ink-50/70",
+        tone === "warn" ? "state-tone-warn" : "border-ink-200 bg-ink-50/70",
       ].join(" ")}
     >
       <button

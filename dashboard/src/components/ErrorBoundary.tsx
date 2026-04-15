@@ -29,7 +29,7 @@ export class ErrorBoundary extends React.Component<
         <div className="min-h-screen bg-ink-50">
           <main className="mx-auto max-w-3xl px-4 py-10">
             <section
-              className="rounded-xl border border-rose-300 bg-rose-50 px-5 py-6 text-rose-900 shadow-sm"
+              className="state-tone-bad rounded-xl border px-5 py-6 shadow-sm"
               role="alert"
               data-testid="error-boundary-fallback"
             >

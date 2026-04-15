@@ -166,10 +166,9 @@ export function MetadataStrip(props: MetadataStripProps) {
 
         {showDegradation && (
           <Row label={ar.meta.degradation}>
-            <span className="text-amber-800">
+            <span className="text-tone-warn">
               {DEGRADATION_LABEL[props.degradation_reason!]}
             </span>
-            <span className="id-mono">{props.degradation_reason!}</span>
           </Row>
         )}
 

@@ -12,16 +12,16 @@ import type {
 type Tone = "ok" | "warn" | "bad" | "neutral";
 
 const TONE_CLASS: Record<Tone, string> = {
-  ok: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  warn: "bg-amber-50 text-amber-800 ring-amber-200",
-  bad: "bg-rose-50 text-rose-700 ring-rose-200",
-  neutral: "bg-slate-100 text-slate-700 ring-slate-200",
+  ok: "badge-tone-ok",
+  warn: "badge-tone-warn",
+  bad: "badge-tone-bad",
+  neutral: "badge-tone-neutral",
 };
 
 interface BadgeProps {
   label: string;
   tone: Tone;
-  /** Optional small Latin technical token rendered next to the label. */
+  /** Optional technical token preserved as hover context instead of visible text. */
   technical?: string;
   testId?: string;
 }
@@ -30,10 +30,10 @@ export function StatusBadge({ label, tone, technical, testId }: BadgeProps) {
   return (
     <span
       data-testid={testId}
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${TONE_CLASS[tone]}`}
+      title={technical}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${TONE_CLASS[tone]}`}
     >
       <span>{label}</span>
-      {technical && <span className="id-mono">{technical}</span>}
     </span>
   );
 }

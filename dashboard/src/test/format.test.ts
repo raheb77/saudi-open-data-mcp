@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { formatAge } from "../lib/format";
+import {
+  getDisplayValueLabel,
+  translateObservationRecencyWarning,
+} from "../lib/displayText";
 
 describe("formatAge", () => {
   it("renders Latin numerals with Arabic time-unit wording", () => {
@@ -10,5 +14,31 @@ describe("formatAge", () => {
 
   it("returns an em dash when no age is available", () => {
     expect(formatAge(null)).toBe("—");
+  });
+});
+
+describe("displayText", () => {
+  it("translates stable technical values into analyst-facing Arabic labels", () => {
+    expect(getDisplayValueLabel("repo_rate")).toBe("سعر إعادة الشراء");
+    expect(getDisplayValueLabel("headline_cpi_all_items")).toBe(
+      "مؤشر أسعار المستهلك",
+    );
+    expect(getDisplayValueLabel("effective_date")).toBe("تاريخ السريان");
+  });
+
+  it("translates the governed observation-recency warning sentence into Arabic", () => {
+    expect(
+      translateObservationRecencyWarning(
+        "latest observation 2025-Q2 is materially behind the expected quarterly recency window",
+      ),
+    ).toBe(
+      "آخر رصد (2025-Q2) متأخر عن النافذة الزمنية المتوقعة للتحديث الفصلي",
+    );
+  });
+
+  it("leaves unknown warning strings untouched", () => {
+    expect(translateObservationRecencyWarning("some other warning")).toBe(
+      "some other warning",
+    );
   });
 });

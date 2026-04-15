@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Breadcrumbs } from "../components/Breadcrumbs";
 import { HealthCard } from "../components/HealthCard";
 import {
   DegradedState,
@@ -19,6 +20,11 @@ import {
   listDatasets,
 } from "../lib/liveData";
 import { DashboardApiError, asDashboardApiError } from "../lib/mcpClient";
+import {
+  translateStatusGroupSummary,
+  translateStatusNote,
+  translateStatusTerm,
+} from "../lib/statusTerms";
 import type {
   DatasetCatalogEntry,
   DatasetHealthLookupResult,
@@ -109,6 +115,13 @@ export function SystemStatusPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <Breadcrumbs
+        items={[
+          { label: ar.app.nav.home, to: "/" },
+          { label: ar.app.nav.systemStatus },
+        ]}
+      />
+
       <section className="flex flex-col gap-2">
         <h2 className="text-lg font-semibold text-ink-900">
           {ar.status.heading}
@@ -128,10 +141,10 @@ export function SystemStatusPage() {
               body={ar.status.partialDegradation.body}
               testId="status-page-degraded"
             >
-              <p className="text-xs font-medium text-amber-900">
+              <p className="text-tone-warn text-xs font-medium">
                 {ar.status.partialDegradation.affectedSections}
               </p>
-              <ul className="mt-1 list-disc space-y-1 ps-5 text-xs text-amber-900">
+              <ul className="text-tone-warn mt-1 list-disc space-y-1 ps-5 text-xs">
                 {failedSections.map((entry) => (
                   <li key={entry}>{entry}</li>
                 ))}
@@ -139,7 +152,8 @@ export function SystemStatusPage() {
               <button
                 type="button"
                 onClick={() => setReloadToken((value) => value + 1)}
-                className="mt-3 self-start rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100"
+                className="text-tone-warn mt-3 self-start rounded-md border bg-white px-3 py-1.5 text-xs font-medium hover:bg-ink-100"
+                style={{ borderColor: "var(--color-warning-border)" }}
               >
                 {ar.app.retry}
               </button>
@@ -292,10 +306,8 @@ function ReadinessPanel({ report }: { report: ReadinessReport }) {
           {ar.status.readiness.title}
         </h3>
         <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-            report.ready
-              ? "bg-emerald-100 text-emerald-900"
-              : "bg-rose-100 text-rose-900"
+          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+            report.ready ? "badge-tone-ok" : "badge-tone-bad"
           }`}
         >
           {report.ready
@@ -308,7 +320,7 @@ function ReadinessPanel({ report }: { report: ReadinessReport }) {
           <span className="id-mono">{report.app_name}</span>
         </InfoRow>
         <InfoRow label={ar.status.readiness.scope}>
-          <span className="id-mono">{report.scope}</span>
+          <span title={report.scope}>{translateStatusTerm(report.scope)}</span>
         </InfoRow>
       </dl>
       <div className="mt-3">
@@ -323,10 +335,11 @@ function ReadinessPanel({ report }: { report: ReadinessReport }) {
                 key={name}
                 className="flex items-center justify-between rounded border border-ink-100 bg-ink-50 px-2 py-1"
               >
-                <span className="id-mono text-ink-700">{name}</span>
-                <span className={isOk ? "text-emerald-800" : "text-rose-800"}>
+                <span className="text-ink-700" title={name}>
+                  {translateStatusTerm(name)}
+                </span>
+                <span className={isOk ? "text-tone-ok" : "text-tone-bad"}>
                   {isOk ? ar.status.readiness.checkOk : ar.status.readiness.checkFail}
-                  <span className="id-mono ms-1">{isOk ? "ok" : "fail"}</span>
                 </span>
               </li>
             );
@@ -493,12 +506,15 @@ function CountersPanel({
             className="rounded-xl border border-ink-300 bg-white p-4 shadow-sm"
           >
             <header className="flex items-center justify-between gap-2">
-              <h4 className="text-sm font-semibold text-ink-900">
-                <span className="id-mono">{group.name}</span>
+              <h4
+                className="text-sm font-semibold text-ink-900"
+                title={group.name}
+              >
+                {translateStatusTerm(group.name)}
               </h4>
             </header>
             <p className="mt-1 text-xs leading-relaxed text-ink-700">
-              {group.summary}
+              {translateStatusGroupSummary(group.name, group.summary)}
             </p>
             <ul className="mt-3 space-y-1 text-xs">
               {group.counters.map((counter) => (
@@ -506,7 +522,9 @@ function CountersPanel({
                   key={counter.name}
                   className="flex items-center justify-between rounded border border-ink-100 bg-ink-50 px-2 py-1"
                 >
-                  <span className="id-mono text-ink-700">{counter.name}</span>
+                  <span className="text-ink-700" title={counter.name}>
+                    {translateStatusTerm(counter.name)}
+                  </span>
                   <span className="num-latn font-medium text-ink-900">
                     {formatNumber(counter.value)}
                   </span>
@@ -520,8 +538,8 @@ function CountersPanel({
                         key={counter.name}
                         className="flex items-center justify-between rounded border border-ink-100 bg-white px-2 py-1"
                       >
-                        <span className="id-mono text-ink-500">
-                          {counter.name}
+                        <span className="text-ink-500" title={counter.name}>
+                          {translateStatusTerm(counter.name)}
                         </span>
                         <span className="num-latn text-ink-700">
                           {formatNumber(counter.value)}
@@ -538,7 +556,7 @@ function CountersPanel({
       {observability.notes.length > 0 && (
         <ul className="list-disc space-y-1 ps-5 text-xs text-ink-500">
           {observability.notes.map((note) => (
-            <li key={note}>{note}</li>
+            <li key={note}>{translateStatusNote(note)}</li>
           ))}
         </ul>
       )}
