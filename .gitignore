@@ -30,3 +30,4 @@ wheels/
 >>>>>>> feat/dashboard-codex-alt
 
 /.claude/worktrees/
+.vscode/
