@@ -113,6 +113,30 @@ async def test_valid_bearer_token_is_accepted() -> None:
 
 
 @pytest.mark.asyncio
+async def test_bearer_token_whitespace_is_normalized() -> None:
+    app = Starlette(
+        routes=[Route("/mcp", endpoint=_ok, methods=["GET", "POST"])],
+        middleware=build_http_auth_middleware(
+            SecretStr("  internal-test-token  "),
+            frozenset(HTTPAuthCapability),
+            HTTPAuthRole.OPERATOR,
+        ),
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.get(
+            "/mcp",
+            headers={"Authorization": "Bearer   internal-test-token   "},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+
+
+@pytest.mark.asyncio
 async def test_oversized_request_body_with_content_length_is_rejected() -> None:
     oversized_body = b"x" * (MAX_HTTP_AUTH_REQUEST_BODY_BYTES + 1)
 

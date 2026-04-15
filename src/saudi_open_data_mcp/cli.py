@@ -5,8 +5,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 from collections.abc import Sequence
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -33,6 +35,7 @@ from saudi_open_data_mcp.tools.query import DatasetQueryResult
 JSON_FORMAT = "json"
 EXCEL_FORMAT = ExportArtifactFormat.EXCEL.value
 PDF_FORMAT = ExportArtifactFormat.PDF.value
+DOTENV_FILENAME = ".env"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -678,9 +681,85 @@ def _load_config_or_exit(parser: argparse.ArgumentParser):
     """Load config or exit with a concise operator-facing parser error."""
 
     try:
-        return load_config()
+        with _dotenv_environment():
+            return load_config()
     except RuntimeConfigurationError as exc:
         parser.error(str(exc))
+
+
+@contextmanager
+def _dotenv_environment():
+    """Temporarily layer a local .env file onto the current process environment."""
+
+    dotenv_values = _read_dotenv_file(Path.cwd() / DOTENV_FILENAME)
+    applied_values = {
+        key: value for key, value in dotenv_values.items() if key not in os.environ
+    }
+    os.environ.update(applied_values)
+    try:
+        yield
+    finally:
+        for key in applied_values:
+            os.environ.pop(key, None)
+
+
+def _read_dotenv_file(path: Path) -> dict[str, str]:
+    """Read one simple KEY=VALUE .env file without overriding real environment values."""
+
+    if not path.is_file():
+        return {}
+
+    values: dict[str, str] = {}
+    for line_number, raw_line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(),
+        start=1,
+    ):
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+
+        key, separator, value = raw_line.partition("=")
+        if separator != "=":
+            raise RuntimeConfigurationError(
+                f"invalid {path.name} entry at line {line_number}; expected KEY=VALUE"
+            )
+
+        normalized_key = key.strip()
+        if not normalized_key:
+            raise RuntimeConfigurationError(
+                f"invalid {path.name} entry at line {line_number}; missing variable name"
+            )
+
+        values[normalized_key] = _parse_dotenv_value(
+            value,
+            path=path,
+            line_number=line_number,
+        )
+
+    return values
+
+
+def _parse_dotenv_value(
+    raw_value: str,
+    *,
+    path: Path,
+    line_number: int,
+) -> str:
+    """Parse one dotenv value, supporting plain or quoted strings."""
+
+    normalized = raw_value.strip()
+    if not normalized:
+        return ""
+
+    if normalized[0] not in {'"', "'"}:
+        return normalized
+
+    quote = normalized[0]
+    if len(normalized) < 2 or normalized[-1] != quote:
+        raise RuntimeConfigurationError(
+            f"invalid {path.name} entry at line {line_number}; unmatched quoted value"
+        )
+    return normalized[1:-1]
 
 
 def _create_server_or_exit(

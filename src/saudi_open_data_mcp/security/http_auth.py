@@ -305,17 +305,18 @@ def require_http_bearer_token(
 ) -> SecretStr:
     """Return the configured HTTP bearer token or fail clearly."""
 
-    secret = (
-        bearer_token
+    raw_value = (
+        bearer_token.get_secret_value()
         if isinstance(bearer_token, SecretStr)
-        else SecretStr(bearer_token or "")
+        else bearer_token or ""
     )
-    if not secret.get_secret_value():
+    normalized = raw_value.strip()
+    if not normalized:
         raise ValueError(
             "run-http requires HTTP_AUTH_TOKEN to be set for internal bearer auth"
         )
 
-    return secret
+    return SecretStr(normalized)
 
 
 def require_http_auth_capabilities(
@@ -363,9 +364,10 @@ def _extract_bearer_token(authorization_header: str | None) -> str | None:
         return None
 
     scheme, _, token = authorization_header.partition(" ")
-    if scheme.lower() != "bearer" or not token:
+    normalized = token.strip()
+    if scheme.lower() != "bearer" or not normalized:
         return None
-    return token
+    return normalized
 
 
 def _extract_request_id(request: Request) -> str | None:

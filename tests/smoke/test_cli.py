@@ -139,6 +139,71 @@ def test_cli_run_http_requires_http_auth_token(monkeypatch) -> None:
     assert excinfo.value.code == 2
 
 
+def test_cli_run_http_loads_http_auth_token_from_local_dotenv(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    class DummyApp:
+        async def run_http_async(self, **kwargs) -> None:
+            calls.append(kwargs)
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("HTTP_AUTH_TOKEN", raising=False)
+    monkeypatch.delenv("HTTP_AUTH_ROLE", raising=False)
+    monkeypatch.delenv("HTTP_AUTH_CAPABILITIES", raising=False)
+    (tmp_path / ".env").write_text(
+        "HTTP_AUTH_TOKEN=dotenv-test-token\n"
+        "HTTP_AUTH_ROLE=viewer\n"
+        "HTTP_AUTH_CAPABILITIES=read\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cli_module, "create_server", lambda runtime_config=None: DummyApp())
+
+    exit_code = cli_module.main(["run-http"])
+
+    assert exit_code == 0
+    assert len(calls) == 1
+    middleware = calls[0]["middleware"]
+    assert middleware[1].kwargs["bearer_token"].get_secret_value() == "dotenv-test-token"
+    assert middleware[1].kwargs["role"] is HTTPAuthRole.VIEWER
+    assert middleware[1].kwargs["capabilities"] == frozenset({HTTPAuthCapability.READ})
+    assert "HTTP_AUTH_TOKEN" not in os.environ
+
+
+def test_cli_environment_overrides_local_dotenv_token(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    class DummyApp:
+        async def run_http_async(self, **kwargs) -> None:
+            calls.append(kwargs)
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HTTP_AUTH_TOKEN", "env-token")
+    monkeypatch.setenv("HTTP_AUTH_ROLE", "viewer")
+    monkeypatch.setenv("HTTP_AUTH_CAPABILITIES", "read")
+    (tmp_path / ".env").write_text(
+        "HTTP_AUTH_TOKEN=dotenv-test-token\n"
+        "HTTP_AUTH_ROLE=operator\n"
+        "HTTP_AUTH_CAPABILITIES=read,refresh,materialize\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cli_module, "create_server", lambda runtime_config=None: DummyApp())
+
+    exit_code = cli_module.main(["run-http"])
+
+    assert exit_code == 0
+    assert len(calls) == 1
+    middleware = calls[0]["middleware"]
+    assert middleware[1].kwargs["bearer_token"].get_secret_value() == "env-token"
+    assert middleware[1].kwargs["role"] is HTTPAuthRole.VIEWER
+    assert middleware[1].kwargs["capabilities"] == frozenset({HTTPAuthCapability.READ})
+
+
 def test_cli_run_stdio_dispatches_to_server(monkeypatch) -> None:
     calls: list[dict[str, object]] = []
 
