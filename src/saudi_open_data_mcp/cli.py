@@ -42,7 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the CLI parser."""
 
     parser = argparse.ArgumentParser(
-        prog="python src/saudi_open_data_mcp/cli.py",
+        prog="saudi-open-data-mcp",
         description=(
             "Thin non-interactive CLI over the current MCP core. Data commands emit "
             "JSON to stdout by default."

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.raheb77/saudi-open-data-mcp",
+  "title": "Saudi Open Data MCP",
+  "description": "Governed MCP server for official Saudi open data with typed metadata and snapshot-backed tools.",
+  "version": "0.3.0",
+  "repository": {
+    "url": "https://github.com/raheb77/saudi-open-data-mcp",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "saudi-open-data-mcp",
+      "version": "0.3.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

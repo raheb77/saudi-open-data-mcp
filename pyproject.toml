@@ -5,15 +5,51 @@ build-backend = "hatchling.build"
 [project]
 name = "saudi-open-data-mcp"
 version = "0.3.0"
-description = "Production-minded internal MCP server for Saudi open data sources."
-readme = "README.md"
+description = "Governed MCP server for official Saudi open data with typed metadata and snapshot-backed tools."
+readme = { file = "README.md", content-type = "text/markdown" }
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.12,<3.13"
+keywords = [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "fastmcp",
+    "python",
+    "saudi-open-data",
+    "sama",
+    "saudi-arabia",
+    "arabic",
+    "open-data",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "fastmcp>=2,<3",
     "httpx>=0.28.1",
     "pypdf>=6.9.2",
     "pydantic>=2,<3",
 ]
+
+[project.urls]
+Homepage = "https://github.com/raheb77/saudi-open-data-mcp"
+Repository = "https://github.com/raheb77/saudi-open-data-mcp"
+Documentation = "https://github.com/raheb77/saudi-open-data-mcp/blob/main/README.md"
+Issues = "https://github.com/raheb77/saudi-open-data-mcp/issues"
+Changelog = "https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/CHANGELOG.md"
+
+[project.scripts]
+saudi-open-data-mcp = "saudi_open_data_mcp.cli:main"
 
 [dependency-groups]
 dev = [
@@ -33,7 +69,7 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 
 [tool.uv]
-package = false
+package = true
 
 [tool.ruff]
 line-length = 100

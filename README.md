@@ -2,6 +2,8 @@
 
 `saudi-open-data-mcp` is a production-minded MCP server for Saudi open data sources.
 
+<!-- mcp-name: io.github.raheb77/saudi-open-data-mcp -->
+
 The project is not just an MCP wrapper around upstream websites. Its value is in the layers underneath MCP:
 
 - source isolation through explicit connectors
@@ -16,7 +18,14 @@ That package remains optional, but on `main` it is now a thin live consumer of
 the governed backend over `/mcp` and `/readyz`, not a separate backend or
 required runtime dependency for the core.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, [docs/ADR/ADR-001-start-with-sama.md](docs/ADR/ADR-001-start-with-sama.md) for the initial source decision, [docs/GOVERNANCE.md](docs/GOVERNANCE.md) for the current core auth/audit/data-access model, [docs/OPERATIONS.md](docs/OPERATIONS.md) for runtime and durability guidance, [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the current local/container/runtime topology, [docs/RUNBOOKS.md](docs/RUNBOOKS.md) for concise failure/recovery handling, [docs/PERSISTENCE.md](docs/PERSISTENCE.md) for current persistence and backup/restore boundaries, and [docs/CHANGELOG.md](docs/CHANGELOG.md) for current baseline change visibility and migration notes.
+## License and Release Boundaries
+
+- The code in this repository is licensed under the Apache License, Version 2.0.
+- Model weights are not included in this repository.
+- Model weights are not licensed under Apache-2.0 by default.
+- Any future release of model weights will be governed separately.
+
+See [ARCHITECTURE.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/ARCHITECTURE.md) for the architecture, [ADR-001](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/ADR/ADR-001-start-with-sama.md) for the initial source decision, [GOVERNANCE.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/GOVERNANCE.md) for the current core auth/audit/data-access model, [OPERATIONS.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/OPERATIONS.md) for runtime and durability guidance, [DEPLOYMENT.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/DEPLOYMENT.md) for the current local/container/runtime topology, [RUNBOOKS.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/RUNBOOKS.md) for concise failure/recovery handling, [PERSISTENCE.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/PERSISTENCE.md) for current persistence and backup/restore boundaries, and [CHANGELOG.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/CHANGELOG.md) for current baseline change visibility and migration notes.
 
 ## What The System Does
 
@@ -96,7 +105,7 @@ What this repository does not claim today:
 - `stats.gov.sa` real GDP growth quarterly
 - Ministry of Finance headline budget balance quarterly
 
-See [docs/DATASETS.md](docs/DATASETS.md) for the current canonical dataset direction and current narrow-contract limits.
+See [DATASETS.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/DATASETS.md) for the current canonical dataset direction and current narrow-contract limits.
 
 ### Stable vs Evolving
 
@@ -118,11 +127,11 @@ Still intentionally evolving:
 ## Start Here By Audience
 
 - Evaluator:
-  - start with this README, then [docs/CHANGELOG.md](docs/CHANGELOG.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/GOVERNANCE.md](docs/GOVERNANCE.md), and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+  - start with this README, then [CHANGELOG.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/CHANGELOG.md), [ARCHITECTURE.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/ARCHITECTURE.md), [GOVERNANCE.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/GOVERNANCE.md), and [DEPLOYMENT.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/DEPLOYMENT.md)
 - Operator:
-  - start with [docs/CHANGELOG.md](docs/CHANGELOG.md), [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), [docs/OPERATIONS.md](docs/OPERATIONS.md), [docs/RUNBOOKS.md](docs/RUNBOOKS.md), and [docs/PERSISTENCE.md](docs/PERSISTENCE.md)
+  - start with [CHANGELOG.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/CHANGELOG.md), [DEPLOYMENT.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/DEPLOYMENT.md), [OPERATIONS.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/OPERATIONS.md), [RUNBOOKS.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/RUNBOOKS.md), and [PERSISTENCE.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/PERSISTENCE.md)
 - Engineer:
-  - start with [docs/CHANGELOG.md](docs/CHANGELOG.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/DATASETS.md](docs/DATASETS.md), [docs/GOVERNANCE.md](docs/GOVERNANCE.md), and [dashboard/README.md](dashboard/README.md) for the current UI/live-integration boundary
+  - start with [CHANGELOG.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/CHANGELOG.md), [ARCHITECTURE.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/ARCHITECTURE.md), [DATASETS.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/DATASETS.md), [GOVERNANCE.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/GOVERNANCE.md), and [dashboard/README.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/dashboard/README.md) for the current UI/live-integration boundary
 
 ## Current Architecture
 
@@ -269,6 +278,14 @@ python src/saudi_open_data_mcp/cli.py run-stdio
 HTTP_AUTH_TOKEN=dev-internal-token python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
 ```
 
+The published package also exposes the `saudi-open-data-mcp` console script:
+
+```bash
+saudi-open-data-mcp check-startup
+saudi-open-data-mcp run-stdio
+HTTP_AUTH_TOKEN=dev-internal-token saudi-open-data-mcp run-http --host 127.0.0.1 --port 8000
+```
+
 The same source-tree CLI also provides a thin non-interactive local façade over
 the current core operations. These commands emit structured JSON by default and
 support `--output` for file writes. `--quiet` only applies when `--output` is
@@ -294,8 +311,8 @@ status, origin, freshness, and limitations explicit instead of adding
 decorative reporting layers.
 
 Use the source-tree CLI or the local helper scripts for development and local
-host integration. Installed module entrypoints and packaged console scripts are
-still not part of the supported local workflow.
+host integration. The packaged console script exists for installed/PyPI usage,
+but source-tree invocation remains the primary contributor workflow.
 
 `run-stdio` remains the primary local host/operator path for Claude Desktop and
 other command-based MCP hosts.
@@ -386,7 +403,7 @@ Internal observability remains intentionally simple:
 - inspect structured container logs for event-level detail such as `server.startup.*`, `preview.request.*`, `connector.request.*`, `materialize.*`, and `tier_a_refresh.*`
 - treat the observability resource as a process-local operator aid, not as a health endpoint or external metrics API
 
-For operator startup, shutdown, refresh, backup, and restore guidance, see [docs/OPERATIONS.md](docs/OPERATIONS.md).
+For operator startup, shutdown, refresh, backup, and restore guidance, see [OPERATIONS.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/docs/OPERATIONS.md).
 
 Direct container run example:
 
@@ -479,6 +496,25 @@ Claude Desktop example:
 ```
 
 `cwd` is optional here. The default registry and snapshot paths are now anchored to the repo rather than the process working directory, but keeping `cwd` set to the repo root can still make local config and path reasoning easier.
+
+After installing the published package, command-based hosts can also launch the
+console script directly:
+
+```json
+{
+  "mcpServers": {
+    "saudi-open-data-mcp": {
+      "command": "saudi-open-data-mcp",
+      "args": ["run-stdio"],
+      "env": {
+        "LOG_LEVEL": "ERROR",
+        "SAMA_BASE_URL": "https://www.sama.gov.sa",
+        "DATA_GOV_SA_BASE_URL": "https://open.data.gov.sa"
+      }
+    }
+  }
+}
+```
 
 If you prefer a single command path, the repo also includes a stdio helper script:
 

@@ -1,0 +1,5 @@
+Copyright 2026 Raheb Almutairi and contributors
+
+This repository's source code and documentation are licensed under the Apache License, Version 2.0.
+Model weights are not included in this repository and are not licensed under Apache-2.0 by default.
+Any future release of model weights will be governed separately.
