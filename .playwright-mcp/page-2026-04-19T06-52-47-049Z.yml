@@ -1,0 +1,204 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - heading "MCP Inspector v0.21.2" [level=1] [ref=e8]
+        - generic [ref=e10]:
+          - generic [ref=e11]:
+            - text: Transport Type
+            - combobox "Transport Type" [ref=e12] [cursor=pointer]:
+              - generic: STDIO
+              - img [ref=e13]
+          - generic [ref=e15]:
+            - text: Command
+            - textbox "Command" [ref=e16]: .venv/bin/python
+          - generic [ref=e17]:
+            - text: Arguments
+            - textbox "Arguments" [ref=e18]:
+              - /placeholder: Arguments (space-separated)
+              - text: src/saudi_open_data_mcp/cli.py run-stdio
+          - button "Environment Variables" [ref=e20] [cursor=pointer]:
+            - img [ref=e21]
+            - text: Environment Variables
+          - generic [ref=e23]:
+            - button "Server Entry" [ref=e24] [cursor=pointer]:
+              - img [ref=e25]
+              - text: Server Entry
+            - button "Servers File" [ref=e28] [cursor=pointer]:
+              - img [ref=e29]
+              - text: Servers File
+          - button "Authentication" [ref=e33] [cursor=pointer]:
+            - img [ref=e34]
+            - text: Authentication
+          - button "Configuration" [ref=e37] [cursor=pointer]:
+            - img [ref=e38]
+            - img [ref=e40]
+            - text: Configuration
+          - generic [ref=e43]:
+            - generic [ref=e108]:
+              - button "Restart" [ref=e109] [cursor=pointer]:
+                - img [ref=e110]
+                - text: Restart
+              - button "Disconnect" [ref=e113] [cursor=pointer]:
+                - img [ref=e114]
+                - text: Disconnect
+            - generic [ref=e49]: Connected
+            - generic [ref=e122]:
+              - generic [ref=e123]:
+                - img [ref=e124]
+                - generic [ref=e127]: saudi-open-data-mcp
+              - generic [ref=e128]: "Version: 2.14.5"
+        - generic [ref=e51]:
+          - combobox [ref=e52] [cursor=pointer]:
+            - generic: System
+            - img [ref=e53]
+          - generic [ref=e55]:
+            - link "Inspector Documentation" [ref=e56] [cursor=pointer]:
+              - /url: https://modelcontextprotocol.io/docs/tools/inspector
+              - img [ref=e57]
+            - link "Debugging Guide" [ref=e60] [cursor=pointer]:
+              - /url: https://modelcontextprotocol.io/docs/tools/debugging
+              - img [ref=e61]
+            - link "Report bugs or contribute on GitHub" [ref=e70] [cursor=pointer]:
+              - /url: https://github.com/modelcontextprotocol/inspector
+              - img [ref=e71]
+      - generic "Resize sidebar" [ref=e74]
+    - generic [ref=e75]:
+      - generic [ref=e129]:
+        - tablist [ref=e130]:
+          - tab "Resources" [ref=e131] [cursor=pointer]:
+            - img [ref=e132]
+            - text: Resources
+          - tab "Prompts" [ref=e136] [cursor=pointer]:
+            - img [ref=e137]
+            - text: Prompts
+          - tab "Tools" [selected] [ref=e139] [cursor=pointer]:
+            - img [ref=e140]
+            - text: Tools
+          - tab "Tasks" [ref=e144] [cursor=pointer]:
+            - img [ref=e145]
+            - text: Tasks
+          - tab "Apps" [ref=e148] [cursor=pointer]:
+            - img [ref=e149]
+            - text: Apps
+          - tab "Ping" [ref=e151] [cursor=pointer]:
+            - img [ref=e152]
+            - text: Ping
+          - tab "Sampling" [ref=e155] [cursor=pointer]:
+            - img [ref=e156]
+            - text: Sampling
+          - tab "Elicitations" [ref=e159] [cursor=pointer]:
+            - img [ref=e160]
+            - text: Elicitations
+          - tab "Roots" [ref=e162] [cursor=pointer]:
+            - img [ref=e163]
+            - text: Roots
+          - tab "Auth" [ref=e168] [cursor=pointer]:
+            - img [ref=e169]
+            - text: Auth
+          - tab "Metadata" [ref=e173] [cursor=pointer]:
+            - img [ref=e174]
+            - text: Metadata
+        - tabpanel "Tools" [ref=e245]:
+          - generic [ref=e246]:
+            - generic [ref=e247]:
+              - generic [ref=e249]:
+                - heading "Tools" [level=3] [ref=e250]
+                - button "Search" [ref=e252] [cursor=pointer]:
+                  - img [ref=e253]
+              - generic [ref=e256]:
+                - button "List Tools" [disabled]
+                - button "Clear" [ref=e265] [cursor=pointer]
+                - generic [ref=e266]:
+                  - generic [ref=e268] [cursor=pointer]:
+                    - generic [ref=e269]:
+                      - generic [ref=e270]: dataset_metadata
+                      - generic [ref=e271]: Exact registry metadata lookup by dataset_id.
+                    - img [ref=e272]
+                  - generic [ref=e275] [cursor=pointer]:
+                    - generic [ref=e276]:
+                      - generic [ref=e277]: dataset_health
+                      - generic [ref=e278]: Exact registry-backed health lookup by dataset_id, with local snapshot freshness evidence when available.
+                    - img [ref=e279]
+                  - generic [ref=e282] [cursor=pointer]:
+                    - generic [ref=e283]:
+                      - generic [ref=e284]: download_dataset
+                      - generic [ref=e285]: Report local raw snapshot availability for an exact dataset_id. Local-only; no remote fetch.
+                    - img [ref=e286]
+                  - generic [ref=e289] [cursor=pointer]:
+                    - generic [ref=e290]:
+                      - generic [ref=e291]: materialize_hot_set
+                      - generic [ref=e292]: Fetch and persist the fixed Wave 1 SAMA hot-set into local snapshots. Tier B remains opt-in via include_optional.
+                    - img [ref=e293]
+                  - generic [ref=e296] [cursor=pointer]:
+                    - generic [ref=e297]:
+                      - generic [ref=e298]: query_dataset
+                      - generic [ref=e299]: Query local canonical records for an exact dataset_id using exact-match filters only. Local-only; no remote fetch.
+                    - img [ref=e300]
+                  - generic [ref=e303] [cursor=pointer]:
+                    - generic [ref=e304]:
+                      - generic [ref=e305]: search_datasets
+                      - generic [ref=e306]: Search registry-backed dataset metadata using deterministic substring matching only.
+                    - img [ref=e307]
+                  - generic [ref=e310] [cursor=pointer]:
+                    - generic [ref=e311]:
+                      - generic [ref=e312]: preview_dataset
+                      - generic [ref=e313]: Fetch and preview a dataset for an exact registry dataset_id.
+                    - img [ref=e314]
+            - generic [ref=e258]:
+              - heading "Select a tool" [level=3] [ref=e261]
+              - alert [ref=e263]:
+                - generic [ref=e264]: Select a tool from the list to view its details and run it
+      - generic [ref=e86]:
+        - generic [ref=e87]:
+          - generic [ref=e88]:
+            - heading "History" [level=2] [ref=e89]
+            - button "Clear" [ref=e209] [cursor=pointer]
+          - list [ref=e210]:
+            - listitem [ref=e211]:
+              - generic [ref=e212] [cursor=pointer]:
+                - generic [ref=e213]: 2. tools/list
+                - generic [ref=e214]: ▶
+            - listitem [ref=e316]:
+              - generic [ref=e317] [cursor=pointer]:
+                - generic [ref=e318]: 1. initialize
+                - generic [ref=e319]: ▶
+        - generic [ref=e91]:
+          - generic [ref=e92]:
+            - heading "Server Notifications" [level=2] [ref=e93]
+            - button "Clear" [ref=e215] [cursor=pointer]
+          - list [ref=e216]:
+            - listitem [ref=e217]:
+              - generic [ref=e218] [cursor=pointer]:
+                - generic [ref=e219]: 8. notifications/message
+                - generic [ref=e220]: ▶
+            - listitem [ref=e221]:
+              - generic [ref=e222] [cursor=pointer]:
+                - generic [ref=e223]: 7. notifications/message
+                - generic [ref=e224]: ▶
+            - listitem [ref=e225]:
+              - generic [ref=e226] [cursor=pointer]:
+                - generic [ref=e227]: 6. notifications/message
+                - generic [ref=e228]: ▶
+            - listitem [ref=e229]:
+              - generic [ref=e230] [cursor=pointer]:
+                - generic [ref=e231]: 5. notifications/message
+                - generic [ref=e232]: ▶
+            - listitem [ref=e233]:
+              - generic [ref=e234] [cursor=pointer]:
+                - generic [ref=e235]: 4. notifications/message
+                - generic [ref=e236]: ▶
+            - listitem [ref=e237]:
+              - generic [ref=e238] [cursor=pointer]:
+                - generic [ref=e239]: 3. notifications/message
+                - generic [ref=e240]: ▶
+            - listitem [ref=e241]:
+              - generic [ref=e242] [cursor=pointer]:
+                - generic [ref=e243]: 2. notifications/message
+                - generic [ref=e244]: ▶
+            - listitem [ref=e320]:
+              - generic [ref=e321] [cursor=pointer]:
+                - generic [ref=e322]: 1. notifications/message
+                - generic [ref=e323]: ▶
+  - region "Notifications (F8)":
+    - list

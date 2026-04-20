@@ -192,6 +192,65 @@ SAMA_HIGH_FREQUENCY_ECONOMIC_CORE_CONTRACTS: tuple[CanonicalDatasetContract, ...
         ),
     ),
     CanonicalDatasetContract(
+        dataset_id="sama-pos-by-city",
+        schema_version="1.0.0",
+        record_shape=CanonicalRecordShape.TIME_SERIES_OBSERVATION,
+        temporal_granularity=TemporalGranularity.WEEKLY,
+        primary_key=("week_start_date", "week_end_date", "city_name", "city_name_ar"),
+        dimensions=(
+            _dimension(
+                "week_start_date",
+                type=CanonicalFieldType.DATE,
+                description="Inclusive start date for the reported POS week.",
+            ),
+            _dimension(
+                "week_end_date",
+                type=CanonicalFieldType.DATE,
+                description="Inclusive end date for the reported POS week.",
+            ),
+            _dimension(
+                "city_name",
+                type=CanonicalFieldType.STRING,
+                description=(
+                    "English city label or source bucket label published in the city table."
+                ),
+            ),
+            _dimension(
+                "city_name_ar",
+                type=CanonicalFieldType.STRING,
+                description=(
+                    "Arabic city label or source bucket label published in the city table."
+                ),
+            ),
+        ),
+        measures=(
+            _measure(
+                "transaction_count",
+                type=CanonicalFieldType.INTEGER,
+                description="Total POS transactions recorded for the city during the week.",
+            ),
+            _measure(
+                "transaction_value_sar",
+                type=CanonicalFieldType.DECIMAL,
+                description=(
+                    "Total POS transaction value for the city, normalized to Saudi Riyals."
+                ),
+                unit="SAR",
+            ),
+        ),
+        structure_note=(
+            "Current POS-by-city enrichment extracts supported city rows from Table 2.1 "
+            "and Table 2.2 in the official weekly POS report PDFs linked from the "
+            "official SAMA POS page. The canonical contract preserves the published "
+            "bilingual city labels and does not yet claim city-by-activity tables or "
+            "additional geography metadata beyond the source labels."
+        ),
+        intended_analytical_uses=(
+            "Compare weekly POS activity across published city rows in value and volume terms.",
+            "Support local exact-match analysis over published city-level POS time series.",
+        ),
+    ),
+    CanonicalDatasetContract(
         dataset_id="sama-money-supply-weekly",
         schema_version="1.0.0",
         record_shape=CanonicalRecordShape.TIME_SERIES_OBSERVATION,

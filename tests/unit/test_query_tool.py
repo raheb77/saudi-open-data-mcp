@@ -18,9 +18,6 @@ from saudi_open_data_mcp.normalization.pipeline import (
     NormalizationPipelineStatus,
     NormalizationResult,
 )
-from saudi_open_data_mcp.normalization.sama_pos_by_city import (
-    SAMA_POS_BY_CITY_JSON_REPORT_BUNDLE_LIMITATION,
-)
 from saudi_open_data_mcp.registry.models import (
     DatasetCoverageStatus,
     DatasetDescriptor,
@@ -93,14 +90,30 @@ def _pos_weekly_report_bundle_json() -> dict[str, object]:
                     "Weekly_Points_of_Sale_Transactions_Report_04-Apr-2026.pdf"
                 ),
                 "report_text": (
-                    "Weekly Points of Sale Transactions Table 1: By Activities "
-                    "Value of Transactions: In Thousand "
-                    "Number of Transactions: In Thousand "
+                    "Weekly Points of Sale Transactions\n"
+                    "Table 1: By Activities\n"
+                    "Value of Transactions: In Thousand\n"
+                    "Number of Transactions: In Thousand\n"
                     "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
-                    "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26 "
+                    "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26\n"
                     "Total 226,928 16,149,247 223,899 14,793,365 "
-                    "219,827 12,969,718 246,506 14,707,441 12.1 13.4 "
-                    "Table 2.1: By Cities"
+                    "219,827 12,969,718 246,506 14,707,441 12.1 13.4\n"
+                    "Table 2.1: By Cities\n"
+                    "Value of Transactions: In Thousand\n"
+                    "Number of Transactions: In Thousand\n"
+                    "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
+                    "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26\n"
+                    "Riyadhالرياض69,308 5,328,904 66,217 4,698,782 "
+                    "66,115 4,156,638 78,055 4,970,461 18.1 19.6\n"
+                    "Table 2.2: By Cities\n"
+                    "Value of Transactions: In Thousand\n"
+                    "Number of Transactions: In Thousand\n"
+                    "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
+                    "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26\n"
+                    "Jeddahجدة28,197 2,421,418 26,625 2,174,940 "
+                    "25,579 1,814,450 28,230 2,000,003 10.4 10.2\n"
+                    "Note: Points of sale transactions by activity for cities are "
+                    "available on Saudi Central Bank Portal for Open Data.\n"
                 ),
             },
             {
@@ -109,14 +122,30 @@ def _pos_weekly_report_bundle_json() -> dict[str, object]:
                     "Weekly_Points_of_Sale_Transactions_Report_28-Mar-2026.pdf"
                 ),
                 "report_text": (
-                    "Weekly Points of Sale Transactions Table 1: By Activities "
-                    "Value of Transactions: In Thousand "
-                    "Number of Transactions: In Thousand "
+                    "Weekly Points of Sale Transactions\n"
+                    "Table 1: By Activities\n"
+                    "Value of Transactions: In Thousand\n"
+                    "Number of Transactions: In Thousand\n"
                     "1 Mar,26 - 7 Mar,26 8 Mar,26 - 14 Mar,26 "
-                    "15 Mar,26 - 21 Mar,26 22 Mar,26 - 28 Mar,26 "
+                    "15 Mar,26 - 21 Mar,26 22 Mar,26 - 28 Mar,26\n"
                     "Total 210,100 13,000,000 226,928 16,149,247 "
-                    "223,899 14,793,365 219,827 12,969,718 -1.8 -12.3 "
-                    "Table 2.1: By Cities"
+                    "223,899 14,793,365 219,827 12,969,718 -1.8 -12.3\n"
+                    "Table 2.1: By Cities\n"
+                    "Value of Transactions: In Thousand\n"
+                    "Number of Transactions: In Thousand\n"
+                    "1 Mar,26 - 7 Mar,26 8 Mar,26 - 14 Mar,26 "
+                    "15 Mar,26 - 21 Mar,26 22 Mar,26 - 28 Mar,26\n"
+                    "Riyadhالرياض65,000 4,700,000 69,308 5,328,904 "
+                    "66,217 4,698,782 66,115 4,156,638 18.1 19.6\n"
+                    "Table 2.2: By Cities\n"
+                    "Value of Transactions: In Thousand\n"
+                    "Number of Transactions: In Thousand\n"
+                    "1 Mar,26 - 7 Mar,26 8 Mar,26 - 14 Mar,26 "
+                    "15 Mar,26 - 21 Mar,26 22 Mar,26 - 28 Mar,26\n"
+                    "Jeddahجدة27,784 2,340,402 28,197 2,421,418 "
+                    "26,625 2,174,940 25,579 1,814,450 10.4 10.2\n"
+                    "Note: Points of sale transactions by activity for cities are "
+                    "available on Saudi Central Bank Portal for Open Data.\n"
                 ),
             },
         ],
@@ -1573,7 +1602,7 @@ def test_query_dataset_returns_explicit_limited_result_for_unsupported_json_shap
     )
 
 
-def test_query_dataset_returns_source_specific_limited_result_for_sama_pos_by_city_bundle(
+def test_query_dataset_returns_queryable_city_records_for_sama_pos_by_city_bundle(
     tmp_path: Path,
 ) -> None:
     repository = RegistryRepository(tmp_path / "registry.sqlite")
@@ -1587,9 +1616,9 @@ def test_query_dataset_returns_source_specific_limited_result_for_sama_pos_by_ci
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.WEEKLY,
         health_status=DatasetHealthStatus.UNKNOWN,
-        coverage_status=DatasetCoverageStatus.LIMITED,
-        caveats=("City extraction is not implemented for the shared POS report bundle.",),
-        known_issues=("Only the shared POS bundle is materialized at this stage.",),
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
+        caveats=("The shared POS report bundle publishes supported city tables.",),
+        known_issues=("Only supported rows from Table 2.1 and Table 2.2 are normalized.",),
     )
     tool = DatasetQueryTool(repository, snapshot_store)
 
@@ -1609,18 +1638,32 @@ def test_query_dataset_returns_source_specific_limited_result_for_sama_pos_by_ci
 
     result = tool.query_dataset(descriptor.dataset_id)
 
-    assert result.status is DatasetQueryStatus.LIMITED
-    assert result.coverage_status is DatasetCoverageStatus.LIMITED
+    assert result.status is DatasetQueryStatus.SUCCESS
+    assert result.coverage_status is DatasetCoverageStatus.QUERYABLE
     assert result.source == "sama"
     assert result.data_origin is ResultDataOrigin.LOCAL_SNAPSHOT
-    assert result.total_records_before_filter is None
+    assert result.total_records_before_filter == 10
     assert result.failure_stage is None
-    assert result.degradation_reason is ResultDegradationReason.NORMALIZATION_LIMITED
-    assert result.matched_records == ()
-    assert result.limitations == (
-        "json_body_requires_supported_object_list_shape_for_record_normalization",
-        SAMA_POS_BY_CITY_JSON_REPORT_BUNDLE_LIMITATION,
-    )
+    assert result.degradation_reason is None
+    assert result.limitations == ()
+    assert len(result.matched_records) == 10
+    assert result.matched_records[-1].fields == {
+        "week_start_date": "2026-03-29",
+        "week_end_date": "2026-04-04",
+        "city_name": "Riyadh",
+        "city_name_ar": "الرياض",
+        "transaction_count": 78055000,
+        "transaction_value_sar": 4970461000.0,
+        "source_locator": "/en-US/Indices/Pages/POS.aspx",
+        "source_url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+        "source_report_url": (
+            "https://www.sama.gov.sa/en-US/Indices/POS_EN/"
+            "Weekly_Points_of_Sale_Transactions_Report_04-Apr-2026.pdf"
+        ),
+        "source_period_text": "29 Mar,26 - 04 Apr,26",
+        "source_table_title": "Table 2.1: By Cities",
+        "source_release_title": "Weekly Points of Sale Transactions",
+    }
 
 
 def test_query_dataset_returns_explicit_failed_result_for_failed_normalization(

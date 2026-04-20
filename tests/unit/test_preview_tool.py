@@ -168,14 +168,30 @@ def _pos_weekly_report_bundle_json() -> dict[str, object]:
                     "Weekly_Points_of_Sale_Transactions_Report_04-Apr-2026.pdf"
                 ),
                 "report_text": (
-                    "Weekly Points of Sale Transactions Table 1: By Activities "
-                    "Value of Transactions: In Thousand "
-                    "Number of Transactions: In Thousand "
+                    "Weekly Points of Sale Transactions\n"
+                    "Table 1: By Activities\n"
+                    "Value of Transactions: In Thousand\n"
+                    "Number of Transactions: In Thousand\n"
                     "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
-                    "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26 "
+                    "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26\n"
                     "Total 226,928 16,149,247 223,899 14,793,365 "
-                    "219,827 12,969,718 246,506 14,707,441 12.1 13.4 "
-                    "Table 2.1: By Cities"
+                    "219,827 12,969,718 246,506 14,707,441 12.1 13.4\n"
+                    "Table 2.1: By Cities\n"
+                    "Value of Transactions: In Thousand\n"
+                    "Number of Transactions: In Thousand\n"
+                    "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
+                    "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26\n"
+                    "Riyadhالرياض69,308 5,328,904 66,217 4,698,782 "
+                    "66,115 4,156,638 78,055 4,970,461 18.1 19.6\n"
+                    "Table 2.2: By Cities\n"
+                    "Value of Transactions: In Thousand\n"
+                    "Number of Transactions: In Thousand\n"
+                    "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
+                    "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26\n"
+                    "Jeddahجدة28,197 2,421,418 26,625 2,174,940 "
+                    "25,579 1,814,450 28,230 2,000,003 10.4 10.2\n"
+                    "Note: Points of sale transactions by activity for cities are "
+                    "available on Saudi Central Bank Portal for Open Data.\n"
                 ),
             }
         ],
@@ -625,7 +641,7 @@ async def test_sama_pos_weekly_fresh_snapshot_is_served_as_queryable_report_bund
 
 
 @pytest.mark.asyncio
-async def test_sama_pos_by_city_preview_preserves_governed_limited_coverage(
+async def test_sama_pos_by_city_fresh_snapshot_is_served_as_queryable_city_preview(
     tmp_path: Path,
 ) -> None:
     repository = _repository(
@@ -633,7 +649,7 @@ async def test_sama_pos_by_city_preview_preserves_governed_limited_coverage(
         dataset_id="sama-pos-by-city",
         source_locator="/en-US/Indices/Pages/POS.aspx",
         update_frequency=UpdateFrequency.WEEKLY,
-        coverage_status=DatasetCoverageStatus.LIMITED,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
     )
     store = _snapshot_store(tmp_path)
     _write_snapshot_with_mtime(
@@ -654,13 +670,17 @@ async def test_sama_pos_by_city_preview_preserves_governed_limited_coverage(
         reference_time=datetime(2026, 4, 6, 12, 0, tzinfo=UTC),
     )
 
-    assert result.status is PreviewStatus.LIMITED
-    assert result.coverage_status is DatasetCoverageStatus.LIMITED
-    assert result.records == ()
-    assert (
-        "sama_pos_by_city_json_requires_supported_city_table_report_bundle"
-        in result.limitations
-    )
+    assert result.status is PreviewStatus.RECORD_DERIVABLE
+    assert result.coverage_status is DatasetCoverageStatus.QUERYABLE
+    assert result.records
+    assert len(result.records) == 8
+    assert result.limitations == ()
+    assert result.records[-1].fields["week_start_date"] == "2026-03-29"
+    assert result.records[-1].fields["week_end_date"] == "2026-04-04"
+    assert result.records[-1].fields["city_name"] == "Riyadh"
+    assert result.records[-1].fields["city_name_ar"] == "الرياض"
+    assert result.records[-1].fields["transaction_count"] == 78055000
+    assert result.records[-1].fields["transaction_value_sar"] == 4970461000.0
 
 
 @pytest.mark.asyncio

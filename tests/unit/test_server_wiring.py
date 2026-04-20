@@ -259,6 +259,7 @@ async def test_server_registers_current_mcp_surface(
     assert policies_payload["decision"] == "keep_current_surface"
     assert policies_payload["query_primary_dataset_ids"] == [
         "sama-pos-weekly",
+        "sama-pos-by-city",
         "sama-money-supply-weekly",
         "sama-deposits-core",
         "sama-exchange-rates-current",

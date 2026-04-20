@@ -1,0 +1,75 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - heading "MCP Inspector v0.21.2" [level=1] [ref=e8]
+        - generic [ref=e10]:
+          - generic [ref=e11]:
+            - text: Transport Type
+            - combobox "Transport Type" [ref=e12] [cursor=pointer]:
+              - generic: STDIO
+              - img [ref=e13]
+          - generic [ref=e15]:
+            - text: Command
+            - textbox "Command" [ref=e16]: .venv/bin/python
+          - generic [ref=e17]:
+            - text: Arguments
+            - textbox "Arguments" [ref=e18]:
+              - /placeholder: Arguments (space-separated)
+              - text: src/saudi_open_data_mcp/cli.py run-stdio
+          - button "Environment Variables" [ref=e20] [cursor=pointer]:
+            - img [ref=e21]
+            - text: Environment Variables
+          - generic [ref=e23]:
+            - button "Server Entry" [ref=e24] [cursor=pointer]:
+              - img [ref=e25]
+              - text: Server Entry
+            - button "Servers File" [ref=e28] [cursor=pointer]:
+              - img [ref=e29]
+              - text: Servers File
+          - button "Authentication" [ref=e33] [cursor=pointer]:
+            - img [ref=e34]
+            - text: Authentication
+          - button "Configuration" [ref=e37] [cursor=pointer]:
+            - img [ref=e38]
+            - img [ref=e40]
+            - text: Configuration
+          - generic [ref=e43]:
+            - button "Connect" [ref=e44] [cursor=pointer]:
+              - img [ref=e45]
+              - text: Connect
+            - generic [ref=e49]: Disconnected
+        - generic [ref=e51]:
+          - combobox [ref=e52] [cursor=pointer]:
+            - generic: System
+            - img [ref=e53]
+          - generic [ref=e55]:
+            - link "Inspector Documentation" [ref=e56] [cursor=pointer]:
+              - /url: https://modelcontextprotocol.io/docs/tools/inspector
+              - img [ref=e57]
+            - link "Debugging Guide" [ref=e60] [cursor=pointer]:
+              - /url: https://modelcontextprotocol.io/docs/tools/debugging
+              - img [ref=e61]
+            - link "Report bugs or contribute on GitHub" [ref=e70] [cursor=pointer]:
+              - /url: https://github.com/modelcontextprotocol/inspector
+              - img [ref=e71]
+      - generic "Resize sidebar" [ref=e74]
+    - generic [ref=e75]:
+      - generic [ref=e77]:
+        - paragraph [ref=e78]: Connect to an MCP server to start inspecting
+        - generic [ref=e79]:
+          - paragraph [ref=e80]: Need to configure authentication?
+          - button "Open Auth Settings" [ref=e81] [cursor=pointer]
+      - generic [ref=e86]:
+        - generic [ref=e87]:
+          - generic [ref=e88]:
+            - heading "History" [level=2] [ref=e89]
+            - button "Clear" [disabled]
+          - paragraph [ref=e90]: No history yet
+        - generic [ref=e91]:
+          - generic [ref=e92]:
+            - heading "Server Notifications" [level=2] [ref=e93]
+            - button "Clear" [disabled]
+          - paragraph [ref=e94]: No notifications yet
+  - region "Notifications (F8)":
+    - list

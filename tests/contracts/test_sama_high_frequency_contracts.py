@@ -30,6 +30,13 @@ EXPECTED_CONTRACT_SUMMARIES = {
             "average_ticket_sar",
         ),
     },
+    "sama-pos-by-city": {
+        "record_shape": CanonicalRecordShape.TIME_SERIES_OBSERVATION,
+        "temporal_granularity": TemporalGranularity.WEEKLY,
+        "primary_key": ("week_start_date", "week_end_date", "city_name", "city_name_ar"),
+        "dimensions": ("week_start_date", "week_end_date", "city_name", "city_name_ar"),
+        "measures": ("transaction_count", "transaction_value_sar"),
+    },
     "sama-money-supply-weekly": {
         "record_shape": CanonicalRecordShape.TIME_SERIES_OBSERVATION,
         "temporal_granularity": TemporalGranularity.WEEKLY,
@@ -118,6 +125,7 @@ def test_high_frequency_core_contracts_use_backward_safe_schema_evolution_defaul
         "1.0.0",
         "1.0.0",
         "1.0.0",
+        "1.0.0",
     )
     assert all(
         contract.evolution_policy is SchemaEvolutionPolicy.ADDITIVE_WITHIN_MAJOR
@@ -136,6 +144,15 @@ def test_sama_deposits_core_contract_makes_the_current_bundle_decision_explicit(
     assert contract.structure_note is not None
     assert "bundled canonical dataset" in contract.structure_note
     assert "shared report payload" in contract.structure_note
+
+
+def test_sama_pos_by_city_contract_makes_city_pdf_scope_explicit() -> None:
+    contract = get_canonical_dataset_contract("sama-pos-by-city")
+
+    assert contract.structure_note is not None
+    assert "Table 2.1" in contract.structure_note
+    assert "Table 2.2" in contract.structure_note
+    assert "does not yet claim city-by-activity tables" in contract.structure_note
 
 
 def test_sama_exchange_rates_current_contract_makes_daily_snapshot_scope_explicit() -> None:
@@ -203,6 +220,54 @@ def test_sama_pos_weekly_enriched_sample_matches_declared_contract_direction() -
         canonical_dataset_id="sama-pos-weekly",
     )
     contract = get_canonical_dataset_contract("sama-pos-weekly")
+
+    assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
+    sample_fields = result.records[0].fields
+    assert all(field_name in sample_fields for field_name in contract.primary_key)
+    assert all(field.name in sample_fields for field in contract.measures)
+
+
+def test_sama_pos_by_city_enriched_sample_matches_declared_contract_direction() -> None:
+    raw_payload = RawPayload(
+        source="sama",
+        dataset_id="/en-US/Indices/Pages/POS.aspx",
+        content={
+            "url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {
+                "reports_page_url": "https://www.sama.gov.sa/en-US/Indices/Pages/POS.aspx",
+                "reports": [
+                    {
+                        "report_url": "https://www.sama.gov.sa/en-US/Indices/POS_EN/Weekly.pdf",
+                        "report_text": (
+                            "Weekly Points of Sale Transactions\n"
+                            "Table 2.1: By Cities\n"
+                            "Value of Transactions: In Thousand\n"
+                            "Number of Transactions: In Thousand\n"
+                            "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
+                            "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26\n"
+                            "Riyadhالرياض69,308 5,328,904 66,217 4,698,782 "
+                            "66,115 4,156,638 78,055 4,970,461 18.1 19.6\n"
+                            "Table 2.2: By Cities\n"
+                            "Value of Transactions: In Thousand\n"
+                            "Number of Transactions: In Thousand\n"
+                            "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
+                            "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26\n"
+                            "Jeddahجدة28,197 2,421,418 26,625 2,174,940 "
+                            "25,579 1,814,450 28,230 2,000,003 10.4 10.2\n"
+                        ),
+                    }
+                ],
+            },
+        },
+    )
+
+    result = NormalizationPipeline().normalize(
+        raw_payload,
+        canonical_dataset_id="sama-pos-by-city",
+    )
+    contract = get_canonical_dataset_contract("sama-pos-by-city")
 
     assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
     sample_fields = result.records[0].fields

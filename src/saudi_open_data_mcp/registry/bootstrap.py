@@ -272,16 +272,20 @@ INITIAL_DATASET_DESCRIPTORS: tuple[DatasetDescriptor, ...] = (
         schema_version="0.1.0",
         update_frequency=UpdateFrequency.WEEKLY,
         health_status=DatasetHealthStatus.UNKNOWN,
-        coverage_status=DatasetCoverageStatus.LIMITED,
+        coverage_status=DatasetCoverageStatus.QUERYABLE,
         caveats=(
-            "This first-wave Tier B entry reuses the same official POS page payload "
-            "as the weekly POS hot-set entry.",
+            "This first-wave Tier B entry reuses the same official POS report-bundle "
+            "payload as the weekly POS hot-set entry.",
             "This descriptor intentionally shares the same SAMA page locator as "
             "sama-pos-weekly, but keeps a separate canonical dataset_id.",
         ),
         known_issues=(
+            "Only supported city rows from Table 2.1 and Table 2.2 in the official "
+            "weekly POS report PDFs are normalized. This does not yet cover "
+            "city-by-activity cuts or any geography metadata beyond the published "
+            "city labels.",
             "This upstream mapping is hand-curated and may need revision if SAMA "
-            "changes page routes, page structure, or city-table placement.",
+            "changes page routes, PDF table structure, or city-table placement.",
         ),
     ),
     DatasetDescriptor(

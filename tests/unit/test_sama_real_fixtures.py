@@ -142,6 +142,110 @@ async def test_real_pos_pdf_fixtures_round_trip_to_known_good_canonical_rows() -
     }
 
 
+@pytest.mark.asyncio
+@respx.mock
+async def test_real_pos_pdf_fixtures_round_trip_to_known_good_city_rows() -> None:
+    report_21_mar_url = (
+        "https://www.sama.gov.sa/en-US/Indices/POS_EN/"
+        "Weekly_Points_of_Sale_Transactions_Report_21-Mar-2026.pdf"
+    )
+    report_04_apr_url = (
+        "https://www.sama.gov.sa/en-US/Indices/POS_EN/"
+        "Weekly_Points_of_Sale_Transactions_Report_04-Apr-2026.pdf"
+    )
+    respx.get(_page_url(POS_PAGE_LOCATOR)).mock(
+        return_value=httpx.Response(
+            200,
+            text=(
+                "<html><body>"
+                f'<a href="{report_04_apr_url}">04 Apr</a>'
+                f'<a href="{report_21_mar_url}">21 Mar</a>'
+                "</body></html>"
+            ),
+            headers={"content-type": "text/html; charset=utf-8"},
+        )
+    )
+    respx.get(report_21_mar_url).mock(
+        return_value=httpx.Response(
+            200,
+            content=_fixture_bytes(
+                POS_FIXTURES_DIR / "Weekly_Points_of_Sale_Transactions_Report_21-Mar-2026.pdf"
+            ),
+            headers={"content-type": "application/pdf"},
+        )
+    )
+    respx.get(report_04_apr_url).mock(
+        return_value=httpx.Response(
+            200,
+            content=_fixture_bytes(
+                POS_FIXTURES_DIR / "Weekly_Points_of_Sale_Transactions_Report_04-Apr-2026.pdf"
+            ),
+            headers={"content-type": "application/pdf"},
+        )
+    )
+    connector = SAMAConnector()
+
+    payload = await connector.fetch_dataset_payload(POS_PAGE_LOCATOR)
+    result = NormalizationPipeline().normalize(
+        payload,
+        canonical_dataset_id="sama-pos-by-city",
+    )
+
+    assert result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
+    assert len(result.records) == 366
+    rows_by_city_period = {
+        (
+            record.fields["week_start_date"],
+            record.fields["week_end_date"],
+            record.fields["city_name"],
+        ): record.fields
+        for record in result.records
+    }
+
+    assert rows_by_city_period[("2026-02-22", "2026-02-28", "Abha")] == {
+        "week_start_date": "2026-02-22",
+        "week_end_date": "2026-02-28",
+        "city_name": "Abha",
+        "city_name_ar": "أبها",
+        "transaction_count": 2601000,
+        "transaction_value_sar": 153046000.0,
+        "source_locator": POS_PAGE_LOCATOR,
+        "source_url": _page_url(POS_PAGE_LOCATOR),
+        "source_report_url": report_21_mar_url,
+        "source_period_text": "22 Feb,26 - 28 Feb,26",
+        "source_table_title": "Table 2.1: By Cities",
+        "source_release_title": "Weekly Points of Sale Transactions",
+    }
+    assert rows_by_city_period[("2026-03-29", "2026-04-04", "Riyadh")] == {
+        "week_start_date": "2026-03-29",
+        "week_end_date": "2026-04-04",
+        "city_name": "Riyadh",
+        "city_name_ar": "الرياض",
+        "transaction_count": 78055000,
+        "transaction_value_sar": 4970461000.0,
+        "source_locator": POS_PAGE_LOCATOR,
+        "source_url": _page_url(POS_PAGE_LOCATOR),
+        "source_report_url": report_04_apr_url,
+        "source_period_text": "29 Mar,26 - 04 Apr,26",
+        "source_table_title": "Table 2.1: By Cities",
+        "source_release_title": "Weekly Points of Sale Transactions",
+    }
+    assert rows_by_city_period[("2026-03-29", "2026-04-04", "Jeddah")] == {
+        "week_start_date": "2026-03-29",
+        "week_end_date": "2026-04-04",
+        "city_name": "Jeddah",
+        "city_name_ar": "جدة",
+        "transaction_count": 28230000,
+        "transaction_value_sar": 2000003000.0,
+        "source_locator": POS_PAGE_LOCATOR,
+        "source_url": _page_url(POS_PAGE_LOCATOR),
+        "source_report_url": report_04_apr_url,
+        "source_period_text": "29 Mar,26 - 04 Apr,26",
+        "source_table_title": "Table 2.2: By Cities",
+        "source_release_title": "Weekly Points of Sale Transactions",
+    }
+
+
 def test_real_exchange_rates_page_one_fixture_exposes_expected_page_state() -> None:
     connector = SAMAConnector()
     page_one_html = _fixture_text(

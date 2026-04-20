@@ -115,7 +115,7 @@ def test_bootstrap_inserts_expected_initial_descriptors(tmp_path: Path) -> None:
     )
     assert (
         descriptors_by_id["sama-pos-by-city"].coverage_status
-        is DatasetCoverageStatus.LIMITED
+        is DatasetCoverageStatus.QUERYABLE
     )
     assert (
         descriptors_by_id["sama-interest-rates"].coverage_status

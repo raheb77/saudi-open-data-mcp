@@ -13,9 +13,6 @@ import pytest
 from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.connectors.resolver import SourceConnectorResolver
 from saudi_open_data_mcp.normalization.pipeline import NormalizationPipelineStatus
-from saudi_open_data_mcp.normalization.sama_pos_by_city import (
-    SAMA_POS_BY_CITY_JSON_REPORT_BUNDLE_LIMITATION,
-)
 from saudi_open_data_mcp.observability import get_metrics
 from saudi_open_data_mcp.registry.bootstrap import (
     WAVE_1_HOT_SET_OPTIONAL_DATASET_IDS,
@@ -40,7 +37,6 @@ from saudi_open_data_mcp.tools.materialize import (
 )
 from saudi_open_data_mcp.tools.result_metadata import (
     ResultDataOrigin,
-    ResultDegradationReason,
 )
 
 
@@ -79,14 +75,30 @@ def _pos_weekly_report_bundle_json() -> dict[str, object]:
                     "Weekly_Points_of_Sale_Transactions_Report_04-Apr-2026.pdf"
                 ),
                 "report_text": (
-                    "Weekly Points of Sale Transactions Table 1: By Activities "
-                    "Value of Transactions: In Thousand "
-                    "Number of Transactions: In Thousand "
+                    "Weekly Points of Sale Transactions\n"
+                    "Table 1: By Activities\n"
+                    "Value of Transactions: In Thousand\n"
+                    "Number of Transactions: In Thousand\n"
                     "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
-                    "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26 "
+                    "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26\n"
                     "Total 226,928 16,149,247 223,899 14,793,365 "
-                    "219,827 12,969,718 246,506 14,707,441 12.1 13.4 "
-                    "Table 2.1: By Cities"
+                    "219,827 12,969,718 246,506 14,707,441 12.1 13.4\n"
+                    "Table 2.1: By Cities\n"
+                    "Value of Transactions: In Thousand\n"
+                    "Number of Transactions: In Thousand\n"
+                    "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
+                    "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26\n"
+                    "Riyadhالرياض69,308 5,328,904 66,217 4,698,782 "
+                    "66,115 4,156,638 78,055 4,970,461 18.1 19.6\n"
+                    "Table 2.2: By Cities\n"
+                    "Value of Transactions: In Thousand\n"
+                    "Number of Transactions: In Thousand\n"
+                    "8 Mar,26 - 14 Mar,26 15 Mar,26 - 21 Mar,26 "
+                    "22 Mar,26 - 28 Mar,26 29 Mar,26 - 04 Apr,26\n"
+                    "Jeddahجدة28,197 2,421,418 26,625 2,174,940 "
+                    "25,579 1,814,450 28,230 2,000,003 10.4 10.2\n"
+                    "Note: Points of sale transactions by activity for cities are "
+                    "available on Saudi Central Bank Portal for Open Data.\n"
                 ),
             }
         ],
@@ -407,16 +419,10 @@ async def test_materialize_hot_set_can_include_optional_pos_by_city_without_refe
     )
     assert (
         results_by_id["sama-pos-by-city"].normalization_status
-        is NormalizationPipelineStatus.LIMITED
+        is NormalizationPipelineStatus.RECORD_DERIVABLE
     )
-    assert (
-        results_by_id["sama-pos-by-city"].degradation_reason
-        is ResultDegradationReason.NORMALIZATION_LIMITED
-    )
-    assert results_by_id["sama-pos-by-city"].limitations == (
-        "json_body_requires_supported_object_list_shape_for_record_normalization",
-        SAMA_POS_BY_CITY_JSON_REPORT_BUNDLE_LIMITATION,
-    )
+    assert results_by_id["sama-pos-by-city"].degradation_reason is None
+    assert results_by_id["sama-pos-by-city"].limitations == ()
 
 
 @pytest.mark.asyncio
