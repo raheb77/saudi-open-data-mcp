@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
+from time import monotonic
 from typing import Any, Protocol, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -54,6 +56,7 @@ class HotSetMaterializationStatus(StrEnum):
     """Per-dataset hot-set materialization status."""
 
     MATERIALIZED = "materialized"
+    SKIPPED = "skipped"
     FAILED = "failed"
 
 
@@ -63,6 +66,13 @@ class HotSetMaterializationFailureStage(StrEnum):
     LOOKUP = "lookup"
     FETCH = "fetch"
     SNAPSHOT = "snapshot"
+
+
+class HotSetMaterializationSkipReason(StrEnum):
+    """Explicit reason for intentionally skipping a live materialization fetch."""
+
+    FRESH_SNAPSHOT_REUSED = "fresh_snapshot_reused"
+    COOLDOWN_ACTIVE = "cooldown_active"
 
 
 class HotSetMaterializationFailure(BaseModel):
@@ -90,6 +100,7 @@ class HotSetDatasetMaterializationResult(BaseModel):
     freshness: SnapshotFreshnessResult | None = None
     normalization_status: NormalizationPipelineStatus | None = None
     failure_stage: HotSetMaterializationFailureStage | None = None
+    skip_reason: HotSetMaterializationSkipReason | None = None
     degradation_reason: ResultDegradationReason | None = None
     limitations: tuple[str, ...] = Field(default_factory=tuple)
     failure: HotSetMaterializationFailure | None = None
@@ -134,8 +145,45 @@ class HotSetDatasetMaterializationResult(BaseModel):
                     "record-derivable materialized results must not include "
                     "degradation_reason"
                 )
+            if self.skip_reason is not None:
+                raise ValueError("materialized hot-set results must not include skip_reason")
             return self
 
+        if self.status is HotSetMaterializationStatus.SKIPPED:
+            if self.failure is not None or self.failure_stage is not None:
+                raise ValueError("skipped hot-set results must not include failure details")
+            if self.skip_reason is None:
+                raise ValueError("skipped hot-set results must include a skip_reason")
+            if self.source is None or self.freshness is None:
+                raise ValueError(
+                    "skipped hot-set results must include source and freshness evidence"
+                )
+            if self.data_origin is not ResultDataOrigin.LOCAL_SNAPSHOT:
+                raise ValueError(
+                    "skipped hot-set results must expose local_snapshot data_origin"
+                )
+            if not self.local_snapshot_exists or not self.freshness.artifact_present:
+                raise ValueError(
+                    "skipped hot-set results must include positive snapshot evidence"
+                )
+            if self.freshness_status is not self.freshness.status:
+                raise ValueError(
+                    "skipped hot-set results must include matching freshness_status"
+                )
+            if self.freshness.dataset_id != self.dataset_id:
+                raise ValueError("freshness.dataset_id must match dataset_id")
+            if self.freshness.source != self.source:
+                raise ValueError("freshness.source must match source")
+            if self.normalization_status is not None or self.limitations:
+                raise ValueError(
+                    "skipped hot-set results must not include normalization status or limitations"
+                )
+            if self.degradation_reason is not None:
+                raise ValueError("skipped hot-set results must not include degradation_reason")
+            return self
+
+        if self.skip_reason is not None:
+            raise ValueError("failed hot-set results must not include skip_reason")
         if self.failure is None:
             raise ValueError("failed hot-set results must include failure details")
         if self.failure_stage is not self.failure.stage:
@@ -230,6 +278,27 @@ class HotSetDatasetMaterializationResult(BaseModel):
             ),
         )
 
+    @classmethod
+    def skipped(
+        cls,
+        *,
+        descriptor: DatasetDescriptor,
+        tier: HotSetTier,
+        freshness: SnapshotFreshnessResult,
+        reason: HotSetMaterializationSkipReason,
+    ) -> Self:
+        return cls(
+            dataset_id=descriptor.dataset_id,
+            tier=tier,
+            status=HotSetMaterializationStatus.SKIPPED,
+            source=descriptor.source,
+            data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
+            local_snapshot_exists=True,
+            freshness_status=freshness.status,
+            freshness=freshness,
+            skip_reason=reason,
+        )
+
 
 class HotSetMaterializationResult(BaseModel):
     """Top-level typed result for a Wave 1 hot-set materialization run."""
@@ -239,6 +308,7 @@ class HotSetMaterializationResult(BaseModel):
     include_optional: bool
     requested_dataset_count: int = Field(ge=0)
     materialized_count: int = Field(ge=0)
+    skipped_count: int = Field(default=0, ge=0)
     failed_count: int = Field(ge=0)
     results: tuple[HotSetDatasetMaterializationResult, ...] = Field(default_factory=tuple)
 
@@ -246,8 +316,13 @@ class HotSetMaterializationResult(BaseModel):
     def _validate_counts(self) -> Self:
         if len(self.results) != self.requested_dataset_count:
             raise ValueError("requested_dataset_count must match results length")
-        if self.materialized_count + self.failed_count != self.requested_dataset_count:
-            raise ValueError("materialized_count and failed_count must match requested count")
+        if (
+            self.materialized_count + self.skipped_count + self.failed_count
+            != self.requested_dataset_count
+        ):
+            raise ValueError(
+                "materialized_count, skipped_count, and failed_count must match requested count"
+            )
         return self
 
 
@@ -295,6 +370,11 @@ class _LocatorMaterializationSuccess:
 
 
 @dataclass(frozen=True)
+class _LocatorMaterializationSkipped:
+    reason: HotSetMaterializationSkipReason
+
+
+@dataclass(frozen=True)
 class _LocatorMaterializationFailure:
     stage: HotSetMaterializationFailureStage
     error: Exception
@@ -303,6 +383,8 @@ class _LocatorMaterializationFailure:
 class HotSetMaterializationTool:
     """Materialize the fixed Wave 1 safe hot-set into local raw snapshots."""
 
+    DEFAULT_SOURCE_LOCATOR_COOLDOWN_SECONDS = 300
+
     def __init__(
         self,
         repository: RegistryRepository,
@@ -310,6 +392,8 @@ class HotSetMaterializationTool:
         snapshot_store: SnapshotStore | Path,
         *,
         normalization_pipeline: MaterializationPipeline | None = None,
+        source_locator_cooldown_seconds: int = DEFAULT_SOURCE_LOCATOR_COOLDOWN_SECONDS,
+        time_source: Callable[[], float] | None = None,
     ) -> None:
         self._repository = repository
         self._connector_resolver = connector_resolver
@@ -320,6 +404,9 @@ class HotSetMaterializationTool:
         )
         self._normalization_pipeline = normalization_pipeline or NormalizationPipeline()
         self._run_lock = asyncio.Lock()
+        self._source_locator_cooldown_seconds = source_locator_cooldown_seconds
+        self._time_source = time_source or monotonic
+        self._last_source_locator_attempt_at: dict[tuple[str, str], float] = {}
 
     async def materialize_hot_set(
         self,
@@ -335,7 +422,9 @@ class HotSetMaterializationTool:
             selected_dataset_ids = _selected_dataset_ids(include_optional)
             locator_results: dict[
                 tuple[str, str],
-                _LocatorMaterializationSuccess | _LocatorMaterializationFailure,
+                _LocatorMaterializationSuccess
+                | _LocatorMaterializationSkipped
+                | _LocatorMaterializationFailure,
             ] = {}
             results: list[HotSetDatasetMaterializationResult] = []
 
@@ -355,12 +444,6 @@ class HotSetMaterializationTool:
                     )
                     continue
 
-                locator_key = (descriptor.source, descriptor.source_locator)
-                cached_result = locator_results.get(locator_key)
-                if cached_result is None:
-                    cached_result = await self._materialize_source_locator(descriptor)
-                    locator_results[locator_key] = cached_result
-
                 freshness = _bind_canonical_dataset_id(
                     descriptor=descriptor,
                     freshness=evaluate_snapshot_freshness(
@@ -371,6 +454,26 @@ class HotSetMaterializationTool:
                         update_frequency=descriptor.update_frequency,
                     ),
                 )
+                if freshness.status is SnapshotFreshnessStatus.FRESH:
+                    results.append(
+                        HotSetDatasetMaterializationResult.skipped(
+                            descriptor=descriptor,
+                            tier=tier,
+                            freshness=freshness,
+                            reason=HotSetMaterializationSkipReason.FRESH_SNAPSHOT_REUSED,
+                        )
+                    )
+                    continue
+
+                locator_key = (descriptor.source, descriptor.source_locator)
+                cached_result = locator_results.get(locator_key)
+                if cached_result is None:
+                    cached_result = await self._materialize_source_locator(
+                        descriptor,
+                        freshness=freshness,
+                    )
+                    locator_results[locator_key] = cached_result
+
                 if isinstance(cached_result, _LocatorMaterializationFailure):
                     results.append(
                         HotSetDatasetMaterializationResult.failed(
@@ -384,11 +487,32 @@ class HotSetMaterializationTool:
                     )
                     continue
 
+                if isinstance(cached_result, _LocatorMaterializationSkipped):
+                    results.append(
+                        HotSetDatasetMaterializationResult.skipped(
+                            descriptor=descriptor,
+                            tier=tier,
+                            freshness=freshness,
+                            reason=cached_result.reason,
+                        )
+                    )
+                    continue
+
+                refreshed_freshness = _bind_canonical_dataset_id(
+                    descriptor=descriptor,
+                    freshness=evaluate_snapshot_freshness(
+                        source=descriptor.source,
+                        dataset_id=descriptor.source_locator,
+                        snapshot_store=self._snapshot_store,
+                        reference_time=reference_time,
+                        update_frequency=descriptor.update_frequency,
+                    ),
+                )
                 results.append(
                     HotSetDatasetMaterializationResult.materialized(
                         descriptor=descriptor,
                         tier=tier,
-                        freshness=freshness,
+                        freshness=refreshed_freshness,
                         normalization_result=_bind_canonical_dataset_id_to_normalization(
                             descriptor=descriptor,
                             normalization_result=self._normalization_pipeline.normalize(
@@ -403,7 +527,10 @@ class HotSetMaterializationTool:
                 result.status is HotSetMaterializationStatus.MATERIALIZED
                 for result in results
             )
-            failed_count = len(results) - materialized_count
+            skipped_count = sum(
+                result.status is HotSetMaterializationStatus.SKIPPED for result in results
+            )
+            failed_count = len(results) - materialized_count - skipped_count
             if materialized_count:
                 metrics.increment("materialize.successes", materialized_count)
             if failed_count:
@@ -412,6 +539,7 @@ class HotSetMaterializationTool:
                 include_optional=include_optional,
                 requested_dataset_count=len(selected_dataset_ids),
                 materialized_count=materialized_count,
+                skipped_count=skipped_count,
                 failed_count=failed_count,
                 results=tuple(results),
             )
@@ -428,6 +556,7 @@ class HotSetMaterializationTool:
                 include_optional=include_optional,
                 requested_dataset_count=result.requested_dataset_count,
                 materialized_count=result.materialized_count,
+                skipped_count=result.skipped_count,
                 failed_count=result.failed_count,
             )
             return result
@@ -435,7 +564,28 @@ class HotSetMaterializationTool:
     async def _materialize_source_locator(
         self,
         descriptor: DatasetDescriptor,
-    ) -> _LocatorMaterializationSuccess | _LocatorMaterializationFailure:
+        *,
+        freshness: SnapshotFreshnessResult,
+    ) -> (
+        _LocatorMaterializationSuccess
+        | _LocatorMaterializationSkipped
+        | _LocatorMaterializationFailure
+    ):
+        locator_key = (descriptor.source, descriptor.source_locator)
+        cooldown_remaining = self._source_locator_cooldown_remaining_seconds(locator_key)
+        if cooldown_remaining > 0:
+            if freshness.artifact_present:
+                return _LocatorMaterializationSkipped(
+                    reason=HotSetMaterializationSkipReason.COOLDOWN_ACTIVE
+                )
+            return _LocatorMaterializationFailure(
+                stage=HotSetMaterializationFailureStage.FETCH,
+                error=RuntimeError(
+                    "materialize cooldown active and no reusable local snapshot is available"
+                ),
+            )
+
+        self._last_source_locator_attempt_at[locator_key] = self._time_source()
         try:
             connector = self._connector_resolver.resolve(descriptor.source)
             raw_payload = await connector.fetch_dataset_payload(descriptor.source_locator)
@@ -456,6 +606,20 @@ class HotSetMaterializationTool:
         return _LocatorMaterializationSuccess(
             raw_payload=raw_payload
         )
+
+    def _source_locator_cooldown_remaining_seconds(
+        self,
+        locator_key: tuple[str, str],
+    ) -> int:
+        last_attempt_at = self._last_source_locator_attempt_at.get(locator_key)
+        if last_attempt_at is None:
+            return 0
+
+        elapsed_seconds = self._time_source() - last_attempt_at
+        remaining_seconds = self._source_locator_cooldown_seconds - elapsed_seconds
+        if remaining_seconds <= 0:
+            return 0
+        return int(remaining_seconds)
 
 
 class TierABackgroundRefreshService:

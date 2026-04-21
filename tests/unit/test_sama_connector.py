@@ -9,6 +9,7 @@ import httpx
 import pytest
 import respx
 
+import saudi_open_data_mcp.connectors.sama as sama_module
 from saudi_open_data_mcp.connectors.base import RawPayload, RequestPolicy
 from saudi_open_data_mcp.connectors.errors import (
     InvalidSourceResponseError,
@@ -371,6 +372,28 @@ async def test_fetch_dataset_payload_fails_when_any_pos_pdf_cannot_be_extracted(
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_fetch_dataset_payload_fails_when_pos_report_bundle_exceeds_safety_ceiling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sama_module, "_MAX_POS_REPORTS_PER_BUNDLE", 1)
+    respx.get(_page_url(POS_PAGE_LOCATOR)).mock(
+        return_value=httpx.Response(
+            200,
+            text=_pos_reports_page_html(),
+            headers={"content-type": "text/html; charset=utf-8"},
+        )
+    )
+    connector = SAMAConnector()
+
+    with pytest.raises(
+        InvalidSourceResponseError,
+        match="exposed more approved report PDFs than the current safety ceiling allows",
+    ):
+        await connector.fetch_dataset_payload(POS_PAGE_LOCATOR)
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_fetch_dataset_payload_allows_approved_exchange_rates_page_locator() -> None:
     landing_route = respx.get(_page_url(EXCHANGE_RATES_PAGE_LOCATOR)).mock(
         return_value=httpx.Response(
@@ -422,6 +445,43 @@ async def test_fetch_dataset_payload_allows_approved_exchange_rates_page_locator
     ]
     assert "ctl00%24ctl50%24ctl00%24txtDatePicker=21%2F03%2F2026" in posted_bodies[0]
     assert "__EVENTTARGET=page-2-target" in posted_bodies[1]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fetch_dataset_payload_fails_when_exchange_page_count_exceeds_safety_ceiling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sama_module, "_MAX_EXCHANGE_RATES_PAGE_COUNT", 1)
+    respx.get(_page_url(EXCHANGE_RATES_PAGE_LOCATOR)).mock(
+        return_value=httpx.Response(
+            200,
+            text=_exchange_rates_landing_page_html(),
+            headers={"content-type": "text/html; charset=utf-8"},
+        )
+    )
+    respx.post(_page_url(EXCHANGE_RATES_PAGE_LOCATOR)).mock(
+        return_value=httpx.Response(
+            200,
+            text=_exchange_rates_results_page_html(
+                viewstate="search-viewstate",
+                rows=[
+                    ("US DOLLAR", "3.750000", "21/03/2026"),
+                    ("EURO", "4.050000", "21/03/2026"),
+                ],
+                total_results_count=3,
+                pager_links=[("2", "page-2-target")],
+            ),
+            headers={"content-type": "text/html; charset=utf-8"},
+        )
+    )
+    connector = SAMAConnector()
+
+    with pytest.raises(
+        InvalidSourceResponseError,
+        match="page count exceeded the current safety ceiling",
+    ):
+        await connector.fetch_dataset_payload(EXCHANGE_RATES_PAGE_LOCATOR)
 
 
 @pytest.mark.asyncio
@@ -847,6 +907,39 @@ async def test_invalid_source_response_shape_maps_to_invalid_source_response_err
 
     with pytest.raises(InvalidSourceResponseError):
         await connector.fetch_dataset_payload(REPORT_LOCATOR)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fetch_dataset_payload_fails_when_pos_pdf_exceeds_size_ceiling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sama_module, "_MAX_PDF_RESPONSE_BYTES", 8)
+    respx.get(_page_url(POS_PAGE_LOCATOR)).mock(
+        return_value=httpx.Response(
+            200,
+            text="""
+                <html><body>
+                  <a href="https://www.sama.gov.sa/en-US/Indices/POS_EN/Weekly.pdf">Latest</a>
+                </body></html>
+            """,
+            headers={"content-type": "text/html; charset=utf-8"},
+        )
+    )
+    respx.get("https://www.sama.gov.sa/en-US/Indices/POS_EN/Weekly.pdf").mock(
+        return_value=httpx.Response(
+            200,
+            content=b"0123456789",
+            headers={"content-type": "application/pdf"},
+        )
+    )
+    connector = SAMAConnector()
+
+    with pytest.raises(
+        InvalidSourceResponseError,
+        match="PDF exceeded the current safety ceiling",
+    ):
+        await connector.fetch_dataset_payload(POS_PAGE_LOCATOR)
 
 
 @pytest.mark.asyncio

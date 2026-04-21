@@ -83,6 +83,11 @@ _POSTBACK_LINK_PATTERN = re.compile(
 _EXCHANGE_RATES_DATE_FIELD_NAME_FRAGMENT = "txtdatepicker"
 _EXCHANGE_RATES_CURRENCY_FIELD_NAME_FRAGMENT = "ddlcurrencies"
 _EXCHANGE_RATES_SEARCH_BUTTON_NAME_FRAGMENT = "btnsearch"
+_MAX_GENERIC_RESPONSE_BYTES = 5 * 1024 * 1024
+_MAX_HTML_RESPONSE_BYTES = 2 * 1024 * 1024
+_MAX_PDF_RESPONSE_BYTES = 10 * 1024 * 1024
+_MAX_POS_REPORTS_PER_BUNDLE = 12
+_MAX_EXCHANGE_RATES_PAGE_COUNT = 20
 
 
 @dataclass(frozen=True, slots=True)
@@ -380,6 +385,15 @@ class SAMAConnector(Connector):
             html=page_content["body"],
             dataset_locator=dataset_locator,
         )
+        if len(report_urls) > _MAX_POS_REPORTS_PER_BUNDLE:
+            raise InvalidSourceResponseError(
+                source_name=self.source_name,
+                dataset_id=dataset_locator,
+                message=(
+                    "SAMA POS page exposed more approved report PDFs than the current "
+                    f"safety ceiling allows ({_MAX_POS_REPORTS_PER_BUNDLE})"
+                ),
+            )
 
         reports = []
         for report_url in report_urls:
@@ -457,6 +471,15 @@ class SAMAConnector(Connector):
         expected_page_count = math.ceil(
             current_state.total_results_count / current_state.page_row_count
         )
+        if expected_page_count > _MAX_EXCHANGE_RATES_PAGE_COUNT:
+            raise InvalidSourceResponseError(
+                source_name=self.source_name,
+                dataset_id=dataset_locator,
+                message=(
+                    "SAMA exchange-rates page count exceeded the current safety ceiling "
+                    f"({_MAX_EXCHANGE_RATES_PAGE_COUNT})"
+                ),
+            )
         target_page_number = 2
 
         while target_page_number <= expected_page_count:
@@ -883,6 +906,12 @@ class SAMAConnector(Connector):
     ) -> dict[str, Any]:
         """Build a raw HTML response body for a supported SAMA page."""
 
+        self._require_response_body_size(
+            response,
+            dataset_locator=dataset_locator,
+            max_body_bytes=_MAX_HTML_RESPONSE_BYTES,
+            response_label="HTML",
+        )
         content_type = response.headers.get("content-type", "").split(";", maxsplit=1)[0].strip()
         if content_type.lower() != "text/html":
             raise InvalidSourceResponseError(
@@ -913,6 +942,12 @@ class SAMAConnector(Connector):
     ) -> dict[str, Any]:
         """Build extracted text content for an approved SAMA POS report PDF."""
 
+        self._require_response_body_size(
+            response,
+            dataset_locator=dataset_locator,
+            max_body_bytes=_MAX_PDF_RESPONSE_BYTES,
+            response_label="PDF",
+        )
         content_type = response.headers.get("content-type", "").split(";", maxsplit=1)[0].strip()
         if content_type.lower() != "application/pdf":
             raise InvalidSourceResponseError(
@@ -957,6 +992,12 @@ class SAMAConnector(Connector):
     ) -> dict[str, Any]:
         """Build the raw response content without normalization."""
 
+        self._require_response_body_size(
+            response,
+            dataset_locator=dataset_locator,
+            max_body_bytes=_MAX_GENERIC_RESPONSE_BYTES,
+            response_label="raw response",
+        )
         content_type = response.headers.get("content-type", "").split(";", maxsplit=1)[0].strip()
         body: Any
 
@@ -990,3 +1031,24 @@ class SAMAConnector(Connector):
             "content_type": content_type,
             "body": body,
         }
+
+    def _require_response_body_size(
+        self,
+        response: httpx.Response,
+        *,
+        dataset_locator: str,
+        max_body_bytes: int,
+        response_label: str,
+    ) -> None:
+        body_bytes = response.content
+        if len(body_bytes) <= max_body_bytes:
+            return
+
+        raise InvalidSourceResponseError(
+            source_name=self.source_name,
+            dataset_id=dataset_locator,
+            message=(
+                f"SAMA {response_label} exceeded the current safety ceiling of "
+                f"{max_body_bytes} bytes"
+            ),
+        )

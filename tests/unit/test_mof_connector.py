@@ -8,8 +8,12 @@ import httpx
 import pytest
 import respx
 
+import saudi_open_data_mcp.connectors.mof as mof_module
 from saudi_open_data_mcp.connectors.base import RawPayload
-from saudi_open_data_mcp.connectors.errors import SourceAccessPolicyViolationError
+from saudi_open_data_mcp.connectors.errors import (
+    InvalidSourceResponseError,
+    SourceAccessPolicyViolationError,
+)
 from saudi_open_data_mcp.connectors.mof import MoFConnector
 
 SOURCE_LOCATOR = "/en/financialreport/2025/Pages/default.aspx"
@@ -82,6 +86,38 @@ async def test_fetch_dataset_payload_returns_raw_payload_for_approved_reports_pa
     ]
     assert reports[0]["report_text"] == f"q1-pdf::{SOURCE_LOCATOR}"
     assert reports[1]["report_text"] == f"q2-pdf::{SOURCE_LOCATOR}"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fetch_dataset_payload_fails_when_pdf_exceeds_size_ceiling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(mof_module, "_MAX_PDF_RESPONSE_BYTES", 8)
+    respx.get(_reports_page_url()).mock(
+        return_value=httpx.Response(
+            200,
+            text=(
+                '<html><body><a href="/en/financialreport/2025/Documents/'
+                'Q1E%202025-%20Final.pdf">Q1</a></body></html>'
+            ),
+            headers={"content-type": "text/html; charset=utf-8"},
+        )
+    )
+    respx.get(_report_url("Q1E%202025-%20Final.pdf")).mock(
+        return_value=httpx.Response(
+            200,
+            content=b"0123456789",
+            headers={"content-type": "application/pdf"},
+        )
+    )
+    connector = MoFConnector()
+
+    with pytest.raises(
+        InvalidSourceResponseError,
+        match="PDF response exceeded the current safety ceiling",
+    ):
+        await connector.fetch_dataset_payload(SOURCE_LOCATOR)
 
 
 @pytest.mark.asyncio

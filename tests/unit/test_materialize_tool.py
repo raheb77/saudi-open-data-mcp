@@ -30,6 +30,7 @@ from saudi_open_data_mcp.tools.materialize import (
     HotSetDatasetMaterializationResult,
     HotSetMaterializationFailureStage,
     HotSetMaterializationResult,
+    HotSetMaterializationSkipReason,
     HotSetMaterializationStatus,
     HotSetMaterializationTool,
     HotSetTier,
@@ -274,6 +275,17 @@ def _source_url(locator: str) -> str:
     return f"https://www.sama.gov.sa/en-US/EconomicReports/Pages/{locator}"
 
 
+class _FakeClock:
+    def __init__(self, start: float = 0.0) -> None:
+        self.current = start
+
+    def __call__(self) -> float:
+        return self.current
+
+    def advance(self, seconds: float) -> None:
+        self.current += seconds
+
+
 def _bootstrapped_repository(tmp_path: Path) -> RegistryRepository:
     repository = RegistryRepository(tmp_path / "registry.sqlite")
     bootstrap_registry(repository)
@@ -298,6 +310,7 @@ async def test_materialize_hot_set_persists_wave_one_tier_a_snapshots(tmp_path: 
     assert result.include_optional is False
     assert result.requested_dataset_count == len(WAVE_1_HOT_SET_TIER_A_DATASET_IDS)
     assert result.materialized_count == len(WAVE_1_HOT_SET_TIER_A_DATASET_IDS)
+    assert result.skipped_count == 0
     assert result.failed_count == 0
     assert [item.dataset_id for item in result.results] == list(
         WAVE_1_HOT_SET_TIER_A_DATASET_IDS
@@ -382,7 +395,8 @@ async def test_materialize_hot_set_can_include_optional_pos_by_city_without_refe
     assert result.requested_dataset_count == len(WAVE_1_HOT_SET_TIER_A_DATASET_IDS) + len(
         WAVE_1_HOT_SET_OPTIONAL_DATASET_IDS
     )
-    assert result.materialized_count == result.requested_dataset_count
+    assert result.materialized_count == result.requested_dataset_count - 1
+    assert result.skipped_count == 1
     assert result.failed_count == 0
     assert connector.calls.count("/en-US/Indices/Pages/POS.aspx") == 1
     assert set(connector.calls) == {
@@ -411,16 +425,18 @@ async def test_materialize_hot_set_can_include_optional_pos_by_city_without_refe
     )
     assert results_by_id["sama-money-supply-weekly"].limitations == ()
     assert results_by_id["sama-pos-by-city"].tier is HotSetTier.TIER_B_OPTIONAL
-    assert results_by_id["sama-pos-by-city"].data_origin is ResultDataOrigin.LIVE_REFRESH
+    assert results_by_id["sama-pos-by-city"].status is HotSetMaterializationStatus.SKIPPED
+    assert (
+        results_by_id["sama-pos-by-city"].skip_reason
+        is HotSetMaterializationSkipReason.FRESH_SNAPSHOT_REUSED
+    )
+    assert results_by_id["sama-pos-by-city"].data_origin is ResultDataOrigin.LOCAL_SNAPSHOT
     assert results_by_id["sama-pos-by-city"].local_snapshot_exists is True
     assert (
         results_by_id["sama-pos-by-city"].freshness_status
         is SnapshotFreshnessStatus.FRESH
     )
-    assert (
-        results_by_id["sama-pos-by-city"].normalization_status
-        is NormalizationPipelineStatus.RECORD_DERIVABLE
-    )
+    assert results_by_id["sama-pos-by-city"].normalization_status is None
     assert results_by_id["sama-pos-by-city"].degradation_reason is None
     assert results_by_id["sama-pos-by-city"].limitations == ()
 
@@ -480,6 +496,7 @@ async def test_materialize_hot_set_keeps_partial_success_when_one_locator_fails(
     results_by_id = {item.dataset_id: item for item in result.results}
     assert result.requested_dataset_count == len(WAVE_1_HOT_SET_TIER_A_DATASET_IDS)
     assert result.materialized_count == len(WAVE_1_HOT_SET_TIER_A_DATASET_IDS) - 1
+    assert result.skipped_count == 0
     assert result.failed_count == 1
     assert results_by_id["sama-deposits-core"].status is HotSetMaterializationStatus.FAILED
     assert results_by_id["sama-deposits-core"].data_origin is None
@@ -508,6 +525,100 @@ async def test_materialize_hot_set_keeps_partial_success_when_one_locator_fails(
         "/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
     )
     assert snapshot_store.snapshot_exists("sama", "report.aspx?cid=55") is False
+
+
+@pytest.mark.asyncio
+async def test_materialize_hot_set_skips_fresh_snapshots_and_cools_down_unknown_freshness(
+    tmp_path: Path,
+) -> None:
+    repository = _bootstrapped_repository(tmp_path)
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    connector = _SAMAConnectorSpy()
+    clock = _FakeClock()
+    tool = HotSetMaterializationTool(
+        repository,
+        SourceConnectorResolver({"sama": connector}),
+        snapshot_store,
+        time_source=clock,
+    )
+
+    first_result = await tool.materialize_hot_set()
+    second_result = await tool.materialize_hot_set()
+
+    assert first_result.materialized_count == len(WAVE_1_HOT_SET_TIER_A_DATASET_IDS)
+    assert first_result.skipped_count == 0
+    assert second_result.materialized_count == 0
+    assert second_result.skipped_count == len(WAVE_1_HOT_SET_TIER_A_DATASET_IDS)
+    assert second_result.failed_count == 0
+    assert connector.calls == [
+        "/en-US/Indices/Pages/POS.aspx",
+        "/en-US/FinExc/Pages/Currency.aspx",
+        "/en-US/Indices/Pages/WeeklyMoneySupply.aspx",
+        "/en-US/MonetaryOperations/Pages/OfficialRepoRate.aspx",
+        "/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
+        "report.aspx?cid=55",
+    ]
+
+    results_by_id = {item.dataset_id: item for item in second_result.results}
+    assert results_by_id["sama-pos-weekly"].status is HotSetMaterializationStatus.SKIPPED
+    assert (
+        results_by_id["sama-pos-weekly"].skip_reason
+        is HotSetMaterializationSkipReason.FRESH_SNAPSHOT_REUSED
+    )
+    assert results_by_id["sama-pos-weekly"].data_origin is ResultDataOrigin.LOCAL_SNAPSHOT
+    assert results_by_id["sama-pos-weekly"].freshness_status is SnapshotFreshnessStatus.FRESH
+    assert results_by_id["sama-repo-rate"].status is HotSetMaterializationStatus.SKIPPED
+    assert (
+        results_by_id["sama-repo-rate"].skip_reason
+        is HotSetMaterializationSkipReason.COOLDOWN_ACTIVE
+    )
+    assert results_by_id["sama-repo-rate"].freshness_status is SnapshotFreshnessStatus.UNKNOWN
+    assert results_by_id["sama-reverse-repo-rate"].status is HotSetMaterializationStatus.SKIPPED
+    assert (
+        results_by_id["sama-reverse-repo-rate"].skip_reason
+        is HotSetMaterializationSkipReason.COOLDOWN_ACTIVE
+    )
+
+
+@pytest.mark.asyncio
+async def test_materialize_hot_set_does_not_refetch_failed_locator_during_cooldown(
+    tmp_path: Path,
+) -> None:
+    class PartiallyFailingConnector(_SAMAConnectorSpy):
+        async def fetch_dataset_payload(self, dataset_id: str) -> RawPayload:
+            if dataset_id == "report.aspx?cid=55":
+                self.calls.append(dataset_id)
+                raise RuntimeError("deposits report fetch failed for testing")
+            return await super().fetch_dataset_payload(dataset_id)
+
+    repository = _bootstrapped_repository(tmp_path)
+    snapshot_store = SnapshotStore(tmp_path / "snapshots")
+    connector = PartiallyFailingConnector()
+    clock = _FakeClock()
+    tool = HotSetMaterializationTool(
+        repository,
+        SourceConnectorResolver({"sama": connector}),
+        snapshot_store,
+        time_source=clock,
+    )
+
+    first_result = await tool.materialize_hot_set()
+    second_result = await tool.materialize_hot_set()
+
+    assert first_result.failed_count == 1
+    assert second_result.materialized_count == 0
+    assert second_result.skipped_count == len(WAVE_1_HOT_SET_TIER_A_DATASET_IDS) - 1
+    assert second_result.failed_count == 1
+    assert connector.calls.count("report.aspx?cid=55") == 1
+    deposits_result = {item.dataset_id: item for item in second_result.results}[
+        "sama-deposits-core"
+    ]
+    assert deposits_result.status is HotSetMaterializationStatus.FAILED
+    assert deposits_result.failure_stage is HotSetMaterializationFailureStage.FETCH
+    assert deposits_result.failure is not None
+    assert deposits_result.failure.message == (
+        "materialize cooldown active and no reusable local snapshot is available"
+    )
 
 
 @pytest.mark.asyncio

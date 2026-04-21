@@ -22,6 +22,9 @@ _REPORT_BASENAME_PATTERN = re.compile(
     fr"^Q(?P<quarter>[1-4])(?:E)?[\s_-]*{_APPROVED_REPORTS_YEAR}.*\.pdf$",
     flags=re.IGNORECASE,
 )
+_MAX_HTML_RESPONSE_BYTES = 2 * 1024 * 1024
+_MAX_PDF_RESPONSE_BYTES = 10 * 1024 * 1024
+_MAX_APPROVED_REPORTS_PER_PAGE = 4
 
 
 class MoFConnector(Connector):
@@ -62,6 +65,15 @@ class MoFConnector(Connector):
             html=page_content["body"],
             dataset_locator=dataset_locator,
         )
+        if len(report_urls) > _MAX_APPROVED_REPORTS_PER_PAGE:
+            raise InvalidSourceResponseError(
+                source_name=self.source_name,
+                dataset_id=dataset_locator,
+                message=(
+                    "Ministry of Finance reports page exposed more approved quarterly PDFs "
+                    f"than the current safety ceiling allows ({_MAX_APPROVED_REPORTS_PER_PAGE})"
+                ),
+            )
 
         reports = []
         for report_url in report_urls:
@@ -186,6 +198,12 @@ class MoFConnector(Connector):
     ) -> dict[str, Any]:
         """Build the raw HTML response content for the MoF reports page."""
 
+        self._require_response_body_size(
+            response,
+            dataset_locator=dataset_locator,
+            max_body_bytes=_MAX_HTML_RESPONSE_BYTES,
+            response_label="HTML response",
+        )
         content_type = response.headers.get("content-type", "").split(";", maxsplit=1)[0].strip()
         if content_type.lower() != "text/html":
             raise InvalidSourceResponseError(
@@ -216,6 +234,12 @@ class MoFConnector(Connector):
     ) -> dict[str, Any]:
         """Build extracted text content for an approved MoF quarterly report PDF."""
 
+        self._require_response_body_size(
+            response,
+            dataset_locator=dataset_locator,
+            max_body_bytes=_MAX_PDF_RESPONSE_BYTES,
+            response_label="PDF response",
+        )
         content_type = response.headers.get("content-type", "").split(";", maxsplit=1)[0].strip()
         if content_type.lower() != "application/pdf":
             raise InvalidSourceResponseError(
@@ -252,3 +276,24 @@ class MoFConnector(Connector):
                 dataset_id=dataset_id,
                 message="Ministry of Finance quarterly report PDF text extraction failed",
             ) from exc
+
+    def _require_response_body_size(
+        self,
+        response: httpx.Response,
+        *,
+        dataset_locator: str,
+        max_body_bytes: int,
+        response_label: str,
+    ) -> None:
+        body_bytes = response.content
+        if len(body_bytes) <= max_body_bytes:
+            return
+
+        raise InvalidSourceResponseError(
+            source_name=self.source_name,
+            dataset_id=dataset_locator,
+            message=(
+                f"Ministry of Finance {response_label} exceeded the current safety ceiling "
+                f"of {max_body_bytes} bytes"
+            ),
+        )
