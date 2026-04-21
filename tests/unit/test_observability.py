@@ -37,7 +37,11 @@ from saudi_open_data_mcp.security.rate_limit import RateLimitPolicy
 from saudi_open_data_mcp.server import create_server
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 from saudi_open_data_mcp.tools.materialize import HotSetMaterializationTool
-from saudi_open_data_mcp.tools.preview import DatasetPreviewTool, PreviewStatus
+from saudi_open_data_mcp.tools.preview import (
+    PREVIEW_SNAPSHOT_FAILURE_MESSAGE,
+    DatasetPreviewTool,
+    PreviewStatus,
+)
 
 
 def _runtime_config(tmp_path: Path) -> RuntimeConfig:
@@ -380,7 +384,20 @@ async def test_preview_tool_emits_snapshot_write_failure_logs_and_metrics(
             "dataset_id": "sama-money-supply",
             "stage": "snapshot",
             "error_type": "OSError",
-            "message": "snapshot write failed for preview testing",
+            "message": PREVIEW_SNAPSHOT_FAILURE_MESSAGE,
+        },
+    )
+    _assert_event(
+        events,
+        {
+            "event": "preview.request.failed_internal",
+            "level": "error",
+            "logger": "saudi_open_data_mcp.tools.preview",
+            "dataset_id": "sama-money-supply",
+            "stage": "snapshot",
+            "error_type": "OSError",
+            "public_message": PREVIEW_SNAPSHOT_FAILURE_MESSAGE,
+            "internal_message": "snapshot write failed for preview testing",
         },
     )
 

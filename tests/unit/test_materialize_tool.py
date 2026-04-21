@@ -27,6 +27,7 @@ from saudi_open_data_mcp.storage.freshness import (
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 from saudi_open_data_mcp.tools.download import DatasetDownloadStatus, DatasetDownloadTool
 from saudi_open_data_mcp.tools.materialize import (
+    MATERIALIZE_FETCH_FAILURE_MESSAGE,
     HotSetDatasetMaterializationResult,
     HotSetMaterializationFailureStage,
     HotSetMaterializationResult,
@@ -474,6 +475,7 @@ async def test_tier_a_materialization_makes_intentional_shared_locator_artifacts
 @pytest.mark.asyncio
 async def test_materialize_hot_set_keeps_partial_success_when_one_locator_fails(
     tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     class PartiallyFailingConnector(_SAMAConnectorSpy):
         async def fetch_dataset_payload(self, dataset_id: str) -> RawPayload:
@@ -491,6 +493,7 @@ async def test_materialize_hot_set_keeps_partial_success_when_one_locator_fails(
         snapshot_store,
     )
 
+    caplog.set_level(logging.ERROR)
     result = await tool.materialize_hot_set()
 
     results_by_id = {item.dataset_id: item for item in result.results}
@@ -513,6 +516,11 @@ async def test_materialize_hot_set_keeps_partial_success_when_one_locator_fails(
         results_by_id["sama-deposits-core"].failure.stage
         is HotSetMaterializationFailureStage.FETCH
     )
+    assert results_by_id["sama-deposits-core"].failure is not None
+    assert results_by_id["sama-deposits-core"].failure.message == MATERIALIZE_FETCH_FAILURE_MESSAGE
+    assert "deposits report fetch failed for testing" not in (
+        results_by_id["sama-deposits-core"].failure.message
+    )
     assert results_by_id["sama-pos-weekly"].status is HotSetMaterializationStatus.MATERIALIZED
     assert snapshot_store.snapshot_exists("sama", "/en-US/Indices/Pages/POS.aspx")
     assert snapshot_store.snapshot_exists("sama", "/en-US/Indices/Pages/WeeklyMoneySupply.aspx")
@@ -525,6 +533,16 @@ async def test_materialize_hot_set_keeps_partial_success_when_one_locator_fails(
         "/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
     )
     assert snapshot_store.snapshot_exists("sama", "report.aspx?cid=55") is False
+    assert any(
+        json.loads(record.getMessage()).get("event") == "materialize.request.failed_internal"
+        and json.loads(record.getMessage()).get("dataset_id") == "sama-deposits-core"
+        and json.loads(record.getMessage()).get("stage") == "fetch"
+        and json.loads(record.getMessage()).get("public_message")
+        == MATERIALIZE_FETCH_FAILURE_MESSAGE
+        and "deposits report fetch failed for testing"
+        in json.loads(record.getMessage()).get("internal_message", "")
+        for record in caplog.records
+    )
 
 
 @pytest.mark.asyncio

@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import ast
+import json
+import logging
 import os
 from datetime import UTC, date, datetime
 from pathlib import Path
+
+import pytest
 
 from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.normalization.field_mapping import (
@@ -27,6 +31,7 @@ from saudi_open_data_mcp.registry.models import (
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 from saudi_open_data_mcp.tools.query import (
+    QUERY_SNAPSHOT_READ_FAILURE_MESSAGE,
     REGISTRY_COVERAGE_RESTRICTS_QUERYABLE_QUERY_LIMITATION,
     DatasetQueryStatus,
     DatasetQueryTool,
@@ -1717,6 +1722,47 @@ def test_query_dataset_returns_explicit_failed_result_for_failed_normalization(
     assert result.failure.stage is QueryFailureStage.NORMALIZATION
     assert result.failure.error_type == "ValueError"
     assert result.failure.message == "forced normalization failure"
+
+
+def test_query_dataset_sanitizes_snapshot_read_failure_but_logs_internal_detail(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class BrokenSnapshotStore(SnapshotStore):
+        def read_snapshot(self, source: str, dataset_id: str) -> RawPayload:
+            del source, dataset_id
+            raise OSError(
+                "permission denied while reading "
+                "/private/var/tmp/saudi-open-data-mcp/secret-snapshot.json"
+            )
+
+    repository = RegistryRepository(tmp_path / "registry.sqlite")
+    descriptor = _descriptor()
+    repository.upsert_dataset(descriptor)
+    tool = DatasetQueryTool(
+        repository,
+        BrokenSnapshotStore(tmp_path / "snapshots"),
+    )
+
+    caplog.set_level(logging.ERROR)
+    result = tool.query_dataset(descriptor.dataset_id)
+
+    assert result.status is DatasetQueryStatus.FAILED
+    assert result.failure_stage is QueryFailureStage.SNAPSHOT_READ
+    assert result.failure is not None
+    assert result.failure.error_type == "OSError"
+    assert result.failure.message == QUERY_SNAPSHOT_READ_FAILURE_MESSAGE
+    assert "/private/var/tmp/saudi-open-data-mcp/secret-snapshot.json" not in result.failure.message
+    assert any(
+        json.loads(record.getMessage()).get("event") == "query.request.failed_internal"
+        and json.loads(record.getMessage()).get("dataset_id") == descriptor.dataset_id
+        and json.loads(record.getMessage()).get("stage") == "snapshot_read"
+        and json.loads(record.getMessage()).get("public_message")
+        == QUERY_SNAPSHOT_READ_FAILURE_MESSAGE
+        and "/private/var/tmp/saudi-open-data-mcp/secret-snapshot.json"
+        in json.loads(record.getMessage()).get("internal_message", "")
+        for record in caplog.records
+    )
 
 
 def test_query_dataset_respects_registry_coverage_for_catalog_only_dataset(

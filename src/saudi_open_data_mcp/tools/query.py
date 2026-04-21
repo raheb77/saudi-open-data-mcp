@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from datetime import UTC, date, datetime
 from enum import StrEnum
@@ -17,7 +18,7 @@ from saudi_open_data_mcp.normalization.pipeline import (
     NormalizationPipelineStatus,
     NormalizationResult,
 )
-from saudi_open_data_mcp.observability import log_audit_event
+from saudi_open_data_mcp.observability import get_logger, log_audit_event, log_event
 from saudi_open_data_mcp.registry.models import (
     DatasetCoverageStatus,
     DatasetDescriptor,
@@ -42,6 +43,8 @@ MAX_QUERY_RESULT_LIMIT = 1000
 REGISTRY_COVERAGE_RESTRICTS_QUERYABLE_QUERY_LIMITATION = (
     "dataset_registry_declares_no_current_queryable_support"
 )
+QUERY_SNAPSHOT_READ_FAILURE_MESSAGE = "local snapshot read failed"
+LOGGER = get_logger(__name__)
 
 
 class DatasetQueryStatus(StrEnum):
@@ -411,11 +414,21 @@ class DatasetQueryTool:
             _audit_query_result(result)
             return result
         except Exception as exc:
+            public_message = _public_failure_message(
+                stage=QueryFailureStage.SNAPSHOT_READ,
+                error=exc,
+            )
+            _log_internal_failure(
+                dataset_id=descriptor.dataset_id,
+                stage=QueryFailureStage.SNAPSHOT_READ,
+                error=exc,
+                public_message=public_message,
+            )
             result = DatasetQueryResult.failed(
                 descriptor=descriptor,
                 stage=QueryFailureStage.SNAPSHOT_READ,
                 error_type=type(exc).__name__,
-                message=str(exc),
+                message=public_message,
                 applied_filters=normalized_filters,
                 limit=normalized_limit,
             )
@@ -645,3 +658,40 @@ def _normalization_error_message(failure: NormalizationFailure | None) -> str:
     if failure is None:
         return "Normalization pipeline failed without structured failure details"
     return failure.message
+
+
+def _public_failure_message(
+    *,
+    stage: QueryFailureStage,
+    error: Exception,
+) -> str:
+    """Return a stable client-safe failure message for query execution."""
+
+    if stage is QueryFailureStage.SNAPSHOT_READ:
+        return QUERY_SNAPSHOT_READ_FAILURE_MESSAGE
+    return str(error)
+
+
+def _log_internal_failure(
+    *,
+    dataset_id: str,
+    stage: QueryFailureStage,
+    error: Exception,
+    public_message: str,
+) -> None:
+    """Log internal exception detail when the public message is intentionally sanitized."""
+
+    raw_message = str(error)
+    if raw_message == public_message:
+        return
+
+    log_event(
+        LOGGER,
+        logging.ERROR,
+        "query.request.failed_internal",
+        dataset_id=dataset_id,
+        stage=stage.value,
+        error_type=type(error).__name__,
+        public_message=public_message,
+        internal_message=raw_message,
+    )

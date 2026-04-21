@@ -43,6 +43,9 @@ from saudi_open_data_mcp.tools.result_metadata import (
 )
 
 LOGGER = get_logger(__name__)
+MATERIALIZE_LOOKUP_FAILURE_MESSAGE = "materialize dataset lookup failed"
+MATERIALIZE_FETCH_FAILURE_MESSAGE = "materialize fetch failed"
+MATERIALIZE_SNAPSHOT_FAILURE_MESSAGE = "materialize snapshot persistence failed"
 
 
 class HotSetTier(StrEnum):
@@ -260,6 +263,16 @@ class HotSetDatasetMaterializationResult(BaseModel):
         descriptor: DatasetDescriptor | None = None,
         freshness: SnapshotFreshnessResult | None = None,
     ) -> Self:
+        public_message = _public_failure_message(
+            stage=stage,
+            error=error,
+        )
+        _log_internal_failure(
+            dataset_id=dataset_id,
+            stage=stage,
+            error=error,
+            public_message=public_message,
+        )
         return cls(
             dataset_id=dataset_id,
             tier=tier,
@@ -274,7 +287,7 @@ class HotSetDatasetMaterializationResult(BaseModel):
             failure=HotSetMaterializationFailure(
                 stage=stage,
                 error_type=type(error).__name__,
-                message=_public_failure_message(error),
+                message=public_message,
             ),
         )
 
@@ -672,7 +685,7 @@ class TierABackgroundRefreshService:
                     "tier_a_refresh.run.failed",
                     interval_seconds=self._interval_seconds,
                     error_type=type(exc).__name__,
-                    message=_public_failure_message(exc),
+                    message=str(exc),
                 )
             await asyncio.sleep(self._interval_seconds)
 
@@ -732,10 +745,78 @@ def _collect_limitations(normalization_result: NormalizationResult) -> tuple[str
     return ()
 
 
-def _public_failure_message(error: Exception) -> str:
+def _public_failure_message(
+    *,
+    stage: HotSetMaterializationFailureStage,
+    error: Exception,
+) -> str:
     connector_message = getattr(error, "message", None)
     connector_source = getattr(error, "source_name", None)
     if isinstance(connector_message, str) and isinstance(connector_source, str):
         return connector_message
 
+    if stage is HotSetMaterializationFailureStage.LOOKUP:
+        if isinstance(error, LookupError):
+            return str(error)
+        return MATERIALIZE_LOOKUP_FAILURE_MESSAGE
+
+    if stage is HotSetMaterializationFailureStage.FETCH:
+        if _is_safe_runtime_failure_message(
+            error,
+            allowed_messages={
+                "materialize cooldown active and no reusable local snapshot is available"
+            },
+        ):
+            return str(error)
+        return MATERIALIZE_FETCH_FAILURE_MESSAGE
+
+    if stage is HotSetMaterializationFailureStage.SNAPSHOT:
+        return MATERIALIZE_SNAPSHOT_FAILURE_MESSAGE
+
     return str(error)
+
+
+def _log_internal_failure(
+    *,
+    dataset_id: str,
+    stage: HotSetMaterializationFailureStage,
+    error: Exception,
+    public_message: str,
+) -> None:
+    """Log internal exception detail when materialization sanitizes the public message."""
+
+    if _is_connector_error(error):
+        return
+
+    raw_message = str(error)
+    if raw_message == public_message:
+        return
+
+    log_event(
+        LOGGER,
+        logging.ERROR,
+        "materialize.request.failed_internal",
+        dataset_id=dataset_id,
+        stage=stage.value,
+        error_type=type(error).__name__,
+        public_message=public_message,
+        internal_message=raw_message,
+    )
+
+
+def _is_connector_error(error: Exception) -> bool:
+    """Return whether the error exposes the connector error contract."""
+
+    connector_message = getattr(error, "message", None)
+    connector_source = getattr(error, "source_name", None)
+    return isinstance(connector_message, str) and isinstance(connector_source, str)
+
+
+def _is_safe_runtime_failure_message(
+    error: Exception,
+    *,
+    allowed_messages: set[str],
+) -> bool:
+    """Return whether a runtime error message is intentionally safe to expose."""
+
+    return isinstance(error, RuntimeError) and str(error) in allowed_messages

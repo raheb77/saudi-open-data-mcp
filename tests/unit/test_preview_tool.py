@@ -29,6 +29,8 @@ from saudi_open_data_mcp.storage.freshness import SnapshotFreshnessStatus
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 from saudi_open_data_mcp.tools.preview import (
     LOCAL_PREVIEW_MISS_NOTICE,
+    PREVIEW_FETCH_FAILURE_MESSAGE,
+    PREVIEW_SNAPSHOT_FAILURE_MESSAGE,
     STALE_FALLBACK_NOTICE,
     DatasetPreviewResult,
     DatasetPreviewTool,
@@ -1266,7 +1268,7 @@ async def test_missing_snapshot_write_failure_after_successful_fetch_is_distingu
     assert result.failure is not None
     assert result.failure.stage is PreviewFailureStage.SNAPSHOT
     assert result.failure.error_type == "OSError"
-    assert result.failure.message == "snapshot write failed for preview testing"
+    assert result.failure.message == PREVIEW_SNAPSHOT_FAILURE_MESSAGE
     assert connector.calls == [REPORT_LOCATOR]
 
 
@@ -1319,16 +1321,16 @@ async def test_preview_tool_returns_explicit_missing_result_for_unknown_dataset(
 
 
 @pytest.mark.asyncio
-async def test_non_connector_failures_keep_standard_string_representation(
+async def test_preview_tool_sanitizes_generic_fetch_failures_but_logs_internal_detail(
     tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    class FormattedError(Exception):
-        def __str__(self) -> str:
-            return "formatted generic failure"
-
-    connector = _ConnectorSpy([FormattedError()])
+    connector = _ConnectorSpy(
+        [OSError("permission denied while opening /private/tmp/preview-secrets.json")]
+    )
     tool = _tool(tmp_path, connector)
 
+    caplog.set_level(logging.ERROR)
     result = await tool.preview_dataset(DATASET_ID, reference_time=REFERENCE_TIME)
 
     assert result.status is PreviewStatus.FAILED
@@ -1336,5 +1338,16 @@ async def test_non_connector_failures_keep_standard_string_representation(
     assert result.resolution_outcome is PreviewResolutionOutcome.FAIL_CLOSED
     assert result.failure is not None
     assert result.failure.stage is PreviewFailureStage.FETCH
-    assert result.failure.error_type == "FormattedError"
-    assert result.failure.message == "formatted generic failure"
+    assert result.failure.error_type == "OSError"
+    assert result.failure.message == PREVIEW_FETCH_FAILURE_MESSAGE
+    assert "/private/tmp/preview-secrets.json" not in result.failure.message
+    assert any(
+        json.loads(record.getMessage()).get("event") == "preview.request.failed_internal"
+        and json.loads(record.getMessage()).get("dataset_id") == DATASET_ID
+        and json.loads(record.getMessage()).get("stage") == "fetch"
+        and json.loads(record.getMessage()).get("public_message")
+        == PREVIEW_FETCH_FAILURE_MESSAGE
+        and "/private/tmp/preview-secrets.json"
+        in json.loads(record.getMessage()).get("internal_message", "")
+        for record in caplog.records
+    )

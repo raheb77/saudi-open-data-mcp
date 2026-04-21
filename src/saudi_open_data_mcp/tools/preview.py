@@ -54,6 +54,10 @@ STALE_FALLBACK_NOTICE = "serving stale snapshot because live refresh failed"
 REGISTRY_COVERAGE_RESTRICTS_QUERYABLE_PREVIEW_LIMITATION = (
     "dataset_registry_declares_no_current_queryable_support"
 )
+PREVIEW_LOOKUP_FAILURE_MESSAGE = "preview dataset lookup failed"
+PREVIEW_FETCH_FAILURE_MESSAGE = "preview fetch failed"
+PREVIEW_SNAPSHOT_FAILURE_MESSAGE = "preview snapshot persistence failed"
+PREVIEW_RATE_LIMIT_FAILURE_MESSAGE = "preview request rate limit exceeded"
 
 
 class PreviewStatus(StrEnum):
@@ -695,6 +699,16 @@ class DatasetPreviewTool:
         dataset_id: str,
         error: Exception,
     ) -> DatasetPreviewResult:
+        public_message = _public_failure_message(
+            stage=PreviewFailureStage.LOOKUP,
+            error=error,
+        )
+        _log_internal_failure(
+            dataset_id=dataset_id,
+            stage=PreviewFailureStage.LOOKUP,
+            error=error,
+            public_message=public_message,
+        )
         return DatasetPreviewResult(
             dataset_id=dataset_id,
             status=PreviewStatus.FAILED,
@@ -703,7 +717,7 @@ class DatasetPreviewTool:
             failure=PreviewFailure(
                 stage=PreviewFailureStage.LOOKUP,
                 error_type=type(error).__name__,
-                message=_public_failure_message(error),
+                message=public_message,
             ),
         )
 
@@ -715,6 +729,16 @@ class DatasetPreviewTool:
         error: Exception,
         freshness: SnapshotFreshnessResult,
     ) -> DatasetPreviewResult:
+        public_message = _public_failure_message(
+            stage=stage,
+            error=error,
+        )
+        _log_internal_failure(
+            dataset_id=descriptor.dataset_id,
+            stage=stage,
+            error=error,
+            public_message=public_message,
+        )
         return DatasetPreviewResult(
             dataset_id=descriptor.dataset_id,
             status=PreviewStatus.FAILED,
@@ -726,7 +750,7 @@ class DatasetPreviewTool:
             failure=PreviewFailure(
                 stage=stage,
                 error_type=type(error).__name__,
-                message=_public_failure_message(error),
+                message=public_message,
             ),
         )
 
@@ -952,12 +976,80 @@ def _resolve_preview_coverage_status(
     )
 
 
-def _public_failure_message(error: Exception) -> str:
-    """Return an operator-facing failure message without leaking connector context."""
+def _public_failure_message(
+    *,
+    stage: PreviewFailureStage,
+    error: Exception,
+) -> str:
+    """Return a stable client-safe failure message for preview execution."""
 
     connector_message = getattr(error, "message", None)
     connector_source = getattr(error, "source_name", None)
     if isinstance(connector_message, str) and isinstance(connector_source, str):
         return connector_message
 
+    if stage is PreviewFailureStage.LOOKUP:
+        if isinstance(error, ValueError):
+            return str(error)
+        return PREVIEW_LOOKUP_FAILURE_MESSAGE
+
+    if stage is PreviewFailureStage.FETCH:
+        if isinstance(error, RateLimitExceededError):
+            return PREVIEW_RATE_LIMIT_FAILURE_MESSAGE
+        if _is_safe_runtime_failure_message(
+            error,
+            allowed_messages={"preview resolution policy refused live refresh"},
+        ):
+            return str(error)
+        return PREVIEW_FETCH_FAILURE_MESSAGE
+
+    if stage is PreviewFailureStage.SNAPSHOT:
+        return PREVIEW_SNAPSHOT_FAILURE_MESSAGE
+
     return str(error)
+
+
+def _log_internal_failure(
+    *,
+    dataset_id: str,
+    stage: PreviewFailureStage,
+    error: Exception,
+    public_message: str,
+) -> None:
+    """Log internal exception detail when preview sanitizes the public result message."""
+
+    if _is_connector_error(error):
+        return
+
+    raw_message = str(error)
+    if raw_message == public_message:
+        return
+
+    log_event(
+        LOGGER,
+        logging.ERROR,
+        "preview.request.failed_internal",
+        dataset_id=dataset_id,
+        stage=stage.value,
+        error_type=type(error).__name__,
+        public_message=public_message,
+        internal_message=raw_message,
+    )
+
+
+def _is_connector_error(error: Exception) -> bool:
+    """Return whether the error exposes the connector error contract."""
+
+    connector_message = getattr(error, "message", None)
+    connector_source = getattr(error, "source_name", None)
+    return isinstance(connector_message, str) and isinstance(connector_source, str)
+
+
+def _is_safe_runtime_failure_message(
+    error: Exception,
+    *,
+    allowed_messages: set[str],
+) -> bool:
+    """Return whether a runtime error message is intentionally safe to expose."""
+
+    return isinstance(error, RuntimeError) and str(error) in allowed_messages
