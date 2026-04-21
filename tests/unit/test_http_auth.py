@@ -218,6 +218,32 @@ async def test_read_capability_allows_local_query_tool_call() -> None:
 
 
 @pytest.mark.asyncio
+async def test_initialize_method_is_explicitly_allowed_without_read_capability() -> None:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(
+            app=_app(frozenset({HTTPAuthCapability.MATERIALIZE}))
+        ),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/mcp",
+            headers={"Authorization": "Bearer internal-test-token"},
+            json={
+                "jsonrpc": "2.0",
+                "id": "init-1",
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-11-25",
+                    "capabilities": {},
+                    "clientInfo": {"name": "unit-test-client", "version": "0.1.0"},
+                },
+            },
+        )
+
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_refresh_capability_is_required_for_preview_tool_call(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -485,6 +511,41 @@ async def test_unmapped_resource_reads_fail_closed_with_internal_error() -> None
         "error": "authorization coverage missing for resource: resource://future"
     }
     assert get_metrics().get("http.authz.coverage_missing") == 1
+
+
+@pytest.mark.asyncio
+async def test_unclassified_mcp_methods_are_denied_by_default(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.WARNING)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=_app()),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/mcp",
+            headers={"Authorization": "Bearer internal-test-token"},
+            json={
+                "jsonrpc": "2.0",
+                "id": "1",
+                "method": "future/method",
+                "params": {},
+            },
+        )
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "error": "unclassified MCP method denied by default: future/method"
+    }
+    assert get_metrics().get("http.authz.rejected") == 1
+    assert get_metrics().get("http.authz.rejected.unclassified_method") == 1
+    assert any(
+        json.loads(record.getMessage())["event"] == "audit.authorization_denied"
+        and json.loads(record.getMessage())["denial_reason"] == "unclassified_mcp_method"
+        and json.loads(record.getMessage())["mcp_method"] == "future/method"
+        for record in caplog.records
+    )
 
 
 def test_middleware_builder_keeps_token_masked_in_repr() -> None:

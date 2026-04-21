@@ -9,6 +9,7 @@ import pytest
 from saudi_open_data_mcp.config import RuntimeConfig
 from saudi_open_data_mcp.security.http_auth import (
     ALL_CAPABILITY_MAPPED_TOOL_NAMES,
+    EXPLICITLY_CLASSIFIED_MCP_METHODS,
     READ_RESOURCE_URIS,
 )
 from saudi_open_data_mcp.server import create_server
@@ -33,3 +34,20 @@ async def test_http_auth_coverage_matches_registered_server_surface(
 
     assert set(resources) == READ_RESOURCE_URIS
     assert set(tools) == ALL_CAPABILITY_MAPPED_TOOL_NAMES
+
+
+def test_http_auth_method_coverage_is_explicitly_pinned() -> None:
+    assert EXPLICITLY_CLASSIFIED_MCP_METHODS == frozenset(
+        {
+            "initialize",
+            "notifications/cancelled",
+            "notifications/initialized",
+            "ping",
+            "prompts/get",
+            "prompts/list",
+            "resources/list",
+            "resources/read",
+            "tools/call",
+            "tools/list",
+        }
+    )

@@ -70,6 +70,14 @@ MATERIALIZE_TOOL_NAMES = frozenset({"materialize_hot_set"})
 ALL_CAPABILITY_MAPPED_TOOL_NAMES = (
     READ_TOOL_NAMES | REFRESH_TOOL_NAMES | MATERIALIZE_TOOL_NAMES
 )
+CAPABILITY_FREE_MCP_METHODS = frozenset(
+    {
+        "initialize",
+        "notifications/cancelled",
+        "notifications/initialized",
+        "ping",
+    }
+)
 READ_MCP_METHODS = frozenset(
     {
         "resources/list",
@@ -78,6 +86,9 @@ READ_MCP_METHODS = frozenset(
         "prompts/list",
         "prompts/get",
     }
+)
+EXPLICITLY_CLASSIFIED_MCP_METHODS = (
+    CAPABILITY_FREE_MCP_METHODS | READ_MCP_METHODS | frozenset({"tools/call"})
 )
 CapabilityCollection = (
     frozenset[HTTPAuthCapability]
@@ -209,6 +220,36 @@ class HTTPBearerAuthMiddleware:
             path=scope.get("path"),
         ):
             authz_decision = _authorization_decision(scope, request_body)
+            if authz_decision.deny_message is not None:
+                metrics.increment("http.authz.rejected")
+                metrics.increment("http.authz.rejected.unclassified_method")
+                log_event(
+                    LOGGER,
+                    logging.WARNING,
+                    "http.authz.rejected",
+                    path=scope.get("path"),
+                    mcp_method=authz_decision.mcp_method,
+                    target=authz_decision.target,
+                    role=self._role.value,
+                    reason="unclassified_mcp_method",
+                    message=authz_decision.deny_message,
+                )
+                log_audit_event(
+                    "authorization_denied",
+                    result_status="rejected",
+                    level=logging.WARNING,
+                    mcp_method=authz_decision.mcp_method,
+                    target=authz_decision.target,
+                    role=self._role.value,
+                    denial_reason="unclassified_mcp_method",
+                    message=authz_decision.deny_message,
+                )
+                await _forbidden_response(authz_decision.deny_message)(
+                    scope,
+                    replay_receive,
+                    send,
+                )
+                return
             if (
                 authz_decision.required_capability is not None
                 and authz_decision.required_capability not in self._capabilities
@@ -408,11 +449,13 @@ class _AuthorizationDecision:
         mcp_method: str | None,
         target: str | None,
         required_capability: HTTPAuthCapability | None,
+        deny_message: str | None = None,
         coverage_error: str | None = None,
     ) -> None:
         self.mcp_method = mcp_method
         self.target = target
         self.required_capability = required_capability
+        self.deny_message = deny_message
         self.coverage_error = coverage_error
 
 
@@ -498,6 +541,13 @@ def _authorization_decision(
             required_capability=None,
         )
 
+    if method in CAPABILITY_FREE_MCP_METHODS:
+        return _AuthorizationDecision(
+            mcp_method=method,
+            target=None,
+            required_capability=None,
+        )
+
     if method in READ_MCP_METHODS:
         target = None
         params = message.get("params")
@@ -524,6 +574,7 @@ def _authorization_decision(
             mcp_method=method,
             target=None,
             required_capability=None,
+            deny_message=f"unclassified MCP method denied by default: {method}",
         )
 
     params = message.get("params")
