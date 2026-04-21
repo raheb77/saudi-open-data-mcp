@@ -18,7 +18,7 @@ from saudi_open_data_mcp.security.http_readiness import (
 from saudi_open_data_mcp.server import create_server
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 
-HTTP_AUTH_TOKEN = "internal-test-token"
+HTTP_AUTH_TOKEN = "0123456789abcdef0123456789abcdef"
 MCP_PROTOCOL_VERSION = "2025-11-25"
 EXCHANGE_RATES_DATASET_ID = "sama-exchange-rates-current"
 EXCHANGE_RATES_SOURCE_LOCATOR = "/en-US/FinExc/Pages/Currency.aspx"

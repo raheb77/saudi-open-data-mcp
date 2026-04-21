@@ -15,6 +15,8 @@ from saudi_open_data_mcp.security.http_readiness import (
     build_http_readiness_middleware,
 )
 
+VALID_HTTP_AUTH_TOKEN = "0123456789abcdef0123456789abcdef"
+
 
 async def _ok(_) -> JSONResponse:
     return JSONResponse({"ok": True})
@@ -24,7 +26,7 @@ def _app() -> Starlette:
     return Starlette(
         routes=[Route("/mcp", endpoint=_ok, methods=["GET", "POST"])],
         middleware=build_http_readiness_middleware("saudi-open-data-mcp")
-        + build_http_auth_middleware("internal-test-token"),
+        + build_http_auth_middleware(VALID_HTTP_AUTH_TOKEN),
     )
 
 

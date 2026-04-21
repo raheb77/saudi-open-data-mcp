@@ -24,6 +24,7 @@ from saudi_open_data_mcp.security.http_auth import (
     HTTPAuthCapability,
     HTTPAuthRole,
     capabilities_for_http_auth_role,
+    require_http_bearer_token,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -112,6 +113,16 @@ class TransportConfig(BaseModel):
         if not value:
             raise ValueError("HTTP_AUTH_CAPABILITIES must include at least one capability")
         return value
+
+    @field_validator("http_auth_token")
+    @classmethod
+    def _validate_http_auth_token(
+        cls,
+        value: SecretStr | None,
+    ) -> SecretStr | None:
+        if value is None:
+            return None
+        return require_http_bearer_token(value)
 
     @model_validator(mode="after")
     def _validate_http_auth_role_bundle(self) -> Self:

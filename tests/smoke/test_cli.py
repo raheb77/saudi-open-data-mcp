@@ -39,6 +39,9 @@ DATA_GOV_SA_SOURCE_LOCATOR = (
     "/ar/datasets/view/104380ce-60b6-46bc-ba0a-6d5e10ac46cb/"
     "preview/parsed/Census%20Marital%20Status%20CSV.json"
 )
+VALID_HTTP_AUTH_TOKEN = "0123456789abcdef0123456789abcdef"
+DOTENV_HTTP_AUTH_TOKEN = "fedcba9876543210fedcba9876543210"
+WEAK_HTTP_AUTH_TOKEN = "change-me-change-me-change-me-change-me"
 
 
 def test_cli_check_startup_mode_returns_success() -> None:
@@ -58,7 +61,7 @@ def test_cli_run_http_dispatches_to_server(monkeypatch) -> None:
 
     config = RuntimeConfig(
         transport=TransportConfig(
-            http_auth_token=SecretStr("internal-test-token"),
+            http_auth_token=SecretStr(VALID_HTTP_AUTH_TOKEN),
         )
     )
 
@@ -83,8 +86,8 @@ def test_cli_run_http_dispatches_to_server(monkeypatch) -> None:
     assert middleware[0].cls is HTTPReadinessMiddleware
     assert middleware[0].kwargs["app_name"] == "saudi-open-data-mcp"
     assert middleware[1].cls is HTTPBearerAuthMiddleware
-    assert "internal-test-token" not in repr(middleware[1])
-    assert middleware[1].kwargs["bearer_token"].get_secret_value() == "internal-test-token"
+    assert VALID_HTTP_AUTH_TOKEN not in repr(middleware[1])
+    assert middleware[1].kwargs["bearer_token"].get_secret_value() == VALID_HTTP_AUTH_TOKEN
     assert middleware[1].kwargs["role"] is HTTPAuthRole.OPERATOR
     assert middleware[1].kwargs["capabilities"] == frozenset(HTTPAuthCapability)
 
@@ -98,7 +101,7 @@ def test_cli_run_http_uses_loopback_default_host(monkeypatch) -> None:
 
     config = RuntimeConfig(
         transport=TransportConfig(
-            http_auth_token=SecretStr("internal-test-token"),
+            http_auth_token=SecretStr(VALID_HTTP_AUTH_TOKEN),
         )
     )
 
@@ -121,8 +124,8 @@ def test_cli_run_http_uses_loopback_default_host(monkeypatch) -> None:
     assert middleware[0].cls is HTTPReadinessMiddleware
     assert middleware[0].kwargs["app_name"] == "saudi-open-data-mcp"
     assert middleware[1].cls is HTTPBearerAuthMiddleware
-    assert "internal-test-token" not in repr(middleware[1])
-    assert middleware[1].kwargs["bearer_token"].get_secret_value() == "internal-test-token"
+    assert VALID_HTTP_AUTH_TOKEN not in repr(middleware[1])
+    assert middleware[1].kwargs["bearer_token"].get_secret_value() == VALID_HTTP_AUTH_TOKEN
     assert middleware[1].kwargs["role"] is HTTPAuthRole.OPERATOR
     assert middleware[1].kwargs["capabilities"] == frozenset(HTTPAuthCapability)
     assert HTTP_READINESS_PATH == "/readyz"
@@ -154,7 +157,7 @@ def test_cli_run_http_loads_http_auth_token_from_local_dotenv(
     monkeypatch.delenv("HTTP_AUTH_ROLE", raising=False)
     monkeypatch.delenv("HTTP_AUTH_CAPABILITIES", raising=False)
     (tmp_path / ".env").write_text(
-        "HTTP_AUTH_TOKEN=dotenv-test-token\n"
+        f"HTTP_AUTH_TOKEN={DOTENV_HTTP_AUTH_TOKEN}\n"
         "HTTP_AUTH_ROLE=viewer\n"
         "HTTP_AUTH_CAPABILITIES=read\n",
         encoding="utf-8",
@@ -166,7 +169,7 @@ def test_cli_run_http_loads_http_auth_token_from_local_dotenv(
     assert exit_code == 0
     assert len(calls) == 1
     middleware = calls[0]["middleware"]
-    assert middleware[1].kwargs["bearer_token"].get_secret_value() == "dotenv-test-token"
+    assert middleware[1].kwargs["bearer_token"].get_secret_value() == DOTENV_HTTP_AUTH_TOKEN
     assert middleware[1].kwargs["role"] is HTTPAuthRole.VIEWER
     assert middleware[1].kwargs["capabilities"] == frozenset({HTTPAuthCapability.READ})
     assert "HTTP_AUTH_TOKEN" not in os.environ
@@ -183,11 +186,11 @@ def test_cli_environment_overrides_local_dotenv_token(
             calls.append(kwargs)
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HTTP_AUTH_TOKEN", "env-token")
+    monkeypatch.setenv("HTTP_AUTH_TOKEN", VALID_HTTP_AUTH_TOKEN)
     monkeypatch.setenv("HTTP_AUTH_ROLE", "viewer")
     monkeypatch.setenv("HTTP_AUTH_CAPABILITIES", "read")
     (tmp_path / ".env").write_text(
-        "HTTP_AUTH_TOKEN=dotenv-test-token\n"
+        f"HTTP_AUTH_TOKEN={DOTENV_HTTP_AUTH_TOKEN}\n"
         "HTTP_AUTH_ROLE=operator\n"
         "HTTP_AUTH_CAPABILITIES=read,refresh,materialize\n",
         encoding="utf-8",
@@ -199,9 +202,34 @@ def test_cli_environment_overrides_local_dotenv_token(
     assert exit_code == 0
     assert len(calls) == 1
     middleware = calls[0]["middleware"]
-    assert middleware[1].kwargs["bearer_token"].get_secret_value() == "env-token"
+    assert middleware[1].kwargs["bearer_token"].get_secret_value() == VALID_HTTP_AUTH_TOKEN
     assert middleware[1].kwargs["role"] is HTTPAuthRole.VIEWER
     assert middleware[1].kwargs["capabilities"] == frozenset({HTTPAuthCapability.READ})
+
+
+def test_cli_run_http_rejects_weak_local_dotenv_token(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("HTTP_AUTH_TOKEN", raising=False)
+    monkeypatch.delenv("HTTP_AUTH_ROLE", raising=False)
+    monkeypatch.delenv("HTTP_AUTH_CAPABILITIES", raising=False)
+    (tmp_path / ".env").write_text(
+        f"HTTP_AUTH_TOKEN={WEAK_HTTP_AUTH_TOKEN}\n"
+        "HTTP_AUTH_ROLE=viewer\n"
+        "HTTP_AUTH_CAPABILITIES=read\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli_module.main(["run-http"])
+
+    assert excinfo.value.code == 2
+    captured = capsys.readouterr()
+    assert "HTTP_AUTH_TOKEN" in captured.err
+    assert "placeholder or weak default" in captured.err
 
 
 def test_cli_run_stdio_dispatches_to_server(monkeypatch) -> None:
@@ -566,7 +594,7 @@ def test_cli_config_redacts_http_auth_token(
 ) -> None:
     config = RuntimeConfig(
         transport=TransportConfig(
-            http_auth_token=SecretStr("internal-test-token"),
+            http_auth_token=SecretStr(VALID_HTTP_AUTH_TOKEN),
             http_auth_role=HTTPAuthRole.VIEWER,
             http_auth_capabilities=frozenset({HTTPAuthCapability.READ}),
         )
@@ -582,7 +610,7 @@ def test_cli_config_redacts_http_auth_token(
     assert payload["transport"]["http_auth_capabilities"] == ["read"]
     assert payload["transport"]["http_auth_role"] == "viewer"
     assert "http_auth_token" not in payload["transport"]
-    assert "internal-test-token" not in captured.out
+    assert VALID_HTTP_AUTH_TOKEN not in captured.out
 
 
 def test_cli_rejects_unsupported_output_format(capsys) -> None:

@@ -12,6 +12,8 @@ from saudi_open_data_mcp.security.http_auth import build_http_auth_middleware
 from saudi_open_data_mcp.security.http_readiness import build_http_readiness_middleware
 from saudi_open_data_mcp.server import create_server
 
+VALID_HTTP_AUTH_TOKEN = "0123456789abcdef0123456789abcdef"
+
 
 def _runtime_config(tmp_path: Path) -> RuntimeConfig:
     return RuntimeConfig(
@@ -19,7 +21,7 @@ def _runtime_config(tmp_path: Path) -> RuntimeConfig:
         snapshot_dir=tmp_path / "snapshots",
         cache_dir=tmp_path / "cache",
         transport=TransportConfig(
-            http_auth_token=SecretStr("internal-test-token"),
+            http_auth_token=SecretStr(VALID_HTTP_AUTH_TOKEN),
         ),
     )
 
@@ -61,7 +63,7 @@ def test_streamable_http_initialize_and_resource_read_return_json_for_dashboard_
             headers={
                 "Accept": "application/json, text/event-stream",
                 "Content-Type": "application/json",
-                "Authorization": "Bearer internal-test-token",
+                "Authorization": f"Bearer {VALID_HTTP_AUTH_TOKEN}",
             },
             json=initialize_request,
         )
@@ -80,7 +82,7 @@ def test_streamable_http_initialize_and_resource_read_return_json_for_dashboard_
             headers={
                 "Accept": "application/json, text/event-stream",
                 "Content-Type": "application/json",
-                "Authorization": "Bearer internal-test-token",
+                "Authorization": f"Bearer {VALID_HTTP_AUTH_TOKEN}",
                 "mcp-session-id": session_id,
                 "mcp-protocol-version": "2025-11-25",
             },
@@ -97,7 +99,7 @@ def test_streamable_http_initialize_and_resource_read_return_json_for_dashboard_
             headers={
                 "Accept": "application/json, text/event-stream",
                 "Content-Type": "application/json",
-                "Authorization": "Bearer internal-test-token",
+                "Authorization": f"Bearer {VALID_HTTP_AUTH_TOKEN}",
                 "mcp-session-id": session_id,
                 "mcp-protocol-version": "2025-11-25",
             },
@@ -115,4 +117,3 @@ def test_streamable_http_initialize_and_resource_read_return_json_for_dashboard_
         )
         resource_payload = resource_response.json()
         assert resource_payload["result"]["contents"][0]["uri"] == "resource://catalog"
-

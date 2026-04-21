@@ -15,12 +15,17 @@ from starlette.routing import Route
 from saudi_open_data_mcp.observability import build_token_fingerprint, get_metrics
 from saudi_open_data_mcp.security.http_auth import (
     MAX_HTTP_AUTH_REQUEST_BODY_BYTES,
+    MIN_HTTP_AUTH_TOKEN_LENGTH,
     HTTPAuthCapability,
     HTTPAuthRole,
     HTTPBearerAuthMiddleware,
     build_http_auth_middleware,
     capabilities_for_http_auth_role,
+    require_http_bearer_token,
 )
+
+VALID_HTTP_AUTH_TOKEN = "0123456789abcdef0123456789abcdef"
+WEAK_PLACEHOLDER_HTTP_AUTH_TOKEN = "change-me-change-me-change-me-change-me"
 
 
 async def _ok(_) -> JSONResponse:
@@ -34,7 +39,7 @@ def _app(
     return Starlette(
         routes=[Route("/mcp", endpoint=_ok, methods=["GET", "POST"])],
         middleware=build_http_auth_middleware(
-            "internal-test-token",
+            VALID_HTTP_AUTH_TOKEN,
             capabilities
             if capabilities is not None
             else frozenset(HTTPAuthCapability),
@@ -102,7 +107,7 @@ async def test_valid_bearer_token_is_accepted() -> None:
     ) as client:
         response = await client.get(
             "/mcp",
-            headers={"Authorization": "Bearer internal-test-token"},
+            headers={"Authorization": f"Bearer {VALID_HTTP_AUTH_TOKEN}"},
         )
 
     assert response.status_code == 200
@@ -117,7 +122,7 @@ async def test_bearer_token_whitespace_is_normalized() -> None:
     app = Starlette(
         routes=[Route("/mcp", endpoint=_ok, methods=["GET", "POST"])],
         middleware=build_http_auth_middleware(
-            SecretStr("  internal-test-token  "),
+            SecretStr(f"  {VALID_HTTP_AUTH_TOKEN}  "),
             frozenset(HTTPAuthCapability),
             HTTPAuthRole.OPERATOR,
         ),
@@ -129,11 +134,32 @@ async def test_bearer_token_whitespace_is_normalized() -> None:
     ) as client:
         response = await client.get(
             "/mcp",
-            headers={"Authorization": "Bearer   internal-test-token   "},
+            headers={"Authorization": f"Bearer   {VALID_HTTP_AUTH_TOKEN}   "},
         )
 
     assert response.status_code == 200
     assert response.json() == {"ok": True}
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "short-token",
+        WEAK_PLACEHOLDER_HTTP_AUTH_TOKEN,
+        "dev-token-dev-token-dev-token-dev-token",
+        "example-token-example-token-example-token",
+    ],
+)
+def test_require_http_bearer_token_rejects_weak_values(token: str) -> None:
+    with pytest.raises(ValueError, match="HTTP_AUTH_TOKEN"):
+        require_http_bearer_token(token)
+
+
+def test_require_http_bearer_token_accepts_long_non_placeholder_value() -> None:
+    token = require_http_bearer_token(VALID_HTTP_AUTH_TOKEN)
+
+    assert token.get_secret_value() == VALID_HTTP_AUTH_TOKEN
+    assert len(token.get_secret_value()) >= MIN_HTTP_AUTH_TOKEN_LENGTH
 
 
 @pytest.mark.asyncio
@@ -146,7 +172,7 @@ async def test_oversized_request_body_with_content_length_is_rejected() -> None:
     ) as client:
         response = await client.post(
             "/mcp",
-            headers={"Authorization": "Bearer internal-test-token"},
+            headers={"Authorization": f"Bearer {VALID_HTTP_AUTH_TOKEN}"},
             content=oversized_body,
         )
 
@@ -169,7 +195,7 @@ async def test_oversized_streamed_request_body_is_rejected_without_content_lengt
     ) as client:
         response = await client.post(
             "/mcp",
-            headers={"Authorization": "Bearer internal-test-token"},
+            headers={"Authorization": f"Bearer {VALID_HTTP_AUTH_TOKEN}"},
             content=oversized_stream(),
         )
 
@@ -203,7 +229,7 @@ async def test_read_capability_allows_local_query_tool_call() -> None:
         response = await client.post(
             "/mcp",
             headers={
-                "Authorization": "Bearer internal-test-token",
+                "Authorization": f"Bearer {VALID_HTTP_AUTH_TOKEN}",
                 "X-Request-ID": "req-authz-1",
             },
             json={
@@ -227,7 +253,7 @@ async def test_initialize_method_is_explicitly_allowed_without_read_capability()
     ) as client:
         response = await client.post(
             "/mcp",
-            headers={"Authorization": "Bearer internal-test-token"},
+            headers={"Authorization": f"Bearer {VALID_HTTP_AUTH_TOKEN}"},
             json={
                 "jsonrpc": "2.0",
                 "id": "init-1",
@@ -258,7 +284,7 @@ async def test_refresh_capability_is_required_for_preview_tool_call(
         response = await client.post(
             "/mcp",
             headers={
-                "Authorization": "Bearer internal-test-token",
+                "Authorization": f"Bearer {VALID_HTTP_AUTH_TOKEN}",
                 "X-Request-ID": "req-authz-1",
             },
             json={
@@ -286,7 +312,7 @@ async def test_refresh_capability_is_required_for_preview_tool_call(
         and json.loads(record.getMessage())["actor_role"] == "operator"
         and json.loads(record.getMessage())["request_id"] == "req-authz-1"
         and json.loads(record.getMessage())["actor_token_fingerprint"]
-        == build_token_fingerprint("internal-test-token")
+        == build_token_fingerprint(VALID_HTTP_AUTH_TOKEN)
         for record in caplog.records
     )
 
@@ -304,7 +330,7 @@ async def test_viewer_role_rejects_preview_tool_call() -> None:
     ) as client:
         response = await client.post(
             "/mcp",
-            headers={"Authorization": "Bearer internal-test-token"},
+            headers={"Authorization": f"Bearer {VALID_HTTP_AUTH_TOKEN}"},
             json={
                 "jsonrpc": "2.0",
                 "id": "1",
@@ -331,7 +357,7 @@ async def test_materialize_capability_is_required_for_materialize_tool_call(
     ) as client:
         response = await client.post(
             "/mcp",
-            headers={"Authorization": "Bearer internal-test-token"},
+            headers={"Authorization": f"Bearer {VALID_HTTP_AUTH_TOKEN}"},
             json={
                 "jsonrpc": "2.0",
                 "id": "1",
@@ -362,7 +388,7 @@ async def test_operator_role_allows_materialize_tool_call() -> None:
     ) as client:
         response = await client.post(
             "/mcp",
-            headers={"Authorization": "Bearer internal-test-token"},
+            headers={"Authorization": f"Bearer {VALID_HTTP_AUTH_TOKEN}"},
             json={
                 "jsonrpc": "2.0",
                 "id": "1",
@@ -391,7 +417,7 @@ async def test_admin_role_is_recorded_on_authorization_denial(
     ) as client:
         response = await client.post(
             "/mcp",
-            headers={"Authorization": "Bearer internal-test-token"},
+            headers={"Authorization": f"Bearer {VALID_HTTP_AUTH_TOKEN}"},
             json={
                 "jsonrpc": "2.0",
                 "id": "1",
@@ -418,7 +444,7 @@ async def test_read_capability_is_required_for_resource_reads() -> None:
     ) as client:
         response = await client.post(
             "/mcp",
-            headers={"Authorization": "Bearer internal-test-token"},
+            headers={"Authorization": f"Bearer {VALID_HTTP_AUTH_TOKEN}"},
             json={
                 "jsonrpc": "2.0",
                 "id": "1",
@@ -441,7 +467,7 @@ async def test_read_capability_is_required_for_tools_list_method() -> None:
     ) as client:
         response = await client.post(
             "/mcp",
-            headers={"Authorization": "Bearer internal-test-token"},
+            headers={"Authorization": f"Bearer {VALID_HTTP_AUTH_TOKEN}"},
             json={
                 "jsonrpc": "2.0",
                 "id": "1",
@@ -468,7 +494,7 @@ async def test_unmapped_tool_calls_fail_closed_with_internal_error(
     ) as client:
         response = await client.post(
             "/mcp",
-            headers={"Authorization": "Bearer internal-test-token"},
+            headers={"Authorization": f"Bearer {VALID_HTTP_AUTH_TOKEN}"},
             json={
                 "jsonrpc": "2.0",
                 "id": "1",
@@ -497,7 +523,7 @@ async def test_unmapped_resource_reads_fail_closed_with_internal_error() -> None
     ) as client:
         response = await client.post(
             "/mcp",
-            headers={"Authorization": "Bearer internal-test-token"},
+            headers={"Authorization": f"Bearer {VALID_HTTP_AUTH_TOKEN}"},
             json={
                 "jsonrpc": "2.0",
                 "id": "1",
@@ -525,7 +551,7 @@ async def test_unclassified_mcp_methods_are_denied_by_default(
     ) as client:
         response = await client.post(
             "/mcp",
-            headers={"Authorization": "Bearer internal-test-token"},
+            headers={"Authorization": f"Bearer {VALID_HTTP_AUTH_TOKEN}"},
             json={
                 "jsonrpc": "2.0",
                 "id": "1",
@@ -550,13 +576,13 @@ async def test_unclassified_mcp_methods_are_denied_by_default(
 
 def test_middleware_builder_keeps_token_masked_in_repr() -> None:
     middleware = build_http_auth_middleware(
-        SecretStr("internal-test-token"),
+        SecretStr(VALID_HTTP_AUTH_TOKEN),
         frozenset({HTTPAuthCapability.READ}),
         HTTPAuthRole.VIEWER,
     )
 
     assert len(middleware) == 1
-    assert "internal-test-token" not in repr(middleware[0])
+    assert VALID_HTTP_AUTH_TOKEN not in repr(middleware[0])
     assert "**********" in repr(middleware[0])
     assert "viewer" in repr(middleware[0])
     assert "read" in repr(middleware[0])
@@ -571,7 +597,7 @@ async def test_non_http_scope_passes_through_without_auth_enforcement() -> None:
 
     middleware = HTTPBearerAuthMiddleware(
         downstream_app,
-        bearer_token=SecretStr("internal-test-token"),
+        bearer_token=SecretStr(VALID_HTTP_AUTH_TOKEN),
         capabilities=frozenset({HTTPAuthCapability.READ}),
         role=HTTPAuthRole.VIEWER,
     )

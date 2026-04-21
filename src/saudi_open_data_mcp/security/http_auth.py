@@ -24,6 +24,18 @@ from saudi_open_data_mcp.observability import (
 
 LOGGER = get_logger(__name__)
 MAX_HTTP_AUTH_REQUEST_BODY_BYTES = 1_048_576
+MIN_HTTP_AUTH_TOKEN_LENGTH = 32
+_WEAK_HTTP_AUTH_TOKEN_CANONICAL_VALUES = frozenset(
+    {
+        "changeme",
+        "defaulttoken",
+        "devtoken",
+        "exampletoken",
+        "placeholdertoken",
+        "sampletoken",
+        "testtoken",
+    }
+)
 
 
 class HTTPAuthCapability(StrEnum):
@@ -356,6 +368,16 @@ def require_http_bearer_token(
         raise ValueError(
             "run-http requires HTTP_AUTH_TOKEN to be set for internal bearer auth"
         )
+    if len(normalized) < MIN_HTTP_AUTH_TOKEN_LENGTH:
+        raise ValueError(
+            "HTTP_AUTH_TOKEN must be at least "
+            f"{MIN_HTTP_AUTH_TOKEN_LENGTH} characters long for run-http bearer auth"
+        )
+    if _looks_like_placeholder_http_auth_token(normalized):
+        raise ValueError(
+            "HTTP_AUTH_TOKEN must not use placeholder or weak default values such as "
+            "change-me, dev-token, or example-token"
+        )
 
     return SecretStr(normalized)
 
@@ -409,6 +431,21 @@ def _extract_bearer_token(authorization_header: str | None) -> str | None:
     if scheme.lower() != "bearer" or not normalized:
         return None
     return normalized
+
+
+def _looks_like_placeholder_http_auth_token(value: str) -> bool:
+    """Return whether the configured token matches a known weak default pattern."""
+
+    canonical = "".join(character for character in value.casefold() if character.isalnum())
+    if not canonical:
+        return False
+
+    for placeholder in _WEAK_HTTP_AUTH_TOKEN_CANONICAL_VALUES:
+        if canonical == placeholder:
+            return True
+        if len(canonical) >= len(placeholder) * 2 and canonical.replace(placeholder, "") == "":
+            return True
+    return False
 
 
 def _extract_request_id(request: Request) -> str | None:

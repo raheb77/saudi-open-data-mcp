@@ -24,6 +24,9 @@ from saudi_open_data_mcp.resources.policies import (
 )
 from saudi_open_data_mcp.security.http_auth import HTTPAuthCapability, HTTPAuthRole
 
+VALID_HTTP_AUTH_TOKEN = "0123456789abcdef0123456789abcdef"
+WEAK_HTTP_AUTH_TOKEN = "change-me-change-me-change-me-change-me"
+
 
 def test_load_config_defaults() -> None:
     config = load_config()
@@ -110,7 +113,7 @@ def test_load_config_respects_http_transport_overrides(
 ) -> None:
     monkeypatch.setenv("HTTP_HOST", "0.0.0.0")
     monkeypatch.setenv("HTTP_PORT", "8080")
-    monkeypatch.setenv("HTTP_AUTH_TOKEN", "internal-test-token")
+    monkeypatch.setenv("HTTP_AUTH_TOKEN", VALID_HTTP_AUTH_TOKEN)
     monkeypatch.setenv("HTTP_AUTH_ROLE", "viewer")
     monkeypatch.setenv("HTTP_AUTH_CAPABILITIES", "read")
     monkeypatch.setenv("TIER_A_REFRESH_ENABLED", "true")
@@ -121,7 +124,7 @@ def test_load_config_respects_http_transport_overrides(
     assert config.transport.http_host == "0.0.0.0"
     assert config.transport.http_port == 8080
     assert config.transport.http_auth_token is not None
-    assert config.transport.http_auth_token.get_secret_value() == "internal-test-token"
+    assert config.transport.http_auth_token.get_secret_value() == VALID_HTTP_AUTH_TOKEN
     assert config.transport.http_auth_role is HTTPAuthRole.VIEWER
     assert config.transport.http_auth_capabilities == frozenset(
         {
@@ -156,6 +159,23 @@ def test_load_config_rejects_invalid_http_auth_role(
     monkeypatch.setenv("HTTP_AUTH_ROLE", "superuser")
 
     with pytest.raises(RuntimeConfigurationError, match="HTTP_AUTH_ROLE"):
+        load_config()
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "short-token",
+        WEAK_HTTP_AUTH_TOKEN,
+    ],
+)
+def test_load_config_rejects_weak_http_auth_token(
+    monkeypatch: pytest.MonkeyPatch,
+    token: str,
+) -> None:
+    monkeypatch.setenv("HTTP_AUTH_TOKEN", token)
+
+    with pytest.raises(RuntimeConfigurationError, match="HTTP_AUTH_TOKEN"):
         load_config()
 
 
