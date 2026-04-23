@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, Self
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -63,7 +63,7 @@ class DatasetHealthLookupResult(BaseModel):
             raise ValueError("known_issues must be empty when status is 'missing'")
         return self
 
-    def model_dump(self, *args, **kwargs):  # type: ignore[override]
+    def model_dump(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         """Exclude absent freshness evidence while preserving other explicit nulls."""
 
         exclude = kwargs.pop("exclude", None)

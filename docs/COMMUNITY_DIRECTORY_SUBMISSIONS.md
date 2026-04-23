@@ -4,6 +4,10 @@ This document captures the final community directory submission package for `sau
 
 It does not change any project logic.
 
+If the matching package release is not live on PyPI yet, replace the PyPI link
+in this checklist with the GitHub repository URL and avoid claiming a package
+index install path externally until the release exists.
+
 ## Final Unified Submission Package
 
 - Project title: Saudi Open Data MCP
@@ -17,7 +21,7 @@ saudi-open-data-mcp run-stdio
 ```
 
 - GitHub link: https://github.com/raheb77/saudi-open-data-mcp
-- PyPI link: https://pypi.org/project/saudi-open-data-mcp/
+- Package index link, if the matching release is live: https://pypi.org/project/saudi-open-data-mcp/
 - Screenshot path: `artifacts/mcp-inspector-connected-tools.png`
 - Tags:
   - mcp
@@ -40,7 +44,7 @@ pip install saudi-open-data-mcp
 saudi-open-data-mcp run-stdio
 ```
 
-- Primary link: https://pypi.org/project/saudi-open-data-mcp/
+- Primary link: use the PyPI project URL only when the matching release is live; otherwise use the GitHub repository URL
 - Secondary link: https://github.com/raheb77/saudi-open-data-mcp
 - Tags: mcp, mcp-server, saudi-open-data, sama, fastmcp
 
@@ -65,7 +69,7 @@ pip install saudi-open-data-mcp
 saudi-open-data-mcp run-stdio
 ```
 
-- Primary link: https://pypi.org/project/saudi-open-data-mcp/
+- Primary link: use the PyPI project URL only when the matching release is live; otherwise use the GitHub repository URL
 - Secondary link: https://github.com/raheb77/saudi-open-data-mcp
 - Tags: mcp, mcp-server, saudi-open-data, sama, fastmcp
 
@@ -96,7 +100,7 @@ pip install saudi-open-data-mcp
 saudi-open-data-mcp run-stdio
 ```
 
-- Primary link: https://pypi.org/project/saudi-open-data-mcp/
+- Primary link: use the PyPI project URL only when the matching release is live; otherwise use the GitHub repository URL
 - Secondary link: https://github.com/raheb77/saudi-open-data-mcp
 - Tags: mcp, mcp-server, saudi-open-data, sama, fastmcp
 
@@ -124,7 +128,7 @@ pip install saudi-open-data-mcp
 saudi-open-data-mcp run-stdio
 ```
 
-- Primary link: https://pypi.org/project/saudi-open-data-mcp/
+- Primary link: use the PyPI project URL only when the matching release is live; otherwise use the GitHub repository URL
 - Secondary link: https://github.com/raheb77/saudi-open-data-mcp
 - Tags: mcp, mcp-server, saudi-open-data, sama, fastmcp
 - Server config entered on the form:
@@ -189,7 +193,7 @@ Checklist:
 
 ## Consistency Rules To Preserve
 
-- Prefer PyPI and GitHub as the primary links
+- Prefer the package-index link plus GitHub only when the matching package release is live; otherwise prefer GitHub
 - Keep wording technically serious and non-hypey
 - Do not add unsupported claims
 - Keep the description and positioning statement consistent across all directories

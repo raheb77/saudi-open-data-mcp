@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Protocol
 
 from ..config import SourceConfig
 from .base import Connector
@@ -14,13 +15,19 @@ from .sama import SAMAConnector
 from .stats_gov_sa import StatsGovSaConnector
 
 
+class _ConnectorFactory(Protocol):
+    """Typed factory for the configured connector constructors."""
+
+    def __call__(self, base_url: str) -> Connector: ...
+
+
 @dataclass(frozen=True)
 class _DefaultConnectorRegistration:
     """Static default connector registration for one current source family."""
 
     source: str
     base_url_field: str
-    connector_type: type[Connector]
+    connector_type: _ConnectorFactory
 
 
 _DEFAULT_CONNECTOR_REGISTRATIONS: tuple[_DefaultConnectorRegistration, ...] = (
@@ -82,7 +89,7 @@ def build_default_connector_resolver(
     return SourceConnectorResolver(
         {
             registration.source: registration.connector_type(
-                base_url=getattr(source_config, registration.base_url_field)
+                getattr(source_config, registration.base_url_field)
             )
             for registration in _DEFAULT_CONNECTOR_REGISTRATIONS
         }

@@ -1,0 +1,14 @@
+.git
+.github
+.local
+.playwright-mcp
+.pytest_cache
+.ruff_cache
+.uv-cache
+.venv
+__pycache__
+artifacts
+dashboard
+dist
+docs
+tests

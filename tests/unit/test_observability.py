@@ -210,10 +210,10 @@ def test_create_server_emits_startup_failure_logs_and_metrics(
 ) -> None:
     caplog.set_level(logging.INFO)
 
-    def _boom(_repository: RegistryRepository) -> list[object]:
+    def _boom(_repository: RegistryRepository):
         raise RuntimeError("bootstrap failed for testing")
 
-    monkeypatch.setattr(server_module, "bootstrap_registry", _boom)
+    monkeypatch.setattr(server_module, "bootstrap_registry_with_summary", _boom)
 
     with pytest.raises(RuntimeError, match="bootstrap failed for testing"):
         create_server(_runtime_config(tmp_path))

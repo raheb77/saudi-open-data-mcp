@@ -4,9 +4,19 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from dataclasses import dataclass
 from pathlib import Path
 
 from .models import DatasetDescriptor, HealthMetadata
+
+
+@dataclass(frozen=True)
+class SeedDatasetResult:
+    """Outcome of reconciling one seeded descriptor into the persistent registry."""
+
+    dataset_id: str
+    action: str
+    changed_fields: tuple[str, ...] = ()
 
 
 class RegistryRepository:
@@ -87,28 +97,96 @@ class RegistryRepository:
                 (descriptor.dataset_id, descriptor.health_status.value),
             )
 
-    def seed_dataset(self, descriptor: DatasetDescriptor) -> None:
-        """Insert a bootstrap descriptor only when it is missing."""
+    def seed_dataset(self, descriptor: DatasetDescriptor) -> SeedDatasetResult:
+        """Insert or reconcile a bootstrap descriptor while preserving health state."""
 
         with self._connect() as connection:
-            existing_descriptor = connection.execute(
+            existing_row = connection.execute(
                 """
-                SELECT 1
+                SELECT
+                    dataset_id,
+                    source,
+                    source_locator,
+                    title,
+                    description,
+                    schema_version,
+                    update_frequency,
+                    health_status,
+                    coverage_status,
+                    caveats_json,
+                    known_issues_json
                 FROM dataset_descriptors
                 WHERE dataset_id = ?
                 """,
                 (descriptor.dataset_id,),
             ).fetchone()
-            if existing_descriptor is not None:
+            if existing_row is not None:
+                existing_descriptor = self._descriptor_from_row(existing_row)
+                existing_health = connection.execute(
+                    """
+                    SELECT health_status
+                    FROM dataset_health
+                    WHERE dataset_id = ?
+                    """,
+                    (descriptor.dataset_id,),
+                ).fetchone()
+                preserved_health_status = (
+                    existing_health["health_status"]
+                    if existing_health is not None
+                    else existing_descriptor.health_status.value
+                )
+                changed_fields = self._seed_changed_fields(
+                    existing_descriptor,
+                    descriptor,
+                )
+                connection.execute(
+                    """
+                    INSERT OR IGNORE INTO dataset_health (dataset_id, health_status)
+                    VALUES (?, ?)
+                    """,
+                    (descriptor.dataset_id, preserved_health_status),
+                )
+                if not changed_fields:
+                    return SeedDatasetResult(
+                        dataset_id=descriptor.dataset_id,
+                        action="unchanged",
+                    )
+
                 connection.execute(
                     """
                     UPDATE dataset_descriptors
-                    SET coverage_status = ?
+                    SET
+                        source = ?,
+                        source_locator = ?,
+                        title = ?,
+                        description = ?,
+                        schema_version = ?,
+                        update_frequency = ?,
+                        health_status = ?,
+                        coverage_status = ?,
+                        caveats_json = ?,
+                        known_issues_json = ?
                     WHERE dataset_id = ?
                     """,
-                    (descriptor.coverage_status.value, descriptor.dataset_id),
+                    (
+                        descriptor.source,
+                        descriptor.source_locator,
+                        descriptor.title,
+                        descriptor.description,
+                        descriptor.schema_version,
+                        descriptor.update_frequency.value,
+                        preserved_health_status,
+                        descriptor.coverage_status.value,
+                        self._dump_notes(descriptor.caveats),
+                        self._dump_notes(descriptor.known_issues),
+                        descriptor.dataset_id,
+                    ),
                 )
-                return
+                return SeedDatasetResult(
+                    dataset_id=descriptor.dataset_id,
+                    action="updated",
+                    changed_fields=changed_fields,
+                )
 
             connection.execute(
                 """
@@ -146,6 +224,10 @@ class RegistryRepository:
                 VALUES (?, ?)
                 """,
                 (descriptor.dataset_id, descriptor.health_status.value),
+            )
+            return SeedDatasetResult(
+                dataset_id=descriptor.dataset_id,
+                action="inserted",
             )
 
     def get_dataset(self, dataset_id: str) -> DatasetDescriptor | None:
@@ -318,6 +400,32 @@ class RegistryRepository:
     @staticmethod
     def _dump_notes(notes: tuple[str, ...]) -> str:
         return json.dumps(list(notes), ensure_ascii=True)
+
+    @staticmethod
+    def _seed_changed_fields(
+        existing_descriptor: DatasetDescriptor,
+        descriptor: DatasetDescriptor,
+    ) -> tuple[str, ...]:
+        changed_fields: list[str] = []
+        if existing_descriptor.source != descriptor.source:
+            changed_fields.append("source")
+        if existing_descriptor.source_locator != descriptor.source_locator:
+            changed_fields.append("source_locator")
+        if existing_descriptor.title != descriptor.title:
+            changed_fields.append("title")
+        if existing_descriptor.description != descriptor.description:
+            changed_fields.append("description")
+        if existing_descriptor.schema_version != descriptor.schema_version:
+            changed_fields.append("schema_version")
+        if existing_descriptor.update_frequency is not descriptor.update_frequency:
+            changed_fields.append("update_frequency")
+        if existing_descriptor.coverage_status is not descriptor.coverage_status:
+            changed_fields.append("coverage_status")
+        if existing_descriptor.caveats != descriptor.caveats:
+            changed_fields.append("caveats")
+        if existing_descriptor.known_issues != descriptor.known_issues:
+            changed_fields.append("known_issues")
+        return tuple(changed_fields)
 
     @staticmethod
     def _load_notes(raw_notes: str) -> tuple[str, ...]:

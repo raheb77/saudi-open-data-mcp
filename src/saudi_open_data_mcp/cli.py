@@ -21,6 +21,10 @@ from saudi_open_data_mcp.config import (
     RuntimeConfigurationError,
     load_config,
 )
+from saudi_open_data_mcp.observability.upstream_canary import (
+    UpstreamCanaryStatus,
+    run_upstream_canary,
+)
 from saudi_open_data_mcp.security.http_auth import build_http_auth_middleware
 from saudi_open_data_mcp.security.http_readiness import build_http_readiness_middleware
 from saudi_open_data_mcp.server import create_server
@@ -171,6 +175,23 @@ def build_parser() -> argparse.ArgumentParser:
     _add_output_arguments(config_parser)
     config_parser.set_defaults(command="config")
 
+    upstream_canary_parser = subparsers.add_parser(
+        "upstream-canary",
+        help=(
+            "Run the curated live upstream canary over approved source routes and "
+            "normalization contracts."
+        ),
+    )
+    upstream_canary_parser.add_argument(
+        "--dataset-id",
+        action="append",
+        dest="dataset_ids",
+        default=None,
+        help="Optional curated canary dataset_id. Repeat to limit the run.",
+    )
+    _add_output_arguments(upstream_canary_parser)
+    upstream_canary_parser.set_defaults(command="upstream-canary")
+
     return parser
 
 
@@ -180,7 +201,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.command in {"config", "list", "query", "preview", "health", "refresh"}:
+    if args.command in {
+        "config",
+        "list",
+        "query",
+        "preview",
+        "health",
+        "refresh",
+        "upstream-canary",
+    }:
         _validate_output_arguments_or_exit(
             parser,
             output_format=args.format,
@@ -382,6 +411,27 @@ def main(argv: Sequence[str] | None = None) -> int:
             output_format=args.format,
         )
         return 0
+
+    if args.command == "upstream-canary":
+        config = _load_config_or_exit(parser)
+        summary = asyncio.run(
+            run_upstream_canary(
+                config,
+                dataset_ids=(
+                    tuple(args.dataset_ids)
+                    if args.dataset_ids is not None
+                    else None
+                ),
+            )
+        )
+        _write_payload_or_exit(
+            parser,
+            payload=summary.model_dump(mode="json"),
+            output_path=args.output,
+            quiet=args.quiet,
+            output_format=args.format,
+        )
+        return 0 if summary.status is UpstreamCanaryStatus.PASSED else 1
 
     parser.error("unsupported command")
     return 2

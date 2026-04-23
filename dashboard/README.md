@@ -1,10 +1,11 @@
 # saudi-open-data-mcp dashboard (Phase 5)
 
-Arabic RTL dashboard prototype over the existing `saudi-open-data-mcp` core.
+Arabic RTL dashboard package over the existing `saudi-open-data-mcp` core.
 This is now a **thin live integration** over the existing MCP core.
-The dashboard calls the current `/mcp` and `/readyz` surfaces directly, keeps
-runtime payload validation at the frontend boundary, and does not invent a
-parallel backend.
+The dashboard calls the current `/mcp` and `/startupz` surfaces directly, with
+`/readyz` kept only as a compatibility alias for the same startup-only payload.
+It keeps runtime payload validation at the frontend boundary and does not invent
+a parallel backend.
 
 This package is optional. The governed backend/core can run without the
 dashboard. The dashboard is a separate frontend package that consumes the live
@@ -24,7 +25,7 @@ institutional export path.
 - Distinct rendering for: loading, empty, success, limited, stale, failed,
   missing, snapshot_missing, unauthorized
 - Thin live data adapter over `resource://catalog`, `resource://observability`,
-  `query_dataset`, `preview_dataset`, `dataset_health`, and `/readyz`
+  `query_dataset`, `preview_dataset`, `dataset_health`, and `/startupz`
 - No BI tooling, no charts, no invented RBAC, no new datasets
 
 ## Commands
@@ -45,7 +46,7 @@ server-side:
 ```bash
 cd dashboard
 DASHBOARD_PROXY_TARGET=http://127.0.0.1:8000 \
-DASHBOARD_PROXY_BEARER_TOKEN=your-token-here \
+DASHBOARD_PROXY_BEARER_TOKEN=0123456789abcdef0123456789abcdef \
 npm run dev
 ```
 
@@ -53,7 +54,8 @@ npm run dev
 
 - local dashboard dev server: `127.0.0.1:5173`
 - separate package from the Python backend
-- same-origin `/mcp` and `/readyz` are expected in production-style deployment
+- same-origin `/mcp` and `/startupz` are expected in production-style deployment
+- `/readyz` remains a compatibility alias for the same startup-only payload
 - local development can use the optional Vite proxy shown above
 - no dashboard-owned backend logic or parallel API layer
 
@@ -70,7 +72,7 @@ visibility and migration notes, see [docs/CHANGELOG.md](../docs/CHANGELOG.md).
 | `getDatasetPreviewResult()`      | `preview_dataset`               |
 | `getDatasetHealthResult()`       | `dataset_health`                |
 | `getObservability()`             | `resource://observability`      |
-| `getReadiness()`                 | `/readyz`                       |
+| `getReadiness()`                 | `/startupz` (`/readyz` alias)  |
 
 The remaining mock modules are now test fixtures only. The pages no longer read
 them directly.

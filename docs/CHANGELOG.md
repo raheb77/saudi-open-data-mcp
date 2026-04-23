@@ -17,11 +17,13 @@ The current baseline now includes:
   local query semantics, hybrid preview semantics, and structured audit logging
 - narrow multi-source dataset coverage across SAMA, `stats.gov.sa`, Ministry of
   Finance, and one narrow `data.gov.sa` pilot path
+- a container-first internal streamable HTTP runtime, with stdio retained for
+  local development and command-based host integration
 - a thin local CLI over the same governed core
 - institutional artifact export from governed query results through JSON,
   Excel-compatible XML, and text-first PDF
-- an Arabic RTL dashboard package that remains optional and mock-driven in this
-  branch
+- an optional Arabic RTL dashboard package that is now a thin live consumer of
+  `/mcp` and `/startupz` with `/readyz` kept as a startup-only compatibility alias, not a separate backend
 - deployment, runbook, persistence, and governance documentation aligned to the
   current runtime reality
 
@@ -51,8 +53,10 @@ The current baseline now includes:
 
 - a thin CLI was added over the same core tool surface
 - the CLI is now the governed institutional export path
-- the dashboard package exists for UI review and iteration, but it remains a
-  mock-driven prototype in this branch
+- the dashboard package exists for UI review and live-core evaluation, but it
+  remains optional and subordinate to the governed backend/core
+- `server.json` describes the installable stdio package entry for MCP host
+  registries, while the primary deployed backend runtime remains streamable HTTP
 
 ### Operational / Adoption Hardening
 
@@ -76,8 +80,8 @@ Still intentionally evolving:
 - breadth of source and dataset coverage
 - normalization richness for HTML/PDF-oriented sources
 - depth of automation around operations and recovery
-- dashboard integration depth, because the dashboard is still prototype-only in
-  this branch
+- dashboard operational resilience and cross-surface polish as a live consumer
+  of the governed core
 
 ## Migration Notes That Still Matter
 
@@ -97,14 +101,16 @@ Still intentionally evolving:
 ### Export Path Clarity
 
 - the governed institutional export path today is the CLI `export` command
-- the dashboard package is not the governed export surface in this branch
-- if the dashboard exposes export actions during prototype review, treat them as
-  prototype-local rather than as the canonical institutional artifact path
+- the dashboard package is not the governed export surface today
+- if the dashboard exposes export actions during UI review, treat them as local
+  convenience rather than as the canonical institutional artifact path
 
 ### Dashboard Boundary
 
-- the dashboard remains optional and mock-driven in this branch
-- do not treat it as a live operational dependency of the governed backend/core
+- the dashboard remains optional and does not add a separate backend or control
+  plane
+- do not treat it as the system of record or as a required runtime dependency
+  of the governed backend/core
 
 ## Canonical Semantic Anchors
 
@@ -120,7 +126,10 @@ anchors:
 - CLI export
   - the governed institutional artifact path today
 - dashboard
-  - optional prototype surface in this branch, not a governed live runtime
+  - optional live-integrated review surface, not the governed system of record
+- `server.json`
+  - MCP directory metadata for the stdio package entry, not the full HTTP
+    deployment topology
 - current metadata wording
   - `data_origin`
   - `freshness_status`

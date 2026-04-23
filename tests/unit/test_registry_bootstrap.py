@@ -150,3 +150,32 @@ def test_subsequent_bootstrap_preserves_existing_health_state(tmp_path: Path) ->
     assert repository.get_dataset("sama-money-supply").health_status is (
         DatasetHealthStatus.DEGRADED
     )
+
+
+def test_subsequent_bootstrap_reconciles_seeded_descriptor_changes(tmp_path: Path) -> None:
+    repository = RegistryRepository(tmp_path / "registry.sqlite")
+    current_descriptor = next(
+        descriptor
+        for descriptor in INITIAL_DATASET_DESCRIPTORS
+        if descriptor.dataset_id == "mof-budget-balance-quarterly"
+    )
+    stale_descriptor = current_descriptor.model_copy(
+        update={
+            "source_locator": "/en/financialreport/2024/Pages/default.aspx",
+            "title": "Budget Balance Quarterly Old",
+            "description": "Old descriptor",
+            "schema_version": "0.0.9",
+            "coverage_status": DatasetCoverageStatus.CATALOG_ONLY,
+        }
+    )
+
+    repository.upsert_dataset(stale_descriptor)
+    bootstrap_registry(repository)
+    stored = repository.get_dataset(current_descriptor.dataset_id)
+
+    assert stored is not None
+    assert stored.source_locator == current_descriptor.source_locator
+    assert stored.title == current_descriptor.title
+    assert stored.description == current_descriptor.description
+    assert stored.schema_version == current_descriptor.schema_version
+    assert stored.coverage_status is current_descriptor.coverage_status

@@ -9,26 +9,20 @@ wheels/
 
 # Virtual environments
 .venv
+.artifact-venv
 
 .env
 
 .local/
+/.playwright-mcp/
 
-<<<<<<< HEAD
 # Frontend-generated files
-/dashboard/node_modules/
-/dashboard/dist/
-/dashboard/*.tsbuildinfo
-/dashboard/node_modules/.vite/
-=======
-# frontend
 /dashboard/node_modules/
 /dashboard/node_modules/.vite/
 /dashboard/dist/
 /dashboard/.vite/
 /dashboard/*.tsbuildinfo
 /dashboard/.tsbuildinfo-node/
->>>>>>> feat/dashboard-codex-alt
 
 /.claude/worktrees/
 .vscode/

@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -21,6 +22,11 @@ from saudi_open_data_mcp.config import (
     TransportConfig,
 )
 from saudi_open_data_mcp.connectors.base import RawPayload
+from saudi_open_data_mcp.observability.upstream_canary import (
+    UpstreamCanaryCheckResult,
+    UpstreamCanaryStatus,
+    UpstreamCanarySummary,
+)
 from saudi_open_data_mcp.registry.bootstrap import bootstrap_registry
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.security.http_auth import (
@@ -30,6 +36,7 @@ from saudi_open_data_mcp.security.http_auth import (
 )
 from saudi_open_data_mcp.security.http_readiness import (
     HTTP_READINESS_PATH,
+    HTTP_STARTUP_PATH,
     HTTPReadinessMiddleware,
 )
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
@@ -128,6 +135,7 @@ def test_cli_run_http_uses_loopback_default_host(monkeypatch) -> None:
     assert middleware[1].kwargs["bearer_token"].get_secret_value() == VALID_HTTP_AUTH_TOKEN
     assert middleware[1].kwargs["role"] is HTTPAuthRole.OPERATOR
     assert middleware[1].kwargs["capabilities"] == frozenset(HTTPAuthCapability)
+    assert HTTP_STARTUP_PATH == "/startupz"
     assert HTTP_READINESS_PATH == "/readyz"
 
 
@@ -140,6 +148,86 @@ def test_cli_run_http_requires_http_auth_token(monkeypatch) -> None:
         cli_module.main(["run-http"])
 
     assert excinfo.value.code == 2
+
+
+def test_cli_upstream_canary_returns_success_when_all_checks_pass(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config = RuntimeConfig()
+
+    async def _run_canary(runtime_config, dataset_ids=None) -> UpstreamCanarySummary:
+        return UpstreamCanarySummary(
+            status=UpstreamCanaryStatus.PASSED,
+            checked_at=datetime(2026, 4, 23, tzinfo=UTC),
+            checked_dataset_count=1,
+            passed_dataset_count=1,
+            failed_dataset_count=0,
+            dataset_ids_checked=("data-gov-sa-census-marital-status",),
+            checks=(
+                UpstreamCanaryCheckResult(
+                    dataset_id="data-gov-sa-census-marital-status",
+                    source="data-gov-sa",
+                    source_locator=DATA_GOV_SA_SOURCE_LOCATOR,
+                    status=UpstreamCanaryStatus.PASSED,
+                    expected_normalization_status="record_derivable",
+                    minimum_record_count=1,
+                    normalization_status="record_derivable",
+                    record_count=1,
+                    response_status_code=200,
+                    response_content_type="application/json",
+                    response_url="https://open.data.gov.sa/example.json",
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(cli_module, "load_config", lambda: config)
+    monkeypatch.setattr(cli_module, "run_upstream_canary", _run_canary)
+
+    exit_code = cli_module.main(["upstream-canary"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert json.loads(captured.out)["status"] == "passed"
+
+
+def test_cli_upstream_canary_returns_failure_when_any_check_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config = RuntimeConfig()
+
+    async def _run_canary(runtime_config, dataset_ids=None) -> UpstreamCanarySummary:
+        return UpstreamCanarySummary(
+            status=UpstreamCanaryStatus.FAILED,
+            checked_at=datetime(2026, 4, 23, tzinfo=UTC),
+            checked_dataset_count=1,
+            passed_dataset_count=0,
+            failed_dataset_count=1,
+            dataset_ids_checked=("data-gov-sa-census-marital-status",),
+            checks=(
+                UpstreamCanaryCheckResult(
+                    dataset_id="data-gov-sa-census-marital-status",
+                    source="data-gov-sa",
+                    source_locator=DATA_GOV_SA_SOURCE_LOCATOR,
+                    status=UpstreamCanaryStatus.FAILED,
+                    expected_normalization_status="record_derivable",
+                    minimum_record_count=1,
+                    failure_stage="normalization",
+                    error_type="UnexpectedNormalizationStatus",
+                    message="expected record_derivable",
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(cli_module, "load_config", lambda: config)
+    monkeypatch.setattr(cli_module, "run_upstream_canary", _run_canary)
+
+    exit_code = cli_module.main(["upstream-canary"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert json.loads(captured.out)["status"] == "failed"
 
 
 def test_cli_run_http_loads_http_auth_token_from_local_dotenv(

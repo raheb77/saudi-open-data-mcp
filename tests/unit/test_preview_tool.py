@@ -1123,6 +1123,11 @@ async def test_fresh_snapshot_local_miss_logs_and_refreshes_live(
     assert connector.calls == [REPORT_LOCATOR]
     assert any(
         json.loads(record.getMessage()).get("event")
+        == "preview.request.local_artifact_read_failed"
+        for record in caplog.records
+    )
+    assert any(
+        json.loads(record.getMessage()).get("event")
         == "preview.request.local_artifact_unusable"
         for record in caplog.records
     )

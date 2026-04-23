@@ -263,9 +263,10 @@ class SAMAConnector(Connector):
                     form_data=form_data,
                 )
 
-        if self._client is not None:
+        client = self._client
+        if client is not None:
             return await self.execute_request_with_retries(
-                lambda: send_with(self._client),
+                lambda: send_with(client),
                 dataset_id=dataset_locator,
                 source_label="SAMA",
             )

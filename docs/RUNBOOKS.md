@@ -1,7 +1,7 @@
 # Operational Runbooks
 
 Current-state runbooks for the most realistic failure and recovery situations in
-this branch.
+the current baseline.
 
 These runbooks are intentionally narrow:
 
@@ -39,7 +39,7 @@ regeneration.
 - `python src/saudi_open_data_mcp/cli.py check-startup` exits with an error
 - `run-http` exits immediately
 - `docker compose up` shows the container restarting
-- `GET /readyz` never becomes ready
+- `GET /startupz` never becomes ready
 
 **Likely causes**
 
@@ -68,7 +68,7 @@ docker compose logs app
 2. Ensure `HTTP_AUTH_ROLE` and `HTTP_AUTH_CAPABILITIES` agree.
 3. Ensure `REGISTRY_PATH` and `SNAPSHOT_DIR` are distinct and writable.
 4. Free the configured port or change it explicitly.
-5. Start the service again and then confirm `/readyz`.
+5. Start the service again and then confirm `/startupz`.
 
 **Not yet supported / manual**
 
@@ -96,7 +96,7 @@ docker compose logs app
 **Quick checks**
 
 ```bash
-curl http://127.0.0.1:8000/readyz
+curl http://127.0.0.1:8000/startupz
 docker compose logs app
 ```
 
@@ -106,7 +106,7 @@ docker compose logs app
 
 **Recovery steps**
 
-1. Verify the service starts cleanly and `/readyz` is ready.
+1. Verify the service starts cleanly and `/startupz` is ready.
 2. Correct the MCP endpoint URL, host, or port.
 3. Correct the bearer token.
 4. Correct the configured HTTP role if the current bundle is too narrow.
@@ -116,7 +116,7 @@ docker compose logs app
 
 - no anonymous MCP access
 - no browser-friendly REST fallback for `/mcp`
-- no documented public-internet serving pattern in this branch
+- no documented public-internet serving pattern today
 
 ## 3. Dashboard Unable To Load Live Data
 
@@ -124,11 +124,11 @@ docker compose logs app
 
 - an operator expects the dashboard to reflect live backend data
 - the dashboard shows loading, unauthorized, or error states instead of live data
-- browser network tools show failed `/mcp` or `/readyz` requests
+- browser network tools show failed `/mcp` or `/startupz` requests
 
 **Likely causes**
 
-- the backend is not running or `/readyz` is not actually ready
+- the backend is not running or `/startupz` is not actually ready
 - the dashboard is not reaching the intended backend origin or local proxy target
 - the bearer token or proxy token forwarding is missing or wrong
 - the configured HTTP role/capability bundle does not allow the requested MCP operations
@@ -137,17 +137,17 @@ docker compose logs app
 **Quick checks**
 
 - read [dashboard/README.md](../dashboard/README.md)
-- confirm the browser network panel shows `/mcp` and `/readyz` requests
-- confirm the backend is running and `/readyz` responds successfully
+- confirm the browser network panel shows `/mcp` and `/startupz` requests
+- confirm the backend is running and `/startupz` responds successfully
 - if using local frontend development, confirm any optional Vite proxy target and bearer token are configured correctly
 
 **Recovery steps**
 
-1. Verify the backend starts cleanly and `/readyz` is ready.
+1. Verify the backend starts cleanly and `/startupz` is ready.
 2. Verify the dashboard is pointed at the correct same-origin backend or optional local proxy target.
 3. Correct the bearer token or proxy token forwarding if MCP requests return `401` or `403`.
 4. If the HTTP role is too narrow, correct the configured role/capability bundle and retry.
-5. If the dashboard is failing on payload validation, treat it as a cross-surface integration issue and inspect the failing `/mcp` or `/readyz` response directly while the CLI remains the fallback governed access path.
+5. If the dashboard is failing on payload validation, treat it as a cross-surface integration issue and inspect the failing `/mcp` or `/startupz` response directly while the CLI remains the fallback governed access path.
 
 **Not yet supported / manual**
 
@@ -177,6 +177,7 @@ docker compose logs app
 ```bash
 python src/saudi_open_data_mcp/cli.py preview <dataset_id>
 python src/saudi_open_data_mcp/cli.py health <dataset_id>
+python src/saudi_open_data_mcp/cli.py upstream-canary
 docker compose logs app
 ```
 
@@ -288,6 +289,6 @@ python src/saudi_open_data_mcp/cli.py health <dataset_id>
 **Not yet supported / manual**
 
 - no export-only data retrieval path
-- no `.xlsx` export in this branch
+- no `.xlsx` export today
 - no managed export archive or export-retention subsystem
 - dashboard export actions remain UI convenience over live query-result semantics; the CLI remains the canonical governed institutional export path

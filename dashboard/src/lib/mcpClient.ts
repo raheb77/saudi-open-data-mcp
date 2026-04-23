@@ -1,5 +1,5 @@
 const MCP_ENDPOINT = "/mcp";
-const READINESS_ENDPOINT = "/readyz";
+const READINESS_ENDPOINT = "/startupz";
 const CLIENT_INFO = {
   name: "saudi-open-data-mcp-dashboard",
   version: "0.1.0",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterable
 from enum import StrEnum
 from secrets import compare_digest
 from typing import Any
@@ -102,11 +103,7 @@ READ_MCP_METHODS = frozenset(
 EXPLICITLY_CLASSIFIED_MCP_METHODS = (
     CAPABILITY_FREE_MCP_METHODS | READ_MCP_METHODS | frozenset({"tools/call"})
 )
-CapabilityCollection = (
-    frozenset[HTTPAuthCapability]
-    | set[HTTPAuthCapability]
-    | tuple[HTTPAuthCapability, ...]
-)
+CapabilityCollection = Iterable[HTTPAuthCapability | str]
 
 
 class HTTPBearerAuthMiddleware:
@@ -329,12 +326,7 @@ class HTTPBearerAuthMiddleware:
 
 def build_http_auth_middleware(
     bearer_token: SecretStr | str | None,
-    capabilities: (
-        frozenset[HTTPAuthCapability]
-        | set[HTTPAuthCapability]
-        | tuple[HTTPAuthCapability, ...]
-        | None
-    ) = None,
+    capabilities: CapabilityCollection | None = None,
     role: HTTPAuthRole | str | None = DEFAULT_HTTP_AUTH_ROLE,
 ) -> list[ASGIMiddleware]:
     """Build the HTTP auth middleware list for the official serving path."""
@@ -383,12 +375,7 @@ def require_http_bearer_token(
 
 
 def require_http_auth_capabilities(
-    capabilities: (
-        frozenset[HTTPAuthCapability | str]
-        | set[HTTPAuthCapability | str]
-        | tuple[HTTPAuthCapability | str, ...]
-        | None
-    ),
+    capabilities: CapabilityCollection | None,
 ) -> frozenset[HTTPAuthCapability]:
     """Return the configured HTTP capabilities or fail clearly."""
 

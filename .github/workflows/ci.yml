@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  checks:
+  backend:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -18,12 +18,67 @@ jobs:
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v4
+        with:
+          version: "0.11.2"
 
       - name: Sync dependencies
-        run: uv sync --all-groups
+        run: uv sync --frozen --all-groups
 
       - name: Ruff
         run: uv run ruff check .
 
+      - name: Mypy
+        run: uv run mypy
+
       - name: Pytest
         run: uv run pytest
+
+      - name: Build package artifacts
+        run: uv build --sdist --wheel --out-dir dist
+
+      - name: Export pinned runtime dependencies
+        run: uv export --format requirements.txt --frozen --no-dev --no-emit-project --output-file dist/requirements-runtime.txt
+
+      - name: Install built artifact in a clean environment
+        run: |
+          python -m venv .artifact-venv
+          .artifact-venv/bin/pip install --no-cache-dir --require-hashes -r dist/requirements-runtime.txt
+          .artifact-venv/bin/pip install --no-cache-dir --no-deps dist/*.whl
+
+      - name: Smoke check installed artifact
+        run: .artifact-venv/bin/saudi-open-data-mcp check-startup
+
+  dashboard:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install dashboard dependencies
+        run: npm ci
+
+      - name: Dashboard tests
+        run: npm run test
+
+      - name: Dashboard build
+        run: npm run build
+
+  docker:
+    needs: backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t saudi-open-data-mcp:ci .

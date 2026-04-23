@@ -49,12 +49,29 @@ Config failures are expected to fail fast with concise CLI errors. Common exampl
 - invalid `HTTP_AUTH_CAPABILITIES` values
 - mismatched `HTTP_AUTH_ROLE` / `HTTP_AUTH_CAPABILITIES` bundles
 
-Readiness for the internal container path is intentionally narrow:
+Startup probing for the internal container path is intentionally narrow:
 
-- `GET /readyz` means the process is running, config validation passed, runtime storage preparation passed, and the core FastMCP app was wired successfully.
-- `GET /readyz` does not claim upstream reachability, dataset freshness, or full-system health.
-- The container image and the provided Compose service both use that same `/readyz` contract for health checks.
+- `GET /startupz` is the canonical startup probe.
+- `GET /readyz` remains a compatibility alias for the same startup-only payload.
+- `/startupz` and `/readyz` mean the process is running, config validation passed, runtime storage preparation passed, and the core FastMCP app was wired successfully.
+- `/startupz` and `/readyz` do not claim upstream reachability, dataset freshness, live connector health, or full-system health.
+- The container image and the provided Compose service both use `/startupz` for health checks.
 - `/mcp` still requires an MCP-aware client for real protocol/session validation.
+
+Curated live upstream drift detection is explicit rather than folded into the startup probe:
+
+- `python src/saudi_open_data_mcp/cli.py upstream-canary` runs a live fetch-plus-normalization canary for one curated dataset per current source family.
+- The scheduled GitHub Actions `upstream-canary` workflow runs that command on a timer and on manual dispatch.
+- A canary failure means the curated approved route, response shape, or normalization contract drifted for one of those dataset ids.
+- The canary is not a full catalog-wide health check.
+
+Registry bootstrap/update behavior is now explicit for persistent deployments:
+
+- startup inserts any missing seeded dataset descriptors
+- startup reconciles existing seeded descriptor fields to the current repo-owned values for source, source locator, title, description, schema version, update frequency, coverage status, caveats, and known issues
+- startup preserves the currently stored `dataset_health.health_status` instead of resetting it to the seed default
+- startup recreates a missing `dataset_health` row for an already-seeded dataset if needed
+- startup does not delete registry rows that are no longer part of the seeded descriptor set
 
 ## Shutdown
 
@@ -130,7 +147,7 @@ capability bundle.
 
 Use [docs/PERSISTENCE.md](./PERSISTENCE.md) for the current honest persistence
 map, the difference between restore and regeneration, and the limits of
-backup/restore in this branch. Use [docs/RUNBOOKS.md](./RUNBOOKS.md) when that
+backup/restore today. Use [docs/RUNBOOKS.md](./RUNBOOKS.md) when that
 storage reality becomes an operational recovery problem.
 
 Backup:

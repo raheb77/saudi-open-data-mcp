@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from .models import (
     DatasetCoverageStatus,
     DatasetDescriptor,
     DatasetHealthStatus,
     UpdateFrequency,
 )
-from .repository import RegistryRepository
+from .repository import RegistryRepository, SeedDatasetResult
 
 WAVE_1_HOT_SET_TIER_A_DATASET_IDS: tuple[str, ...] = (
     "sama-pos-weekly",
@@ -374,13 +376,43 @@ INITIAL_DATASET_DESCRIPTORS_BY_SOURCE: dict[str, tuple[DatasetDescriptor, ...]] 
 )
 
 
+@dataclass(frozen=True)
+class RegistryBootstrapSummary:
+    """Audit-friendly summary of one registry bootstrap run."""
+
+    descriptors: tuple[DatasetDescriptor, ...]
+    inserted_dataset_ids: tuple[str, ...]
+    updated_dataset_ids: tuple[str, ...]
+    unchanged_dataset_ids: tuple[str, ...]
+
+
+def bootstrap_registry_with_summary(
+    repository: RegistryRepository,
+) -> RegistryBootstrapSummary:
+    """Seed the registry and return auditable insert/update/unchanged counts."""
+
+    bootstrapped_descriptors = tuple(
+        descriptor.model_copy(deep=True) for descriptor in INITIAL_DATASET_DESCRIPTORS
+    )
+    results: list[SeedDatasetResult] = []
+    for descriptor in bootstrapped_descriptors:
+        results.append(repository.seed_dataset(descriptor))
+
+    return RegistryBootstrapSummary(
+        descriptors=bootstrapped_descriptors,
+        inserted_dataset_ids=tuple(
+            result.dataset_id for result in results if result.action == "inserted"
+        ),
+        updated_dataset_ids=tuple(
+            result.dataset_id for result in results if result.action == "updated"
+        ),
+        unchanged_dataset_ids=tuple(
+            result.dataset_id for result in results if result.action == "unchanged"
+        ),
+    )
+
+
 def bootstrap_registry(repository: RegistryRepository) -> list[DatasetDescriptor]:
     """Seed the registry with the current MVP descriptor set."""
 
-    bootstrapped_descriptors = [
-        descriptor.model_copy(deep=True) for descriptor in INITIAL_DATASET_DESCRIPTORS
-    ]
-    for descriptor in bootstrapped_descriptors:
-        repository.seed_dataset(descriptor)
-
-    return bootstrapped_descriptors
+    return list(bootstrap_registry_with_summary(repository).descriptors)

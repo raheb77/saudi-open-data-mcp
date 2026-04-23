@@ -13,7 +13,7 @@ It does not claim full IAM, compliance controls, or public-internet maturity.
 | Audit / traceability | structured `audit.*` logs with best-effort request context on the HTTP path | no audit database, retention service, or tamper-evident audit store |
 | Source governance | approved official source families only through explicit connectors | no arbitrary outbound crawling or general web-ingestion surface |
 | Data-path control | `query_dataset` and `download_dataset` are local-only; `preview_dataset` is the only hybrid path; `materialize_hot_set` is explicit | no hidden live query path or broad autonomous ingestion framework |
-| Runtime boundary | bearer-protected `/mcp`, narrow `/readyz`, input sanitization, and process-local preview rate limiting | no distributed quota system, zero-trust control plane, or public edge-hardening claim |
+| Runtime boundary | bearer-protected `/mcp`, narrow `/startupz` with `/readyz` kept as a startup-only compatibility alias, input sanitization, and process-local preview rate limiting | no distributed quota system, zero-trust control plane, or public edge-hardening claim |
 | Persistence boundary | explicit persistent registry/snapshot paths plus recreatable cache and process-local state | no automated backup/restore, snapshot-retention engine, or DR automation claim |
 
 This is the current institutional control posture of the core. It is real, but

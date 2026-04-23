@@ -569,7 +569,19 @@ class DatasetPreviewTool:
                 descriptor.source,
                 descriptor.source_locator,
             )
-        except Exception:
+        except Exception as exc:
+            log_event(
+                LOGGER,
+                logging.WARNING,
+                "preview.request.local_artifact_read_failed",
+                dataset_id=descriptor.dataset_id,
+                source=descriptor.source,
+                source_locator=descriptor.source_locator,
+                resolution_outcome=resolution_outcome.value,
+                freshness_status=freshness.status.value,
+                error_type=type(exc).__name__,
+                error_message=str(exc),
+            )
             return None
 
         return self._result_from_payload(

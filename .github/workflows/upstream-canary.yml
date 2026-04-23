@@ -1,0 +1,44 @@
+name: upstream-canary
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 2 * * *"
+
+jobs:
+  upstream-canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "0.11.2"
+
+      - name: Sync dependencies
+        run: uv sync --frozen --all-groups
+
+      - name: Create artifact directory
+        run: mkdir -p artifacts
+
+      - name: Run curated upstream canary
+        env:
+          REGISTRY_PATH: /tmp/upstream-canary-registry.sqlite
+          SNAPSHOT_DIR: /tmp/upstream-canary-snapshots
+          CACHE_DIR: /tmp/upstream-canary-cache
+        run: uv run python src/saudi_open_data_mcp/cli.py upstream-canary --output artifacts/upstream-canary.json
+
+      - name: Upload canary artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-canary
+          path: artifacts/upstream-canary.json

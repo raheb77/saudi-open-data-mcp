@@ -15,8 +15,9 @@ Current implementation now includes curated official-source coverage across SAMA
 
 The repository also includes an Arabic RTL dashboard package under `dashboard/`.
 That package remains optional, but on `main` it is now a thin live consumer of
-the governed backend over `/mcp` and `/readyz`, not a separate backend or
-required runtime dependency for the core.
+the governed backend over `/mcp` and `/startupz` with `/readyz` kept as a
+startup-only compatibility alias, not a separate backend or required runtime
+dependency for the core.
 
 ## License and Release Boundaries
 
@@ -58,9 +59,9 @@ See [ARCHITECTURE.md](https://github.com/raheb77/saudi-open-data-mcp/blob/main/d
 
 | Surface | Purpose | Current state |
 | --- | --- | --- |
-| Backend/core | Governed MCP service over `/mcp` with `/readyz` | primary runtime |
+| Backend/core | Governed MCP service over `/mcp` with `/startupz` | primary runtime |
 | CLI | Thin operator/engineer façade over the same core | supported |
-| Dashboard | Arabic RTL UI package under `dashboard/` | optional live consumer of `/mcp` and `/readyz` |
+| Dashboard | Arabic RTL UI package under `dashboard/` | optional live consumer of `/mcp` and `/startupz` |
 | Exports | Institutional artifacts over governed query results | CLI-governed path today |
 
 ## Deployment Fit Today
@@ -218,7 +219,8 @@ preview_dataset({"dataset_id": "sama-money-supply"})
   - `failed`
 - Preview now exposes explicit hybrid metadata including data origin, freshness status, and resolution outcome.
 - Query and download are local-only and do not fetch remotely when a snapshot is missing.
-- Internal HTTP serving has explicit bearer-token auth, capability checks, and a narrow `/readyz` readiness signal.
+- Internal HTTP serving has explicit bearer-token auth, capability checks, a canonical `/startupz` startup probe, and a `/readyz` compatibility alias with the same startup-only semantics.
+- A curated `upstream-canary` command and scheduled workflow now exercise one live approved dataset path per current source family.
 - Unit, integration, contract, and smoke tests are in the repo and passing.
 
 ## What Is Intentionally Not Implemented Yet
@@ -227,7 +229,7 @@ preview_dataset({"dataset_id": "sama-money-supply"})
 - no semantic search
 - no LLM in the core path
 - no connector-backed catalog discovery
-- no live health scoring, uptime probing, or connector health checks
+- no full-system health scoring or broad connector uptime monitoring beyond the curated upstream canary subset
 - no remote fallback in `download_dataset` or `query_dataset`
 - no mature canonical record layer that turns every source payload shape into final business records
 - no generic canonical identity translation beyond the current registry-owned `dataset_id` plus single `source_locator`
@@ -275,15 +277,15 @@ The supported local development activation path is the source-tree CLI:
 ```bash
 python src/saudi_open_data_mcp/cli.py check-startup
 python src/saudi_open_data_mcp/cli.py run-stdio
-HTTP_AUTH_TOKEN=dev-internal-token python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
+HTTP_AUTH_TOKEN=0123456789abcdef0123456789abcdef python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
 ```
 
-The published package also exposes the `saudi-open-data-mcp` console script:
+The installed package also exposes the `saudi-open-data-mcp` console script:
 
 ```bash
 saudi-open-data-mcp check-startup
 saudi-open-data-mcp run-stdio
-HTTP_AUTH_TOKEN=dev-internal-token saudi-open-data-mcp run-http --host 127.0.0.1 --port 8000
+HTTP_AUTH_TOKEN=0123456789abcdef0123456789abcdef saudi-open-data-mcp run-http --host 127.0.0.1 --port 8000
 ```
 
 The same source-tree CLI also provides a thin non-interactive local façade over
@@ -311,8 +313,8 @@ status, origin, freshness, and limitations explicit instead of adding
 decorative reporting layers.
 
 Use the source-tree CLI or the local helper scripts for development and local
-host integration. The packaged console script exists for installed/PyPI usage,
-but source-tree invocation remains the primary contributor workflow.
+host integration. The packaged console script exists for installed-package
+usage, but source-tree invocation remains the primary contributor workflow.
 
 `run-stdio` remains the primary local host/operator path for Claude Desktop and
 other command-based MCP hosts.
@@ -363,7 +365,7 @@ Why this mode:
 The canonical container entrypoint is:
 
 ```text
-python src/saudi_open_data_mcp/cli.py run-http
+saudi-open-data-mcp run-http
 ```
 
 The image sets container-specific runtime defaults:
@@ -394,7 +396,7 @@ docker compose up --build
 The provided compose file publishes the service on `127.0.0.1:8000` on the
 host, persists runtime state in a Docker-managed volume mounted at
 `/var/lib/saudi-open-data-mcp`, enables `init: true`, and applies the same
-`/readyz` health check contract as the image. It also requires
+`/startupz` startup-probe contract as the image. It also requires
 `HTTP_AUTH_TOKEN` to be set in the operator environment before startup.
 
 Internal observability remains intentionally simple:
@@ -411,7 +413,7 @@ Direct container run example:
 docker build -t saudi-open-data-mcp .
 docker run --rm \
   -p 127.0.0.1:8000:8000 \
-  -e HTTP_AUTH_TOKEN=change-me-internal-token \
+  -e HTTP_AUTH_TOKEN=0123456789abcdef0123456789abcdef \
   -v saudi-open-data-mcp-data:/var/lib/saudi-open-data-mcp \
   saudi-open-data-mcp
 ```
@@ -446,8 +448,9 @@ Container/runtime expectations:
 Startup/readiness contract:
 
 - the container's job is to start the MCP HTTP service and stay running
-- `GET /readyz` is the one machine-friendly readiness signal for this phase
-- `/readyz` means only:
+- `GET /startupz` is the canonical machine-friendly startup probe for this phase
+- `GET /readyz` remains a compatibility alias for the same startup-only payload
+- `/startupz` and `/readyz` mean only:
   - the process is running
   - config validation passed
   - runtime storage preparation passed
@@ -456,14 +459,25 @@ Startup/readiness contract:
   rejected with `401 Unauthorized`
 - HTTP requests with a valid token but insufficient role/capability are rejected
   with `403 Forbidden`
-- `/readyz` does not claim:
+- `/startupz` and `/readyz` do not claim:
   - upstream source reachability
   - dataset freshness
+  - live connector health
   - full system health
 - `/mcp` must be checked with an MCP-aware client if you want real session
   readiness validation
 - naive `GET /` or `GET /mcp` probing can still return `404` or `406` and that
   is not, by itself, a serving failure
+
+Curated live canary contract:
+
+- `python src/saudi_open_data_mcp/cli.py upstream-canary` performs a live connector fetch plus normalization on:
+  - `sama-exchange-rates-current`
+  - `stats-gov-sa-cpi-headline-monthly`
+  - `mof-budget-balance-quarterly`
+  - `data-gov-sa-census-marital-status`
+- a canary failure means one of those curated approved routes drifted in reachability, response shape, or normalization behavior enough to stop producing the expected record-derivable result
+- the canary does not claim full catalog coverage, dataset freshness, or complete connector health
 
 ## MCP Host Registration
 
@@ -472,6 +486,9 @@ development/operator path for command-based hosts and is separate from the
 official internal container serving path.
 
 For stdio-based MCP hosts, use the source-tree CLI directly with absolute paths.
+The repo's `server.json` describes the stdio package entry for command-based
+host registries; it does not replace the container-first HTTP deployment story
+described above.
 
 Claude Desktop example:
 
@@ -497,8 +514,8 @@ Claude Desktop example:
 
 `cwd` is optional here. The default registry and snapshot paths are now anchored to the repo rather than the process working directory, but keeping `cwd` set to the repo root can still make local config and path reasoning easier.
 
-After installing the published package, command-based hosts can also launch the
-console script directly:
+After installing the package, command-based hosts can also launch the console
+script directly:
 
 ```json
 {
@@ -537,19 +554,20 @@ desktop stdio-host replacement.
 HTTP is the official internal container serving mode, but it is not a plain
 REST surface. Use an MCP-aware client against `/mcp`.
 
-For machine-friendly internal readiness checks, use `GET /readyz`.
+For machine-friendly internal startup checks, use `GET /startupz`. `GET /readyz`
+is kept as a compatibility alias with the same startup-only payload.
 
 Start the server in one shell:
 
 ```bash
-HTTP_AUTH_TOKEN=dev-internal-token python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
+HTTP_AUTH_TOKEN=0123456789abcdef0123456789abcdef python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
 ```
 
 Naive probing can look broken even when the server is healthy:
 
 - `GET /` can return `404`
 - `GET /mcp` without the expected MCP headers can return `406`
-- `GET /readyz` should return `200` with a narrow readiness payload
+- `GET /startupz` should return `200` with a narrow startup-only payload
 
 That behavior is expected for the current streamable HTTP setup. Browser or `curl` checks are useful only as a negative smoke test here, not as a real MCP session test.
 
@@ -566,7 +584,7 @@ async def main() -> None:
     async with Client(
         transport=StreamableHttpTransport(
             "http://127.0.0.1:8000/mcp",
-            headers={"Authorization": "Bearer dev-internal-token"},
+            headers={"Authorization": "Bearer 0123456789abcdef0123456789abcdef"},
         )
     ) as client:
         result = await client.call_tool(

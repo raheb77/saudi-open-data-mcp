@@ -1,6 +1,6 @@
 # Persistence, Backup, and Restore
 
-Current-state persistence and recovery guide for this branch.
+Current-state persistence and recovery guide for the current baseline.
 
 This document is intentionally narrow:
 
@@ -72,7 +72,7 @@ These reset on process restart and are not restored from disk:
 - dashboard `node_modules`, build outputs, and dev caches
   - not governed backend state
   - regeneratable
-- dashboard runtime state in this branch
+- dashboard runtime state today
   - there is still no separate dashboard-owned live data store to back up
   - the dashboard consumes live backend surfaces, but its browser/session state is not a governed persistence boundary
 

@@ -9,7 +9,7 @@ from fastmcp import FastMCP
 from .config import RuntimeConfig, load_config, prepare_runtime_storage
 from .connectors.resolver import build_default_connector_resolver
 from .observability import configure_logging, get_logger, get_metrics, log_event
-from .registry.bootstrap import bootstrap_registry
+from .registry.bootstrap import bootstrap_registry_with_summary
 from .registry.repository import RegistryRepository
 from .resources.catalog import CatalogResource
 from .resources.observability import ObservabilityResource
@@ -73,7 +73,8 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
         prepare_runtime_storage(runtime_config)
 
         repository = RegistryRepository(runtime_config.registry_path)
-        bootstrapped_descriptors = bootstrap_registry(repository)
+        bootstrap_summary = bootstrap_registry_with_summary(repository)
+        bootstrapped_descriptors = list(bootstrap_summary.descriptors)
         snapshot_store = SnapshotStore(runtime_config.snapshot_dir)
         connector_resolver = build_default_connector_resolver(
             source_config=runtime_config.source,
@@ -242,5 +243,8 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
         "server.startup.ready",
         app_name=runtime_config.app_name,
         dataset_count=len(bootstrapped_descriptors),
+        registry_seed_inserted_count=len(bootstrap_summary.inserted_dataset_ids),
+        registry_seed_updated_count=len(bootstrap_summary.updated_dataset_ids),
+        registry_seed_unchanged_count=len(bootstrap_summary.unchanged_dataset_ids),
     )
     return app

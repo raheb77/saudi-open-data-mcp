@@ -14,7 +14,7 @@ services:
         - CMD
         - python
         - -c
-        - "import json,sys,urllib.request; data=json.load(urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3)); sys.exit(0 if data.get('ready') is True and data.get('status') == 'ready' else 1)"
+        - "import json,sys,urllib.request; data=json.load(urllib.request.urlopen('http://127.0.0.1:8000/startupz', timeout=3)); sys.exit(0 if data.get('ready') is True and data.get('status') == 'ready' else 1)"
       interval: 30s
       timeout: 5s
       start_period: 10s

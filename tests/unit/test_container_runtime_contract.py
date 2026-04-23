@@ -9,10 +9,18 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def test_dockerfile_pins_runtime_base_image() -> None:
+def test_dockerfile_pins_reproducible_runtime_build_path() -> None:
     dockerfile = (_repo_root() / "Dockerfile").read_text(encoding="utf-8")
 
-    assert dockerfile.splitlines()[0] == "FROM python:3.12.13-slim-bookworm"
+    assert dockerfile.splitlines()[0] == "FROM ghcr.io/astral-sh/uv:0.11.2 AS uv"
+    assert dockerfile.count("FROM python:3.12.13-slim-bookworm") == 2
+    assert "uv export \\" in dockerfile
+    assert "--frozen \\" in dockerfile
+    assert (
+        "/opt/venv/bin/pip install --no-cache-dir --require-hashes "
+        "-r /app/requirements-runtime.txt"
+    ) in dockerfile
+    assert 'ENTRYPOINT ["saudi-open-data-mcp"]' in dockerfile
 
 
 def test_compose_defaults_keep_internal_runtime_contract_explicit() -> None:
@@ -25,4 +33,4 @@ def test_compose_defaults_keep_internal_runtime_contract_explicit() -> None:
         in compose
     )
     assert "healthcheck:" in compose
-    assert "http://127.0.0.1:8000/readyz" in compose
+    assert "http://127.0.0.1:8000/startupz" in compose

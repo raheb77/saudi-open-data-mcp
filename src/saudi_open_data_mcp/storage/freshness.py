@@ -122,6 +122,7 @@ def evaluate_snapshot_freshness(
             update_frequency=update_frequency,
         )
 
+    assert update_frequency is not None
     freshness_window = _freshness_window(update_frequency)
     if snapshot_age <= freshness_window:
         status = SnapshotFreshnessStatus.FRESH

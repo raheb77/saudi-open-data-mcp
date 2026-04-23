@@ -563,6 +563,8 @@ def _map_tabular_source_payload(
         )
 
     if body_kind is MappingBodyKind.JSON:
+        if not isinstance(raw_body, (dict, list)):
+            raise ValueError("json body_kind requires a structured dict or list raw_body")
         record_extraction_shape = _detect_record_extraction_shape(raw_body)
         canonical_fields = {
             **base_canonical_fields,

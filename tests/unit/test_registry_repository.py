@@ -196,3 +196,53 @@ def test_missing_dataset_and_health_lookups_return_none(tmp_path: Path) -> None:
 
     assert repository.get_dataset("missing-dataset") is None
     assert repository.get_health("missing-dataset") is None
+
+
+def test_seed_dataset_reconciles_descriptor_fields_without_overwriting_health(
+    tmp_path: Path,
+) -> None:
+    repository = RegistryRepository(tmp_path / "registry.sqlite")
+    current_seed = _descriptor(
+        dataset_id="sama-money-supply",
+        title="Money Supply",
+        health_status=DatasetHealthStatus.UNKNOWN,
+    )
+    stale_descriptor = current_seed.model_copy(
+        update={
+            "source_locator": "report.aspx?cid=999",
+            "title": "Stale Title",
+            "description": "Stale description",
+            "schema_version": "0.2.0",
+            "coverage_status": DatasetCoverageStatus.CATALOG_ONLY,
+            "known_issues": ("Stale issue",),
+        }
+    )
+
+    repository.upsert_dataset(stale_descriptor)
+    repository.upsert_health(
+        HealthMetadata(
+            dataset_id=current_seed.dataset_id,
+            health_status=DatasetHealthStatus.DEGRADED,
+        )
+    )
+
+    result = repository.seed_dataset(current_seed)
+    stored = repository.get_dataset(current_seed.dataset_id)
+
+    assert result.action == "updated"
+    assert result.changed_fields == (
+        "source_locator",
+        "title",
+        "description",
+        "schema_version",
+        "coverage_status",
+        "known_issues",
+    )
+    assert stored is not None
+    assert stored.source_locator == current_seed.source_locator
+    assert stored.title == current_seed.title
+    assert stored.description == current_seed.description
+    assert stored.schema_version == current_seed.schema_version
+    assert stored.coverage_status is current_seed.coverage_status
+    assert stored.known_issues == current_seed.known_issues
+    assert stored.health_status is DatasetHealthStatus.DEGRADED

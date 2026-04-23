@@ -256,6 +256,8 @@ class Connector(ABC):
 
         while True:
             metrics.increment(f"connector.request_attempts.{self.source_name}")
+            cause: httpx.TimeoutException | httpx.HTTPStatusError | httpx.RequestError
+            error: SourceTimeoutError | SourceUnavailableError
             try:
                 response = await send_request()
                 response.raise_for_status()

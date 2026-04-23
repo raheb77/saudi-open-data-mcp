@@ -16,10 +16,10 @@ Current runtime surfaces:
   - Python MCP service
   - local CLI over the same core
   - streamable HTTP at `/mcp`
-  - readiness probe at `/readyz`
+  - canonical startup probe at `/startupz`
 - dashboard:
   - separate Vite/React frontend package under `dashboard/`
-  - optional live consumer of `/mcp` and `/readyz`
+  - optional live consumer of `/mcp` and `/startupz`
   - uses the current MCP/resource/readiness surfaces directly
   - does not add a separate backend or parallel domain API
 
@@ -28,12 +28,12 @@ Concise topology:
 ```text
 dashboard/ (optional live frontend)
         |
-        |  live reads over `/mcp` and `/readyz`
+        |  live reads over `/mcp` and `/startupz`
         v
 Python MCP core
   - CLI
   - streamable HTTP `/mcp`
-  - readiness `/readyz`
+  - startup probe `/startupz`
   - local registry/snapshot storage
 ```
 
@@ -56,7 +56,7 @@ Optional:
 Important current-state note:
 
 - the backend/core is the real governed system
-- the dashboard is an optional Arabic RTL live consumer of the core in this branch
+- the dashboard is an optional Arabic RTL live consumer of the core
 - the dashboard does not add a separate backend or separate business semantics
 - the CLI export path is the governed institutional export path today
 
@@ -122,7 +122,7 @@ Useful local commands:
 ```bash
 python src/saudi_open_data_mcp/cli.py check-startup
 python src/saudi_open_data_mcp/cli.py run-stdio
-HTTP_AUTH_TOKEN=dev-internal-token python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
+HTTP_AUTH_TOKEN=0123456789abcdef0123456789abcdef python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
 ```
 
 Useful local exports:
@@ -147,7 +147,7 @@ Current dashboard reality:
 
 - serves on `127.0.0.1:5173` by default
 - Arabic-only and RTL
-- thin live integration over `/mcp` and `/readyz`
+- thin live integration over `/mcp` and `/startupz`
 - useful for UI evaluation and live-core review
 - not required to run the governed backend/core
 
@@ -156,7 +156,7 @@ Current dashboard reality:
 Current container entrypoint:
 
 ```text
-python src/saudi_open_data_mcp/cli.py run-http
+saudi-open-data-mcp run-http
 ```
 
 Current Compose path:
@@ -170,7 +170,7 @@ What Compose provides today:
 - builds the backend image
 - runs the MCP HTTP service on `127.0.0.1:8000`
 - mounts persistent runtime state at `/var/lib/saudi-open-data-mcp`
-- checks `/readyz`
+- checks `/startupz`
 - requires `HTTP_AUTH_TOKEN`
 
 The Compose file does not start the dashboard package.
@@ -214,18 +214,20 @@ Role/capability rule:
 - intended for MCP-aware clients and inspectors
 - not a generic browser JSON endpoint
 
-`/readyz` today means:
+`/startupz` today means:
 
 - process is up
 - config validation passed
 - runtime storage preparation passed
 - core FastMCP app wiring succeeded
 
-`/readyz` does not mean:
+`/startupz` does not mean:
 
 - upstream sources are reachable
 - all datasets are fresh
 - every source connector is healthy
+
+`/readyz` remains available as a compatibility alias for the same startup-only payload.
 
 ## Institutional Reader Summary
 
@@ -245,7 +247,7 @@ Current expectations are intentionally simple:
 
 - the backend/core can run alone
 - the dashboard can also run separately as a frontend package when the backend is available
-- there is no required full-stack orchestration layer in this branch
+- there is no required full-stack orchestration layer today
 - there is no required repo-provided reverse proxy, though local development may use the optional Vite proxy documented in `dashboard/README.md`
 
 If an evaluator wants to review the full repository:

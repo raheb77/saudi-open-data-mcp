@@ -13,6 +13,7 @@ from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.security.http_auth import build_http_auth_middleware
 from saudi_open_data_mcp.security.http_readiness import (
     HTTP_READINESS_PATH,
+    HTTP_STARTUP_PATH,
     build_http_readiness_middleware,
 )
 from saudi_open_data_mcp.server import create_server
@@ -219,7 +220,23 @@ def test_run_http_path_rejects_invalid_bearer_token_on_mcp_endpoint(
     assert response.json() == {"error": "invalid bearer token"}
 
 
-def test_readyz_bypasses_auth_on_real_run_http_middleware_stack(
+def test_startup_probe_bypasses_auth_on_real_run_http_middleware_stack(
+    tmp_path: Path,
+) -> None:
+    config = _runtime_config(tmp_path)
+    http_app = _run_http_app(config)
+
+    with TestClient(http_app) as client:
+        response = client.get(HTTP_STARTUP_PATH)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
+    assert response.json()["ready"] is True
+    assert response.json()["canonical_path"] == HTTP_STARTUP_PATH
+    assert response.json()["deprecated_alias"] is False
+
+
+def test_readyz_alias_bypasses_auth_on_real_run_http_middleware_stack(
     tmp_path: Path,
 ) -> None:
     config = _runtime_config(tmp_path)
@@ -231,3 +248,5 @@ def test_readyz_bypasses_auth_on_real_run_http_middleware_stack(
     assert response.status_code == 200
     assert response.json()["status"] == "ready"
     assert response.json()["ready"] is True
+    assert response.json()["canonical_path"] == HTTP_STARTUP_PATH
+    assert response.json()["deprecated_alias"] is True

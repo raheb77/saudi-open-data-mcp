@@ -158,6 +158,7 @@ def _build_canonical_records(
         return ()
 
     structured_body = validation_result.canonical_fields["structured_body"]
+    rows: list[Any]
     if validation_result.record_extraction_shape is RecordExtractionShape.TOP_LEVEL_OBJECT_LIST:
         if not isinstance(structured_body, list):
             raise ValueError("top-level object list extraction requires a list structured_body")
@@ -168,9 +169,10 @@ def _build_canonical_records(
     ):
         if not isinstance(structured_body, dict):
             raise ValueError("rows object list extraction requires a dict structured_body")
-        rows = structured_body.get("rows")
-        if not isinstance(rows, list):
+        candidate_rows = structured_body.get("rows")
+        if not isinstance(candidate_rows, list):
             raise ValueError("rows object list extraction requires a rows list")
+        rows = candidate_rows
     else:
         raise ValueError(
             "record-derivable validation result must declare a supported extraction shape"

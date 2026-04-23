@@ -41,8 +41,8 @@ The repository currently exposes four distinct but related surfaces:
   - a thin local façade over the same core operations
   - does not define separate business logic
 - dashboard
-  - an Arabic RTL prototype package under `dashboard/`
-  - optional in this branch
+  - an Arabic RTL frontend package under `dashboard/`
+  - optional live consumer of the governed backend surfaces
   - not part of the governed backend runtime today
 - exports
   - institutional artifacts generated from governed query results
@@ -52,7 +52,7 @@ This distinction matters operationally:
 
 - the backend/core is the system of record in this repository
 - the CLI is an operator/engineer convenience surface over that same record
-- the dashboard is currently a prototype review surface, not a required runtime dependency
+- the dashboard is an optional live review surface, not a required runtime dependency
 - exports are outputs of governed results, not a second interpretation layer
 
 ## Architectural Philosophy
@@ -598,7 +598,7 @@ Rules:
 
 ## Current Baseline Summary
 
-- The official internal serving path is container-first Streamable HTTP with a narrow `/readyz` readiness signal.
+- The official internal serving path is container-first Streamable HTTP with a narrow `/startupz` startup probe and `/readyz` kept as a compatibility alias.
 - STDIO remains supported for local development and command-based MCP hosts.
 - The exposed MCP surface is explicit and small: catalog, observability, metadata, health, download, materialize, query, search, and preview.
 - `query_dataset` is local-only; `preview_dataset` is a local/live hybrid with explicit resolution, origin, and freshness metadata.
