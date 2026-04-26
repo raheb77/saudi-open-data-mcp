@@ -486,9 +486,9 @@ development/operator path for command-based hosts and is separate from the
 official internal container serving path.
 
 For stdio-based MCP hosts, use the source-tree CLI directly with absolute paths.
-The repo's `server.json` describes the stdio package entry for command-based
-host registries; it does not replace the container-first HTTP deployment story
-described above.
+The repo's `server.json` is repository-level MCP metadata for this
+internal/evaluator alpha. It intentionally declares no PyPI, npm, or MCP
+registry package until a package is actually published.
 
 Claude Desktop example:
 

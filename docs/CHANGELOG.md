@@ -55,8 +55,9 @@ The current baseline now includes:
 - the CLI is now the governed institutional export path
 - the dashboard package exists for UI review and live-core evaluation, but it
   remains optional and subordinate to the governed backend/core
-- `server.json` describes the installable stdio package entry for MCP host
-  registries, while the primary deployed backend runtime remains streamable HTTP
+- `server.json` describes repository-level MCP metadata for the
+  internal/evaluator alpha and intentionally declares no package registry entry
+  until a package is actually published
 
 ### Operational / Adoption Hardening
 
@@ -128,8 +129,8 @@ anchors:
 - dashboard
   - optional live-integrated review surface, not the governed system of record
 - `server.json`
-  - MCP directory metadata for the stdio package entry, not the full HTTP
-    deployment topology
+  - MCP directory metadata for the internal/evaluator alpha, not a package
+    registry publication claim or the full HTTP deployment topology
 - current metadata wording
   - `data_origin`
   - `freshness_status`
