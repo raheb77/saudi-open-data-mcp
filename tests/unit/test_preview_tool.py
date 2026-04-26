@@ -1147,7 +1147,15 @@ async def test_stale_snapshot_refreshes_successfully_then_serves_live(tmp_path: 
     connector = _ConnectorSpy(
         [_payload(body={"rows": [{"period": "2026-01", "value": 2}]})]
     )
-    tool = _tool(tmp_path, connector)
+    repository = _repository(tmp_path)
+    tool = DatasetPreviewTool(
+        repository,
+        SourceConnectorResolver({"sama": connector}),
+        snapshot_store=store,
+    )
+    initial_descriptor = repository.get_dataset(DATASET_ID)
+    assert initial_descriptor is not None
+    assert initial_descriptor.health_status is DatasetHealthStatus.UNKNOWN
 
     result = await tool.preview_dataset(DATASET_ID, reference_time=REFERENCE_TIME)
 
@@ -1158,6 +1166,9 @@ async def test_stale_snapshot_refreshes_successfully_then_serves_live(tmp_path: 
     assert result.snapshot_modified_at is not None
     assert result.records[0].fields == {"period": "2026-01", "value": 2}
     assert connector.calls == [REPORT_LOCATOR]
+    descriptor = repository.get_dataset(DATASET_ID)
+    assert descriptor is not None
+    assert descriptor.health_status is DatasetHealthStatus.HEALTHY
 
 
 @pytest.mark.asyncio
@@ -1180,7 +1191,12 @@ async def test_stale_snapshot_failed_refresh_falls_back_to_stale_snapshot(
             )
         ]
     )
-    tool = _tool(tmp_path, connector)
+    repository = _repository(tmp_path)
+    tool = DatasetPreviewTool(
+        repository,
+        SourceConnectorResolver({"sama": connector}),
+        snapshot_store=store,
+    )
 
     result = await tool.preview_dataset(DATASET_ID, reference_time=REFERENCE_TIME)
 
@@ -1197,6 +1213,9 @@ async def test_stale_snapshot_failed_refresh_falls_back_to_stale_snapshot(
     assert result.resolution_notice == STALE_FALLBACK_NOTICE
     assert result.records[0].fields == {"period": "2025-12", "value": 1}
     assert connector.calls == [REPORT_LOCATOR]
+    descriptor = repository.get_dataset(DATASET_ID)
+    assert descriptor is not None
+    assert descriptor.health_status is DatasetHealthStatus.DEGRADED
 
 
 @pytest.mark.asyncio

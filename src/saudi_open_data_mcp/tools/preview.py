@@ -27,6 +27,8 @@ from saudi_open_data_mcp.observability import (
 from saudi_open_data_mcp.registry.models import (
     DatasetCoverageStatus,
     DatasetDescriptor,
+    DatasetHealthStatus,
+    HealthMetadata,
     UpdateFrequency,
 )
 from saudi_open_data_mcp.registry.repository import RegistryRepository
@@ -775,8 +777,7 @@ class DatasetPreviewTool:
             ),
         )
 
-    @staticmethod
-    def _record_result(result: DatasetPreviewResult) -> None:
+    def _record_result(self, result: DatasetPreviewResult) -> None:
         metrics = get_metrics()
         audit_level = (
             logging.WARNING
@@ -800,6 +801,15 @@ class DatasetPreviewTool:
                 coverage_status=result.coverage_status.value,
             )
             return
+
+        health_status = _health_status_for_preview_result(result)
+        if health_status is not None:
+            self._repository.upsert_health(
+                HealthMetadata(
+                    dataset_id=result.dataset_id,
+                    health_status=health_status,
+                )
+            )
 
         if result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT:
             metrics.increment("preview.local_snapshot")
@@ -969,6 +979,31 @@ def _collect_limitations(normalization_result: NormalizationResult) -> tuple[str
         raise ValueError("limited normalization result must include explicit limitations")
 
     return ()
+
+
+def _health_status_for_preview_result(
+    result: DatasetPreviewResult,
+) -> DatasetHealthStatus | None:
+    """Map preview outcomes to the current registry health enum."""
+
+    if (
+        result.resolution_outcome is PreviewResolutionOutcome.REFRESH_THEN_SERVE
+        and result.data_origin is PreviewDataOrigin.LIVE_REFRESH
+        and result.status is not PreviewStatus.FAILED
+    ):
+        return DatasetHealthStatus.HEALTHY
+
+    if result.resolution_outcome is PreviewResolutionOutcome.SERVE_STALE_WITH_NOTICE:
+        return DatasetHealthStatus.DEGRADED
+
+    if result.status is PreviewStatus.FAILED and result.failure_stage in {
+        PreviewFailureStage.FETCH,
+        PreviewFailureStage.SNAPSHOT,
+        PreviewFailureStage.NORMALIZATION,
+    }:
+        return DatasetHealthStatus.DEGRADED
+
+    return None
 
 
 def _resolve_preview_coverage_status(

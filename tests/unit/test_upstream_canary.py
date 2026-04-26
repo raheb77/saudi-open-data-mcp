@@ -14,6 +14,8 @@ from saudi_open_data_mcp.observability.upstream_canary import (
     UpstreamCanaryStatus,
     run_upstream_canary,
 )
+from saudi_open_data_mcp.registry.models import DatasetHealthStatus
+from saudi_open_data_mcp.registry.repository import RegistryRepository
 
 
 class _Resolver:
@@ -70,6 +72,7 @@ async def test_upstream_canary_reports_pass_when_curated_live_check_is_record_de
         snapshot_dir=tmp_path / "snapshots",
         cache_dir=tmp_path / "cache",
     )
+    repository = RegistryRepository(runtime_config.registry_path)
     monkeypatch.setattr(
         canary_module,
         "build_default_connector_resolver",
@@ -87,6 +90,9 @@ async def test_upstream_canary_reports_pass_when_curated_live_check_is_record_de
     assert summary.checks[0].status is UpstreamCanaryStatus.PASSED
     assert summary.checks[0].record_count == 1
     assert summary.checks[0].normalization_status == "record_derivable"
+    descriptor = repository.get_dataset("data-gov-sa-census-marital-status")
+    assert descriptor is not None
+    assert descriptor.health_status is DatasetHealthStatus.HEALTHY
 
 
 @pytest.mark.asyncio
@@ -99,6 +105,7 @@ async def test_upstream_canary_reports_failure_when_live_payload_is_not_record_d
         snapshot_dir=tmp_path / "snapshots",
         cache_dir=tmp_path / "cache",
     )
+    repository = RegistryRepository(runtime_config.registry_path)
     monkeypatch.setattr(
         canary_module,
         "build_default_connector_resolver",
@@ -115,3 +122,6 @@ async def test_upstream_canary_reports_failure_when_live_payload_is_not_record_d
     assert summary.checks[0].status is UpstreamCanaryStatus.FAILED
     assert summary.checks[0].failure_stage is UpstreamCanaryFailureStage.NORMALIZATION
     assert summary.checks[0].error_type == "UnexpectedNormalizationStatus"
+    descriptor = repository.get_dataset("data-gov-sa-census-marital-status")
+    assert descriptor is not None
+    assert descriptor.health_status is DatasetHealthStatus.DEGRADED

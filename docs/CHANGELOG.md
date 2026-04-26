@@ -37,6 +37,9 @@ The current baseline now includes:
 - removed the unused top-level `health/` placeholder package; dataset-level
   health remains in `tools/health.py` backed by registry metadata and local
   snapshot freshness evidence
+- registry `health_status` now updates from materialization, preview refresh,
+  stale-fallback, and upstream-canary outcomes instead of remaining permanently
+  `unknown`
 - result metadata became more explicit around:
   - `data_origin`
   - `freshness_status`

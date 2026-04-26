@@ -19,6 +19,7 @@ from saudi_open_data_mcp.registry.bootstrap import (
     WAVE_1_HOT_SET_TIER_A_DATASET_IDS,
     bootstrap_registry,
 )
+from saudi_open_data_mcp.registry.models import DatasetHealthStatus
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.storage.freshness import (
     SnapshotFreshnessReason,
@@ -376,6 +377,12 @@ async def test_materialize_hot_set_persists_wave_one_tier_a_snapshots(tmp_path: 
         results_by_id["sama-repo-rate"].freshness.reason
         is SnapshotFreshnessReason.NO_FREQUENCY_EVIDENCE
     )
+    pos_weekly_descriptor = repository.get_dataset("sama-pos-weekly")
+    assert pos_weekly_descriptor is not None
+    assert pos_weekly_descriptor.health_status is DatasetHealthStatus.HEALTHY
+    stored_health = repository.get_health("sama-pos-weekly")
+    assert stored_health is not None
+    assert stored_health.health_status is DatasetHealthStatus.HEALTHY
 
 
 @pytest.mark.asyncio
@@ -533,6 +540,9 @@ async def test_materialize_hot_set_keeps_partial_success_when_one_locator_fails(
         "/en-US/MonetaryOperations/Pages/ReverseRepoRate.aspx",
     )
     assert snapshot_store.snapshot_exists("sama", "report.aspx?cid=55") is False
+    deposits_descriptor = repository.get_dataset("sama-deposits-core")
+    assert deposits_descriptor is not None
+    assert deposits_descriptor.health_status is DatasetHealthStatus.DEGRADED
     assert any(
         json.loads(record.getMessage()).get("event") == "materialize.request.failed_internal"
         and json.loads(record.getMessage()).get("dataset_id") == "sama-deposits-core"

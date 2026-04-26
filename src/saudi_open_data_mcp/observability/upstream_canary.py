@@ -17,8 +17,16 @@ from saudi_open_data_mcp.normalization.pipeline import (
     NormalizationPipeline,
     NormalizationPipelineStatus,
 )
-from saudi_open_data_mcp.registry.bootstrap import INITIAL_DATASET_DESCRIPTORS
-from saudi_open_data_mcp.registry.models import DatasetDescriptor
+from saudi_open_data_mcp.registry.bootstrap import (
+    INITIAL_DATASET_DESCRIPTORS,
+    bootstrap_registry,
+)
+from saudi_open_data_mcp.registry.models import (
+    DatasetDescriptor,
+    DatasetHealthStatus,
+    HealthMetadata,
+)
+from saudi_open_data_mcp.registry.repository import RegistryRepository
 
 
 class UpstreamCanaryStatus(StrEnum):
@@ -119,16 +127,18 @@ async def run_upstream_canary(
         source_config=runtime_config.source,
     )
     normalization_pipeline = NormalizationPipeline()
+    repository = RegistryRepository(runtime_config.registry_path)
+    bootstrap_registry(repository)
     checks: list[UpstreamCanaryCheckResult] = []
 
     for definition in selected_definitions:
-        checks.append(
-            await _run_one_canary_check(
-                definition=definition,
-                connector_resolver=connector_resolver,
-                normalization_pipeline=normalization_pipeline,
-            )
+        check = await _run_one_canary_check(
+            definition=definition,
+            connector_resolver=connector_resolver,
+            normalization_pipeline=normalization_pipeline,
         )
+        _persist_canary_health_outcome(repository, check)
+        checks.append(check)
 
     failed_dataset_count = sum(
         1 for check in checks if check.status is UpstreamCanaryStatus.FAILED
@@ -315,6 +325,23 @@ def _failed_canary_result(
         failure_stage=failure_stage,
         error_type=error_type,
         message=message,
+    )
+
+
+def _persist_canary_health_outcome(
+    repository: RegistryRepository,
+    check: UpstreamCanaryCheckResult,
+) -> None:
+    health_status = (
+        DatasetHealthStatus.HEALTHY
+        if check.status is UpstreamCanaryStatus.PASSED
+        else DatasetHealthStatus.DEGRADED
+    )
+    repository.upsert_health(
+        HealthMetadata(
+            dataset_id=check.dataset_id,
+            health_status=health_status,
+        )
     )
 
 

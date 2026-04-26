@@ -29,7 +29,12 @@ from saudi_open_data_mcp.registry.bootstrap import (
     WAVE_1_HOT_SET_OPTIONAL_DATASET_IDS,
     WAVE_1_HOT_SET_TIER_A_DATASET_IDS,
 )
-from saudi_open_data_mcp.registry.models import DatasetDescriptor, NonEmptyText
+from saudi_open_data_mcp.registry.models import (
+    DatasetDescriptor,
+    DatasetHealthStatus,
+    HealthMetadata,
+    NonEmptyText,
+)
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.storage.freshness import (
     SnapshotFreshnessResult,
@@ -556,6 +561,7 @@ class HotSetMaterializationTool:
                 failed_count=failed_count,
                 results=tuple(results),
             )
+            _persist_materialization_health_outcomes(self._repository, result)
             log_audit_event(
                 "materialize_hot_set",
                 result_status=(
@@ -743,6 +749,37 @@ def _collect_limitations(normalization_result: NormalizationResult) -> tuple[str
             return limitations
 
     return ()
+
+
+def _persist_materialization_health_outcomes(
+    repository: RegistryRepository,
+    result: HotSetMaterializationResult,
+) -> None:
+    """Persist registry health status from completed materialization outcomes."""
+
+    for dataset_result in result.results:
+        health_status = _health_status_for_materialization_result(dataset_result)
+        if health_status is None:
+            continue
+        repository.upsert_health(
+            HealthMetadata(
+                dataset_id=dataset_result.dataset_id,
+                health_status=health_status,
+            )
+        )
+
+
+def _health_status_for_materialization_result(
+    result: HotSetDatasetMaterializationResult,
+) -> DatasetHealthStatus | None:
+    if result.status is HotSetMaterializationStatus.MATERIALIZED:
+        return DatasetHealthStatus.HEALTHY
+    if result.status is HotSetMaterializationStatus.FAILED and result.failure_stage in {
+        HotSetMaterializationFailureStage.FETCH,
+        HotSetMaterializationFailureStage.SNAPSHOT,
+    }:
+        return DatasetHealthStatus.DEGRADED
+    return None
 
 
 def _public_failure_message(
