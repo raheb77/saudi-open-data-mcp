@@ -65,6 +65,16 @@ def build_parser() -> argparse.ArgumentParser:
             "Thin non-interactive CLI over the current MCP core. Data commands emit "
             "JSON to stdout by default."
         ),
+        epilog=(
+            "examples:\n"
+            "  saudi-open-data-mcp list                 # list available datasets\n"
+            "  saudi-open-data-mcp query sama-money-supply --filter period=2026-01 --limit 5\n"
+            "  saudi-open-data-mcp refresh               # materialize the Tier A hot set\n"
+            "  saudi-open-data-mcp check-startup          # validate wiring and exit\n"
+            "\n"
+            "Run `saudi-open-data-mcp list` to see available datasets."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--version",
@@ -140,6 +150,11 @@ def build_parser() -> argparse.ArgumentParser:
     query_parser = subparsers.add_parser(
         "query",
         help="Run the current local-only query_dataset path for one dataset_id.",
+        epilog=(
+            "example:\n"
+            "  saudi-open-data-mcp query sama-money-supply --filter period=2026-01 --limit 5"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     _add_dataset_query_arguments(query_parser)
     _add_output_arguments(query_parser)
@@ -186,6 +201,12 @@ def build_parser() -> argparse.ArgumentParser:
     refresh_parser = subparsers.add_parser(
         "refresh",
         help="Run the current materialize_hot_set path.",
+        epilog=(
+            "example:\n"
+            "  saudi-open-data-mcp refresh                        # materialize the Tier A hot set\n"
+            "  saudi-open-data-mcp refresh --dataset sama-money-supply  # refresh one dataset"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     refresh_parser.add_argument(
         "--include-optional",
@@ -536,8 +557,9 @@ def _add_dataset_query_arguments(subparser: argparse.ArgumentParser) -> None:
         default=[],
         metavar="KEY=VALUE",
         help=(
-            "Exact-match query filter. Values are parsed as JSON scalars when possible; "
-            "otherwise they remain strings."
+            "Exact-match query filter (e.g. --filter period=2026-01). "
+            "Repeat for multiple filters. Values are parsed as JSON scalars "
+            "when possible; otherwise they remain strings."
         ),
     )
     subparser.add_argument(
