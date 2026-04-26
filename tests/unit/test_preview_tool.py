@@ -553,8 +553,11 @@ async def test_fresh_snapshot_is_served_locally(tmp_path: Path) -> None:
     assert result.resolution_outcome is PreviewResolutionOutcome.SERVE_LOCAL
     assert result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT
     assert result.freshness_status is SnapshotFreshnessStatus.FRESH
+    assert result.snapshot_id == store.snapshot_id("sama", REPORT_LOCATOR)
     assert result.snapshot_modified_at == datetime(2026, 1, 14, 12, 0, tzinfo=UTC)
     assert result.resolution_notice is None
+    assert "snapshot_path" not in json.dumps(result.model_dump(mode="json"))
+    assert str(tmp_path) not in json.dumps(result.model_dump(mode="json"))
     assert len(result.records) == 1
     assert result.records[0].dataset_id == DATASET_ID
     assert connector.calls == []

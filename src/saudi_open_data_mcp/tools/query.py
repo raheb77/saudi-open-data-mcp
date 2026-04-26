@@ -84,6 +84,7 @@ class DatasetQueryResult(BaseModel):
     coverage_status: DatasetCoverageStatus
     source: NonEmptyText | None = None
     data_origin: ResultDataOrigin | None = None
+    snapshot_id: NonEmptyText | None = None
     applied_filters: dict[str, QueryFilterValue] = Field(default_factory=dict)
     limit: int | None = Field(default=None, ge=1)
     total_records_before_filter: int | None = Field(default=None, ge=0)
@@ -99,8 +100,14 @@ class DatasetQueryResult(BaseModel):
         if self.status is DatasetQueryStatus.MISSING:
             if self.coverage_status is not DatasetCoverageStatus.UNAVAILABLE:
                 raise ValueError("missing results must expose unavailable coverage_status")
-            if self.source is not None or self.data_origin is not None:
-                raise ValueError("missing results must not include source or data_origin")
+            if (
+                self.source is not None
+                or self.data_origin is not None
+                or self.snapshot_id is not None
+            ):
+                raise ValueError(
+                    "missing results must not include source, data_origin, or snapshot_id"
+                )
             if self.total_records_before_filter is not None:
                 raise ValueError("missing results must not include total_records_before_filter")
             if (
@@ -127,6 +134,8 @@ class DatasetQueryResult(BaseModel):
                 )
             if self.data_origin is not None:
                 raise ValueError("snapshot_missing results must not include data_origin")
+            if self.snapshot_id is not None:
+                raise ValueError("snapshot_missing results must not include snapshot_id")
             if self.total_records_before_filter is not None:
                 raise ValueError(
                     "snapshot_missing results must not include total_records_before_filter"
@@ -256,6 +265,7 @@ class DatasetQueryResult(BaseModel):
         descriptor: DatasetDescriptor,
         applied_filters: dict[str, QueryFilterValue],
         limit: int | None,
+        snapshot_id: str,
         normalization_result: NormalizationResult | None = None,
         limitations: tuple[str, ...] | None = None,
         observation_recency: ObservationRecencyAssessment | None = None,
@@ -279,6 +289,7 @@ class DatasetQueryResult(BaseModel):
             ),
             source=descriptor.source,
             data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
+            snapshot_id=snapshot_id,
             applied_filters=applied_filters,
             limit=limit,
             degradation_reason=ResultDegradationReason.NORMALIZATION_LIMITED,
@@ -296,6 +307,7 @@ class DatasetQueryResult(BaseModel):
         message: str,
         applied_filters: dict[str, QueryFilterValue],
         limit: int | None,
+        snapshot_id: str | None,
     ) -> Self:
         """Build an explicit failure result for snapshot read or normalization failure."""
 
@@ -305,6 +317,7 @@ class DatasetQueryResult(BaseModel):
             coverage_status=DatasetCoverageStatus.UNAVAILABLE,
             source=descriptor.source,
             data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
+            snapshot_id=snapshot_id,
             applied_filters=applied_filters,
             limit=limit,
             failure_stage=stage,
@@ -324,6 +337,7 @@ class DatasetQueryResult(BaseModel):
         total_records_before_filter: int,
         applied_filters: dict[str, QueryFilterValue],
         limit: int | None,
+        snapshot_id: str,
         observation_recency: ObservationRecencyAssessment | None = None,
     ) -> Self:
         """Build a successful local query result."""
@@ -334,6 +348,7 @@ class DatasetQueryResult(BaseModel):
             coverage_status=DatasetCoverageStatus.QUERYABLE,
             source=descriptor.source,
             data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
+            snapshot_id=snapshot_id,
             applied_filters=applied_filters,
             limit=limit,
             total_records_before_filter=total_records_before_filter,
@@ -400,7 +415,12 @@ class DatasetQueryTool:
             _audit_query_result(result)
             return result
 
+        snapshot_id: str | None = None
         try:
+            snapshot_id = self._snapshot_store.snapshot_id(
+                descriptor.source,
+                descriptor.source_locator,
+            )
             raw_payload = self._snapshot_store.read_snapshot(
                 descriptor.source,
                 descriptor.source_locator,
@@ -431,6 +451,7 @@ class DatasetQueryTool:
                 message=public_message,
                 applied_filters=normalized_filters,
                 limit=normalized_limit,
+                snapshot_id=snapshot_id,
             )
             _audit_query_result(result)
             return result
@@ -447,6 +468,7 @@ class DatasetQueryTool:
                 message=_normalization_error_message(normalization_result.failure),
                 applied_filters=normalized_filters,
                 limit=normalized_limit,
+                snapshot_id=snapshot_id,
             )
             _audit_query_result(result)
             return result
@@ -457,6 +479,7 @@ class DatasetQueryTool:
                 normalization_result=normalization_result,
                 applied_filters=normalized_filters,
                 limit=normalized_limit,
+                snapshot_id=snapshot_id,
             )
             _audit_query_result(result)
             return result
@@ -475,6 +498,7 @@ class DatasetQueryTool:
                 limitations=(
                     REGISTRY_COVERAGE_RESTRICTS_QUERYABLE_QUERY_LIMITATION,
                 ),
+                snapshot_id=snapshot_id,
                 observation_recency=observation_recency,
             )
             _audit_query_result(result)
@@ -498,6 +522,7 @@ class DatasetQueryTool:
             total_records_before_filter=len(normalization_result.records),
             applied_filters=normalized_filters,
             limit=normalized_limit,
+            snapshot_id=snapshot_id,
             observation_recency=observation_recency,
         )
         _audit_query_result(result)

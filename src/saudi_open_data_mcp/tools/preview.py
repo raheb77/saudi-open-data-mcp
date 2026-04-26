@@ -191,6 +191,7 @@ class DatasetPreviewResult(BaseModel):
     resolution_outcome: PreviewResolutionOutcome | None = None
     data_origin: PreviewDataOrigin | None = None
     freshness_status: SnapshotFreshnessStatus | None = None
+    snapshot_id: str | None = None
     failure_stage: PreviewFailureStage | None = None
     degradation_reason: ResultDegradationReason | None = None
     snapshot_modified_at: datetime | None = None
@@ -211,6 +212,7 @@ class DatasetPreviewResult(BaseModel):
                 or self.resolution_outcome is not None
                 or self.data_origin is not None
                 or self.freshness_status is not None
+                or self.snapshot_id is not None
                 or self.failure_stage is not None
                 or self.degradation_reason is not None
                 or self.snapshot_modified_at is not None
@@ -227,6 +229,7 @@ class DatasetPreviewResult(BaseModel):
             if (
                 self.data_origin is not None
                 or self.freshness_status is not None
+                or self.snapshot_id is not None
                 or self.degradation_reason is not None
                 or self.snapshot_modified_at is not None
                 or self.resolution_notice is not None
@@ -250,6 +253,8 @@ class DatasetPreviewResult(BaseModel):
         if self.data_origin is None and self.freshness_status is SnapshotFreshnessStatus.MISSING:
             if self.snapshot_modified_at is not None:
                 raise ValueError("missing freshness evidence must not include snapshot_modified_at")
+            if self.snapshot_id is not None:
+                raise ValueError("missing freshness evidence must not include snapshot_id")
 
         if self.resolution_outcome is PreviewResolutionOutcome.SERVE_STALE_WITH_NOTICE:
             if self.resolution_notice is None:
@@ -623,6 +628,7 @@ class DatasetPreviewTool:
                 resolution_outcome=resolution_outcome,
                 data_origin=data_origin,
                 freshness_status=freshness.status,
+                snapshot_id=freshness.snapshot_id,
                 failure_stage=PreviewFailureStage.NORMALIZATION,
                 snapshot_modified_at=freshness.snapshot_modified_at,
                 resolution_notice=resolution_notice,
@@ -655,6 +661,7 @@ class DatasetPreviewTool:
                 resolution_outcome=resolution_outcome,
                 data_origin=data_origin,
                 freshness_status=freshness.status,
+                snapshot_id=freshness.snapshot_id,
                 failure_stage=failure_stage,
                 degradation_reason=(
                     degradation_reason
@@ -676,6 +683,7 @@ class DatasetPreviewTool:
             resolution_outcome=resolution_outcome,
             data_origin=data_origin,
             freshness_status=freshness.status,
+            snapshot_id=freshness.snapshot_id,
             failure_stage=failure_stage,
             degradation_reason=(
                 degradation_reason
@@ -757,6 +765,7 @@ class DatasetPreviewTool:
             coverage_status=DatasetCoverageStatus.UNAVAILABLE,
             resolution_outcome=PreviewResolutionOutcome.FAIL_CLOSED,
             freshness_status=freshness.status,
+            snapshot_id=freshness.snapshot_id,
             failure_stage=stage,
             snapshot_modified_at=freshness.snapshot_modified_at,
             failure=PreviewFailure(

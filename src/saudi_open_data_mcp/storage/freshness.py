@@ -18,8 +18,9 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
+from typing import Self
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from saudi_open_data_mcp.registry.models import UpdateFrequency
 
@@ -54,10 +55,17 @@ class SnapshotFreshnessResult(BaseModel):
     status: SnapshotFreshnessStatus
     reason: SnapshotFreshnessReason
     artifact_present: bool
+    snapshot_id: str | None = None
     reference_time: datetime
     snapshot_modified_at: datetime | None = None
     snapshot_age: timedelta | None = None
     update_frequency: UpdateFrequency | None = None
+
+    @model_validator(mode="after")
+    def _validate_snapshot_id_consistency(self) -> Self:
+        if not self.artifact_present and self.snapshot_id is not None:
+            raise ValueError("snapshot freshness without an artifact must not include snapshot_id")
+        return self
 
 
 UNKNOWN_FRESHNESS_UPDATE_FREQUENCIES: frozenset[UpdateFrequency] = frozenset(
@@ -106,6 +114,7 @@ def evaluate_snapshot_freshness(
             update_frequency=update_frequency,
         )
 
+    snapshot_id = store.snapshot_id(source, dataset_id)
     modified_at = datetime.fromtimestamp(snapshot_path.stat().st_mtime, tz=UTC)
     snapshot_age = max(evaluated_at - modified_at, timedelta(0))
 
@@ -116,6 +125,7 @@ def evaluate_snapshot_freshness(
             status=SnapshotFreshnessStatus.UNKNOWN,
             reason=SnapshotFreshnessReason.NO_FREQUENCY_EVIDENCE,
             artifact_present=True,
+            snapshot_id=snapshot_id,
             reference_time=evaluated_at,
             snapshot_modified_at=modified_at,
             snapshot_age=snapshot_age,
@@ -137,6 +147,7 @@ def evaluate_snapshot_freshness(
         status=status,
         reason=reason,
         artifact_present=True,
+        snapshot_id=snapshot_id,
         reference_time=evaluated_at,
         snapshot_modified_at=modified_at,
         snapshot_age=snapshot_age,

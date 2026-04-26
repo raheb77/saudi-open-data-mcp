@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -64,6 +65,31 @@ def test_existing_snapshot_is_classified_fresh_with_fixed_reference_time(
     assert result.reason is SnapshotFreshnessReason.WITHIN_EXPECTED_WINDOW
     assert result.snapshot_modified_at == snapshot_time
     assert result.snapshot_age == timedelta(hours=18)
+    assert result.snapshot_id == store.snapshot_id("sama", "money-supply")
+
+
+def test_existing_snapshot_freshness_exposes_snapshot_id_without_path(
+    tmp_path: Path,
+) -> None:
+    store = SnapshotStore(tmp_path)
+    _write_snapshot_with_mtime(
+        store,
+        dataset_id="money-supply",
+        modified_at=datetime(2026, 1, 14, 6, 0, tzinfo=UTC),
+    )
+
+    result = evaluate_snapshot_freshness(
+        source="sama",
+        dataset_id="money-supply",
+        snapshot_store=store,
+        reference_time=datetime(2026, 1, 15, 0, 0, tzinfo=UTC),
+        update_frequency=UpdateFrequency.DAILY,
+    )
+    payload = result.model_dump(mode="json")
+
+    assert payload["snapshot_id"] == store.snapshot_id("sama", "money-supply")
+    assert "snapshot_path" not in payload
+    assert str(tmp_path) not in json.dumps(payload)
 
 
 def test_existing_snapshot_is_classified_stale_when_age_exceeds_frequency_window(

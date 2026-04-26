@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from hashlib import sha256
 from pathlib import Path
 from typing import TextIO
 from urllib.parse import quote
@@ -13,6 +14,7 @@ from ..contracts import RawPayload, SnapshotMetadata
 
 CURRENT_SNAPSHOT_STORAGE_SCHEMA_VERSION = 1
 LEGACY_SNAPSHOT_STORAGE_SCHEMA_VERSION = 0
+SNAPSHOT_ID_HEX_LENGTH = 24
 
 SAMA_EXCHANGE_RATES_CURRENT_BUNDLE_FORMAT_ID = (
     "sama_exchange_rates_current_page_bundle"
@@ -47,6 +49,16 @@ class SnapshotStore:
         source_component = self._path_component(source)
         dataset_component = self._path_component(dataset_id)
         return self.root / source_component / f"{dataset_component}.json"
+
+    def snapshot_id(self, source: str, dataset_id: str) -> str:
+        """Return an opaque stable identifier for a source-local snapshot."""
+
+        source_component = self._path_component(source)
+        dataset_component = self._path_component(dataset_id)
+        digest = sha256(
+            f"snapshot-v1\x00{source_component}\x00{dataset_component}".encode("utf-8")
+        ).hexdigest()[:SNAPSHOT_ID_HEX_LENGTH]
+        return f"snap_{digest}"
 
     def snapshot_exists(self, source: str, dataset_id: str) -> bool:
         """Return whether a snapshot exists for the given source and dataset."""

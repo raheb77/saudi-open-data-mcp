@@ -34,6 +34,7 @@ def _freshness(
         status=status,
         reason=reason,
         artifact_present=artifact_present,
+        snapshot_id="snap_policy_test" if artifact_present else None,
         reference_time=REFERENCE_TIME,
         snapshot_modified_at=SNAPSHOT_TIME if artifact_present else None,
         snapshot_age=(

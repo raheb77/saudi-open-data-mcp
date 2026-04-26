@@ -767,6 +767,7 @@ def test_cli_export_writes_excel_artifact_with_health_metadata(
                         "status": "fresh",
                         "reason": "within_expected_window",
                         "artifact_present": True,
+                        "snapshot_id": "snap_test_export_health",
                         "reference_time": "2026-04-07T08:00:00Z",
                         "snapshot_modified_at": "2026-04-06T00:00:00Z",
                         "snapshot_age": "P1D",

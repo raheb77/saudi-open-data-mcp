@@ -625,6 +625,7 @@ async def test_server_missing_dataset_lookup_stays_explicit(
         "coverage_status": "unavailable",
         "source": None,
         "data_origin": None,
+        "snapshot_id": None,
         "observation_recency": None,
         "applied_filters": {},
         "limit": None,
@@ -642,6 +643,7 @@ async def test_server_missing_dataset_lookup_stays_explicit(
         "resolution_outcome": None,
         "data_origin": None,
         "freshness_status": None,
+        "snapshot_id": None,
         "failure_stage": None,
         "degradation_reason": None,
         "snapshot_modified_at": None,
@@ -797,6 +799,7 @@ async def test_server_health_tool_can_expose_recent_snapshot_freshness(
     assert health_result.structured_content["freshness"]["reason"] == "within_expected_window"
     assert health_result.structured_content["freshness"]["dataset_id"] == "sama-money-supply"
     assert health_result.structured_content["freshness"]["artifact_present"] is True
+    assert health_result.structured_content["freshness"]["snapshot_id"].startswith("snap_")
     assert "snapshot_path" not in health_result.structured_content["freshness"]
 
 
@@ -843,6 +846,7 @@ async def test_server_download_tool_can_expose_local_snapshot_availability(
     assert download_result.structured_content["freshness"]["dataset_id"] == (
         "sama-money-supply"
     )
+    assert download_result.structured_content["freshness"]["snapshot_id"].startswith("snap_")
     assert "snapshot_path" not in download_result.structured_content
     assert "snapshot_path" not in download_result.structured_content["freshness"]
 

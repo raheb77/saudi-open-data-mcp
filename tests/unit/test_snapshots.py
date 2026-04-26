@@ -28,6 +28,22 @@ def test_snapshot_path_is_deterministic(tmp_path: Path) -> None:
     assert first == tmp_path / "sama" / "balance-of-payments.json"
 
 
+def test_snapshot_id_is_stable_opaque_and_root_independent(tmp_path: Path) -> None:
+    first_store = SnapshotStore(tmp_path / "one")
+    second_store = SnapshotStore(tmp_path / "two")
+
+    snapshot_id = first_store.snapshot_id("sama", "report.aspx?cid=55")
+
+    assert snapshot_id == second_store.snapshot_id("sama", "report.aspx?cid=55")
+    assert snapshot_id != first_store.snapshot_id("sama", "report.aspx?cid=56")
+    assert snapshot_id.startswith("snap_")
+    assert "/" not in snapshot_id
+    assert "." not in snapshot_id
+    assert "sama" not in snapshot_id
+    assert "report" not in snapshot_id
+    assert str(tmp_path) not in snapshot_id
+
+
 def test_write_then_read_snapshot_round_trip(tmp_path: Path) -> None:
     store = SnapshotStore(tmp_path)
     payload = RawPayload(

@@ -560,9 +560,16 @@ def test_query_dataset_returns_local_canonical_records_for_supported_json_snapsh
     assert result.coverage_status is DatasetCoverageStatus.QUERYABLE
     assert result.dataset_id == descriptor.dataset_id
     assert result.source == "sama"
+    assert result.snapshot_id == snapshot_store.snapshot_id(
+        descriptor.source,
+        descriptor.source_locator,
+    )
     assert result.total_records_before_filter == 2
     assert result.applied_filters == {}
     assert result.limit is None
+    result_payload = json.dumps(result.model_dump(mode="json"))
+    assert "snapshot_path" not in result_payload
+    assert str(tmp_path) not in result_payload
     assert len(result.matched_records) == 2
     assert result.matched_records[0].dataset_id == descriptor.dataset_id
     assert result.matched_records[0].record_index == 0
