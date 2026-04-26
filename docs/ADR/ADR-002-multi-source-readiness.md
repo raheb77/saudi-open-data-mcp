@@ -1,6 +1,6 @@
 # ADR-002: Multi-source readiness for v0.2
 
-- Status: Accepted
+- Status: Accepted (partially superseded by ADR-004 — multi-source is now implemented)
 - Date: 2026-04-01
 
 ## Context
