@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import site
+import sys
+from contextlib import suppress
 from ipaddress import ip_address
 from logging import getLevelNamesMapping
 from os import getenv
@@ -27,11 +30,30 @@ from saudi_open_data_mcp.security.http_auth import (
     require_http_bearer_token,
 )
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_LOCAL_DIR = PROJECT_ROOT / ".local"
-DEFAULT_REGISTRY_PATH = DEFAULT_LOCAL_DIR / "registry.sqlite"
-DEFAULT_SNAPSHOT_DIR = DEFAULT_LOCAL_DIR / "snapshots"
-DEFAULT_CACHE_DIR = DEFAULT_LOCAL_DIR / "cache"
+STATE_DIR_ENV_NAME = "SAUDI_OPEN_DATA_MCP_STATE_DIR"
+APP_STATE_DIR_NAME = "saudi-open-data-mcp"
+
+
+def _default_state_dir() -> Path:
+    """Return the process-local runtime state directory."""
+
+    configured = getenv(STATE_DIR_ENV_NAME)
+    if configured:
+        return Path(configured).expanduser()
+
+    xdg_state_home = getenv("XDG_STATE_HOME")
+    state_home = (
+        Path(xdg_state_home).expanduser()
+        if xdg_state_home
+        else Path.home() / ".local" / "state"
+    )
+    return state_home / APP_STATE_DIR_NAME
+
+
+DEFAULT_STATE_DIR = _default_state_dir()
+DEFAULT_REGISTRY_PATH = DEFAULT_STATE_DIR / "registry.sqlite"
+DEFAULT_SNAPSHOT_DIR = DEFAULT_STATE_DIR / "snapshots"
+DEFAULT_CACHE_DIR = DEFAULT_STATE_DIR / "cache"
 TRUE_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
 FALSE_ENV_VALUES = frozenset({"0", "false", "no", "off"})
 VALID_LOG_LEVELS = frozenset(
@@ -150,9 +172,13 @@ class RuntimeConfig(BaseModel):
 
     app_name: str = "saudi-open-data-mcp"
     source: SourceConfig = Field(default_factory=SourceConfig)
-    registry_path: Path = DEFAULT_REGISTRY_PATH
-    snapshot_dir: Path = DEFAULT_SNAPSHOT_DIR
-    cache_dir: Path = DEFAULT_CACHE_DIR
+    registry_path: Path = Field(
+        default_factory=lambda: _default_state_dir() / "registry.sqlite"
+    )
+    snapshot_dir: Path = Field(
+        default_factory=lambda: _default_state_dir() / "snapshots"
+    )
+    cache_dir: Path = Field(default_factory=lambda: _default_state_dir() / "cache")
     log_level: str = "INFO"
     transport: TransportConfig = Field(default_factory=TransportConfig)
     tier_a_refresh: TierARefreshConfig = Field(default_factory=TierARefreshConfig)
@@ -183,10 +209,10 @@ class RuntimeConfig(BaseModel):
 
 
 def _path_from_env(name: str, default: Path) -> Path:
-    """Return a path override when configured, else the stable project default."""
+    """Return a path override when configured, else the runtime state default."""
 
     configured = getenv(name)
-    return Path(configured) if configured else default
+    return Path(configured).expanduser() if configured else default
 
 
 def _bool_from_env(name: str, default: bool = False) -> bool:
@@ -264,6 +290,9 @@ def _role_from_env(name: str, default: HTTPAuthRole) -> HTTPAuthRole:
 def prepare_runtime_storage(config: RuntimeConfig) -> None:
     """Prepare and validate the configured runtime storage paths."""
 
+    _ensure_runtime_state_path_allowed(config.registry_path, env_name="REGISTRY_PATH")
+    _ensure_runtime_state_path_allowed(config.snapshot_dir, env_name="SNAPSHOT_DIR")
+    _ensure_runtime_state_path_allowed(config.cache_dir, env_name="CACHE_DIR")
     _prepare_registry_parent(config.registry_path)
     _prepare_directory(config.snapshot_dir, env_name="SNAPSHOT_DIR")
     _prepare_directory(config.cache_dir, env_name="CACHE_DIR")
@@ -273,6 +302,7 @@ def load_config() -> RuntimeConfig:
     """Load deterministic runtime settings from the environment."""
 
     http_auth_role = _role_from_env("HTTP_AUTH_ROLE", HTTPAuthRole.OPERATOR)
+    state_dir = _default_state_dir()
     try:
         return RuntimeConfig(
             source=SourceConfig(
@@ -287,9 +317,9 @@ def load_config() -> RuntimeConfig:
                 ),
                 mof_base_url=getenv("MOF_BASE_URL", "https://www.mof.gov.sa"),
             ),
-            registry_path=_path_from_env("REGISTRY_PATH", DEFAULT_REGISTRY_PATH),
-            snapshot_dir=_path_from_env("SNAPSHOT_DIR", DEFAULT_SNAPSHOT_DIR),
-            cache_dir=_path_from_env("CACHE_DIR", DEFAULT_CACHE_DIR),
+            registry_path=_path_from_env("REGISTRY_PATH", state_dir / "registry.sqlite"),
+            snapshot_dir=_path_from_env("SNAPSHOT_DIR", state_dir / "snapshots"),
+            cache_dir=_path_from_env("CACHE_DIR", state_dir / "cache"),
             log_level=getenv("LOG_LEVEL", "INFO"),
             transport=TransportConfig(
                 http_host=getenv("HTTP_HOST", "127.0.0.1"),
@@ -313,6 +343,42 @@ def load_config() -> RuntimeConfig:
         )
     except ValidationError as exc:
         raise RuntimeConfigurationError(_format_validation_error(exc)) from exc
+
+
+def _ensure_runtime_state_path_allowed(path: Path, *, env_name: str) -> None:
+    """Reject runtime state paths inside the Python runtime or site-packages."""
+
+    resolved_path = path.expanduser().resolve(strict=False)
+    for root in _protected_runtime_roots():
+        if resolved_path == root or _is_relative_to(resolved_path, root):
+            raise RuntimeConfigurationError(
+                f"{env_name} must not resolve inside the Python runtime or "
+                f"site-packages ({root}); set {STATE_DIR_ENV_NAME} or {env_name} "
+                f"to an external state directory: {path}"
+            )
+
+
+def _protected_runtime_roots() -> tuple[Path, ...]:
+    raw_roots = [Path(sys.prefix)]
+    with suppress(AttributeError):
+        raw_roots.extend(Path(path) for path in site.getsitepackages())
+    with suppress(AttributeError):
+        raw_roots.append(Path(site.getusersitepackages()))
+
+    roots: list[Path] = []
+    for root in raw_roots:
+        resolved_root = root.expanduser().resolve(strict=False)
+        if resolved_root not in roots:
+            roots.append(resolved_root)
+    return tuple(roots)
+
+
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
 
 
 def _prepare_registry_parent(registry_path: Path) -> None:

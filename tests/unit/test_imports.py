@@ -267,6 +267,42 @@ def test_load_config_rejects_conflicting_storage_paths(
         load_config()
 
 
+def test_load_config_uses_xdg_state_home_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    state_home = tmp_path / "xdg-state"
+    expected_state_dir = state_home / "saudi-open-data-mcp"
+    monkeypatch.delenv("SAUDI_OPEN_DATA_MCP_STATE_DIR", raising=False)
+    monkeypatch.delenv("REGISTRY_PATH", raising=False)
+    monkeypatch.delenv("SNAPSHOT_DIR", raising=False)
+    monkeypatch.delenv("CACHE_DIR", raising=False)
+    monkeypatch.setenv("XDG_STATE_HOME", str(state_home))
+
+    config = load_config()
+
+    assert config.registry_path == expected_state_dir / "registry.sqlite"
+    assert config.snapshot_dir == expected_state_dir / "snapshots"
+    assert config.cache_dir == expected_state_dir / "cache"
+
+
+def test_load_config_respects_state_dir_override(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    state_dir = tmp_path / "runtime-state"
+    monkeypatch.setenv("SAUDI_OPEN_DATA_MCP_STATE_DIR", str(state_dir))
+    monkeypatch.delenv("REGISTRY_PATH", raising=False)
+    monkeypatch.delenv("SNAPSHOT_DIR", raising=False)
+    monkeypatch.delenv("CACHE_DIR", raising=False)
+
+    config = load_config()
+
+    assert config.registry_path == state_dir / "registry.sqlite"
+    assert config.snapshot_dir == state_dir / "snapshots"
+    assert config.cache_dir == state_dir / "cache"
+
+
 def test_prepare_runtime_storage_creates_expected_paths(tmp_path: Path) -> None:
     config = RuntimeConfig(
         registry_path=tmp_path / "runtime" / "registry.sqlite",
@@ -292,6 +328,19 @@ def test_prepare_runtime_storage_rejects_file_snapshot_dir(tmp_path: Path) -> No
     )
 
     with pytest.raises(RuntimeConfigurationError, match="SNAPSHOT_DIR"):
+        prepare_runtime_storage(config)
+
+
+def test_prepare_runtime_storage_rejects_state_inside_python_runtime(
+    tmp_path: Path,
+) -> None:
+    config = RuntimeConfig(
+        registry_path=Path(sys.prefix) / "runtime-state" / "registry.sqlite",
+        snapshot_dir=tmp_path / "runtime" / "snapshots",
+        cache_dir=tmp_path / "runtime" / "cache",
+    )
+
+    with pytest.raises(RuntimeConfigurationError, match="must not resolve inside"):
         prepare_runtime_storage(config)
 
 

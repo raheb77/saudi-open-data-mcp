@@ -10,7 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from saudi_open_data_mcp.config import RuntimeConfig
+from saudi_open_data_mcp.config import RuntimeConfig, prepare_runtime_storage
 from saudi_open_data_mcp.connectors.base import RawPayload
 from saudi_open_data_mcp.connectors.errors import ConnectorError
 from saudi_open_data_mcp.connectors.resolver import build_default_connector_resolver
@@ -156,6 +156,7 @@ async def run_upstream_canary(
         source_config=runtime_config.source,
     )
     normalization_pipeline = NormalizationPipeline()
+    prepare_runtime_storage(runtime_config)
     repository = RegistryRepository(runtime_config.registry_path)
     bootstrap_registry(repository)
     checks: list[UpstreamCanaryCheckResult] = []

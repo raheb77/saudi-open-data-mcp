@@ -51,11 +51,21 @@ DOTENV_HTTP_AUTH_TOKEN = "fedcba9876543210fedcba9876543210"
 WEAK_HTTP_AUTH_TOKEN = "change-me-change-me-change-me-change-me"
 
 
-def test_cli_check_startup_mode_returns_success() -> None:
+def test_cli_check_startup_mode_returns_success(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("SAUDI_OPEN_DATA_MCP_STATE_DIR", str(tmp_path / "state"))
+
     assert cli_module.main(["--check-startup"]) == 0
 
 
-def test_cli_check_startup_subcommand_returns_success() -> None:
+def test_cli_check_startup_subcommand_returns_success(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("SAUDI_OPEN_DATA_MCP_STATE_DIR", str(tmp_path / "state"))
+
     assert cli_module.main(["check-startup"]) == 0
 
 
@@ -902,10 +912,11 @@ def test_cli_check_startup_reports_runtime_configuration_errors(monkeypatch, cap
     assert "SNAPSHOT_DIR must point to a directory path" in captured.err
 
 
-def test_source_tree_cli_check_startup_runs_subprocess() -> None:
+def test_source_tree_cli_check_startup_runs_subprocess(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[2]
     env = os.environ.copy()
     env.pop("PYTHONPATH", None)
+    env["SAUDI_OPEN_DATA_MCP_STATE_DIR"] = str(tmp_path / "state")
     python = Path(sys.prefix) / "bin" / "python"
 
     result = subprocess.run(
@@ -957,6 +968,7 @@ async def test_source_tree_cli_stdio_uses_explicit_runtime_paths_outside_repo_ro
             "LOG_LEVEL": "ERROR",
             "REGISTRY_PATH": str(registry_path),
             "SNAPSHOT_DIR": str(snapshot_store.root),
+            "CACHE_DIR": str(tmp_path / "runtime" / "cache"),
         },
     )
 
@@ -1007,6 +1019,7 @@ async def test_source_tree_cli_stdio_supports_data_gov_sa_query_with_explicit_ru
             "LOG_LEVEL": "ERROR",
             "REGISTRY_PATH": str(registry_path),
             "SNAPSHOT_DIR": str(snapshot_store.root),
+            "CACHE_DIR": str(tmp_path / "runtime" / "cache"),
         },
     )
 
@@ -1031,86 +1044,61 @@ async def test_source_tree_cli_stdio_supports_data_gov_sa_query_with_explicit_ru
 
 
 @pytest.mark.asyncio
-async def test_source_tree_cli_stdio_uses_default_anchored_paths_outside_repo_root(
+async def test_source_tree_cli_stdio_uses_default_state_paths_outside_repo_root(
     tmp_path: Path,
 ) -> None:
     root = Path(__file__).resolve().parents[2]
     python = Path(sys.prefix) / "bin" / "python"
-    registry_path = root / ".local" / "registry.sqlite"
-    snapshot_store = SnapshotStore(root / ".local" / "snapshots")
-    snapshot_path = snapshot_store.snapshot_path("sama", "report.aspx?cid=55")
+    state_home = tmp_path / "xdg-state"
+    state_dir = state_home / "saudi-open-data-mcp"
+    registry_path = state_dir / "registry.sqlite"
+    snapshot_store = SnapshotStore(state_dir / "snapshots")
     outside_repo_root = tmp_path / "outside-repo-root"
     outside_repo_root.mkdir()
     env = os.environ.copy()
     env.pop("REGISTRY_PATH", None)
     env.pop("SNAPSHOT_DIR", None)
     env.pop("CACHE_DIR", None)
+    env.pop("SAUDI_OPEN_DATA_MCP_STATE_DIR", None)
+    env["XDG_STATE_HOME"] = str(state_home)
     env["LOG_LEVEL"] = "ERROR"
 
-    original_registry = _read_optional_bytes(registry_path)
-    original_snapshot = _read_optional_bytes(snapshot_path)
+    bootstrap_registry(RegistryRepository(registry_path))
+    snapshot_store.write_snapshot(
+        RawPayload(
+            source="sama",
+            dataset_id="report.aspx?cid=55",
+            content={
+                "url": (
+                    "https://www.sama.gov.sa/en-US/EconomicReports/Pages/"
+                    "report.aspx?cid=55"
+                ),
+                "status_code": 200,
+                "content_type": "application/json",
+                "body": {"rows": [{"period": "2026-01", "value": 1}]},
+            },
+        )
+    )
 
-    try:
-        if registry_path.exists():
-            registry_path.unlink()
-        if snapshot_path.exists():
-            snapshot_path.unlink()
+    transport = StdioTransport(
+        command=str(python),
+        args=[str(root / "src" / "saudi_open_data_mcp" / "cli.py"), "run-stdio"],
+        cwd=str(outside_repo_root),
+        env=env,
+    )
 
-        bootstrap_registry(RegistryRepository(registry_path))
-        snapshot_store.write_snapshot(
-            RawPayload(
-                source="sama",
-                dataset_id="report.aspx?cid=55",
-                content={
-                    "url": (
-                        "https://www.sama.gov.sa/en-US/EconomicReports/Pages/"
-                        "report.aspx?cid=55"
-                    ),
-                    "status_code": 200,
-                    "content_type": "application/json",
-                    "body": {"rows": [{"period": "2026-01", "value": 1}]},
-                },
-            )
+    async with Client(transport) as client:
+        result = await client.call_tool(
+            "download_dataset",
+            {"dataset_id": "sama-money-supply"},
         )
 
-        transport = StdioTransport(
-            command=str(python),
-            args=[str(root / "src" / "saudi_open_data_mcp" / "cli.py"), "run-stdio"],
-            cwd=str(outside_repo_root),
-            env=env,
-        )
-
-        async with Client(transport) as client:
-            result = await client.call_tool(
-                "download_dataset",
-                {"dataset_id": "sama-money-supply"},
-            )
-
-        assert result.structured_content["status"] == "available"
-        assert result.structured_content["dataset_id"] == "sama-money-supply"
-        assert result.structured_content["local_snapshot_exists"] is True
-        assert result.structured_content["freshness"]["artifact_present"] is True
-        assert "snapshot_path" not in result.structured_content
-        assert "snapshot_path" not in result.structured_content["freshness"]
-    finally:
-        _restore_optional_bytes(registry_path, original_registry)
-        _restore_optional_bytes(snapshot_path, original_snapshot)
-
-
-def _read_optional_bytes(path: Path) -> bytes | None:
-    if not path.exists():
-        return None
-    return path.read_bytes()
-
-
-def _restore_optional_bytes(path: Path, contents: bytes | None) -> None:
-    if contents is None:
-        if path.exists():
-            path.unlink()
-        return
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(contents)
+    assert result.structured_content["status"] == "available"
+    assert result.structured_content["dataset_id"] == "sama-money-supply"
+    assert result.structured_content["local_snapshot_exists"] is True
+    assert result.structured_content["freshness"]["artifact_present"] is True
+    assert "snapshot_path" not in result.structured_content
+    assert "snapshot_path" not in result.structured_content["freshness"]
 
 
 class _DummyToolRunner:
