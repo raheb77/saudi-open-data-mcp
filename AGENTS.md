@@ -6,7 +6,7 @@ This repository is a production-minded foundation for `saudi-open-data-mcp`.
 
 - MCP is the interface layer, not the core value
 - the core value is source isolation, normalized dataset contracts, registry-backed metadata, health checks, and reliable AI-facing tool interfaces
-- the current baseline is the `0.3.x` internal/evaluator-controlled runtime
+- the current baseline is the `0.4.0a1` internal/evaluator-controlled alpha
 - current source scope includes SAMA, three narrow `stats.gov.sa` macro datasets, one Ministry of Finance fiscal dataset, and one narrow `data.gov.sa` pilot dataset
 - the deployed runtime is container-first streamable HTTP, while stdio remains supported for local development and command-based host integration
 

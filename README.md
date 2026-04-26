@@ -152,8 +152,8 @@ The current codebase is organized around three layers.
 
 ### Data Access Layer
 
-- `connectors/` defines the typed connector contract and the current source-specific connectors for SAMA, `stats.gov.sa`, Ministry of Finance, and one narrow `data.gov.sa` pilot dataset.
-- `storage/` provides raw snapshot persistence for connector payloads.
+- `connectors/` defines the typed connector contract and the current source-specific connectors for SAMA, `stats.gov.sa`, Ministry of Finance, and one narrow `data.gov.sa` pilot dataset. Connector resolution dispatches by `descriptor.source`.
+- `storage/` provides raw snapshot persistence and local freshness helpers for connector payloads.
 - `httpx` is the only HTTP client in the core path.
 
 ### Normalization & Contract Layer
@@ -624,12 +624,16 @@ The repo includes four test layers:
 
 The main code lives under `src/saudi_open_data_mcp/`.
 
-- `connectors/`: source access contracts and SAMA connector
+- `connectors/`: source access contracts and per-source connectors (SAMA, stats.gov.sa, MoF, data.gov.sa)
 - `normalization/`: field mapping, validators, pipeline, and minimal canonical records
 - `registry/`: typed metadata models, SQLite repository, and bootstrap
 - `storage/`: snapshots and local freshness helpers
 - `resources/`: registry-backed MCP resources
 - `tools/`: registry-backed and local-only MCP tools, plus preview over the connector path
+- `observability/`: structured logging, process-local counters, upstream canary
+- `security/`: HTTP auth middleware, readiness probes, rate limiting, input sanitization
+- `config.py`: runtime configuration and environment variable resolution
+- `cli.py`: thin non-interactive CLI over the MCP core
 - `server.py`: FastMCP wiring
 - `docs/`: architecture, ADR, roadmap, and dataset notes
 
