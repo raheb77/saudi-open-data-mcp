@@ -435,6 +435,43 @@ def test_cli_list_invokes_search_tool_and_emits_json(
     }
 
 
+def test_source_tree_cli_list_suppresses_startup_json_logs_by_default(
+    tmp_path: Path,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    python = Path(sys.prefix) / "bin" / "python"
+    env = os.environ.copy()
+    env["SAUDI_OPEN_DATA_MCP_STATE_DIR"] = str(tmp_path / "state")
+    env["LOG_LEVEL"] = "INFO"
+
+    quiet_result = subprocess.run(
+        [str(python), "src/saudi_open_data_mcp/cli.py", "list"],
+        cwd=root,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert quiet_result.returncode == 0, quiet_result.stderr or quiet_result.stdout
+    assert quiet_result.stderr == ""
+    assert json.loads(quiet_result.stdout)["status"] == "results"
+
+    verbose_result = subprocess.run(
+        [str(python), "src/saudi_open_data_mcp/cli.py", "list", "--verbose"],
+        cwd=root,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert verbose_result.returncode == 0, verbose_result.stderr or verbose_result.stdout
+    assert json.loads(verbose_result.stdout)["status"] == "results"
+    assert "server.startup.begin" in verbose_result.stderr
+    assert any(line.startswith("{") for line in verbose_result.stderr.splitlines())
+
+
 def test_cli_query_parses_scalar_filters_and_limit(
     monkeypatch,
     capsys,

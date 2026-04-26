@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import os
 import sys
 from collections.abc import Sequence
@@ -40,6 +41,7 @@ JSON_FORMAT = "json"
 EXCEL_FORMAT = ExportArtifactFormat.EXCEL.value
 PDF_FORMAT = ExportArtifactFormat.PDF.value
 DOTENV_FILENAME = ".env"
+CLI_SILENT_STARTUP_COMMANDS = frozenset({"config", "doctor", "list", "preview", "query"})
 SNAPSHOT_MISSING_NEXT_STEP_HINT = "\n".join(
     (
         "No snapshots found. To populate the hot set, run:",
@@ -70,6 +72,7 @@ def build_parser() -> argparse.ArgumentParser:
             "and exit successfully if startup wiring validates."
         ),
     )
+    _add_hidden_verbose_argument(parser)
 
     check_startup_parser = subparsers.add_parser(
         "check-startup",
@@ -124,6 +127,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional substring search query. Empty means list all datasets.",
     )
     _add_output_arguments(list_parser)
+    _add_hidden_verbose_argument(list_parser)
     list_parser.set_defaults(command="list")
 
     query_parser = subparsers.add_parser(
@@ -132,6 +136,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_dataset_query_arguments(query_parser)
     _add_output_arguments(query_parser)
+    _add_hidden_verbose_argument(query_parser)
     query_parser.set_defaults(command="query")
 
     preview_parser = subparsers.add_parser(
@@ -140,6 +145,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     preview_parser.add_argument("dataset_id", help="Exact canonical dataset_id.")
     _add_output_arguments(preview_parser)
+    _add_hidden_verbose_argument(preview_parser)
     preview_parser.set_defaults(command="preview")
 
     download_parser = subparsers.add_parser(
@@ -195,6 +201,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the current runtime configuration with auth token presence redacted.",
     )
     _add_output_arguments(config_parser)
+    _add_hidden_verbose_argument(config_parser)
     config_parser.set_defaults(command="config")
 
     upstream_canary_parser = subparsers.add_parser(
@@ -314,7 +321,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "list":
         config = _load_config_or_exit(parser)
-        app = _create_server_or_exit(parser, config)
+        app = _create_server_or_exit(
+            parser,
+            config,
+            suppress_startup_logs=_is_cli_silent_mode(args),
+        )
         payload = asyncio.run(
             _invoke_tool_payload(
                 app,
@@ -333,7 +344,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command in {"query", "export"}:
         config = _load_config_or_exit(parser)
-        app = _create_server_or_exit(parser, config)
+        app = _create_server_or_exit(
+            parser,
+            config,
+            suppress_startup_logs=_is_cli_silent_mode(args),
+        )
         dataset_id = _resolve_dataset_id_argument_or_exit(
             parser,
             positional_dataset_id=args.dataset_id,
@@ -382,7 +397,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "preview":
         config = _load_config_or_exit(parser)
-        app = _create_server_or_exit(parser, config)
+        app = _create_server_or_exit(
+            parser,
+            config,
+            suppress_startup_logs=_is_cli_silent_mode(args),
+        )
         payload = asyncio.run(
             _invoke_tool_payload(
                 app,
@@ -560,6 +579,15 @@ def _add_output_arguments(
         "--quiet",
         action="store_true",
         help="Suppress the confirmation line after a successful --output write.",
+    )
+
+
+def _add_hidden_verbose_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help=argparse.SUPPRESS,
     )
 
 
@@ -852,6 +880,29 @@ def _load_config_or_exit(parser: argparse.ArgumentParser):
         parser.error(str(exc))
 
 
+def _is_cli_silent_mode(args: argparse.Namespace) -> bool:
+    if getattr(args, "verbose", False):
+        return False
+
+    command = getattr(args, "command", None)
+    if command == "doctor":
+        return bool(getattr(args, "quiet", False))
+    return command in CLI_SILENT_STARTUP_COMMANDS
+
+
+@contextmanager
+def _server_startup_logging_suppressed(enabled: bool):
+    logger = logging.getLogger("saudi_open_data_mcp.server")
+    previous_level = logger.level
+    if enabled:
+        logger.setLevel(logging.WARNING)
+    try:
+        yield
+    finally:
+        if enabled:
+            logger.setLevel(previous_level)
+
+
 @contextmanager
 def _dotenv_environment():
     """Temporarily layer a local .env file onto the current process environment."""
@@ -930,11 +981,14 @@ def _parse_dotenv_value(
 def _create_server_or_exit(
     parser: argparse.ArgumentParser,
     config: RuntimeConfig | None = None,
+    *,
+    suppress_startup_logs: bool = False,
 ):
     """Create the server or exit with a concise operator-facing parser error."""
 
     try:
-        return create_server(config)
+        with _server_startup_logging_suppressed(suppress_startup_logs):
+            return create_server(config)
     except RuntimeConfigurationError as exc:
         parser.error(str(exc))
 
