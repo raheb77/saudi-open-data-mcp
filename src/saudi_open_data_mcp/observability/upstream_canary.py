@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -17,16 +18,23 @@ from saudi_open_data_mcp.normalization.pipeline import (
     NormalizationPipeline,
     NormalizationPipelineStatus,
 )
+from saudi_open_data_mcp.observability import get_logger, log_event
 from saudi_open_data_mcp.registry.bootstrap import (
     INITIAL_DATASET_DESCRIPTORS,
     bootstrap_registry,
 )
 from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
     DatasetDescriptor,
     DatasetHealthStatus,
     HealthMetadata,
 )
 from saudi_open_data_mcp.registry.repository import RegistryRepository
+
+LOGGER = get_logger(__name__)
+DATA_GOV_SA_NO_QUERYABLE_DATASET_REASON = (
+    "no queryable data.gov.sa dataset registered"
+)
 
 
 class UpstreamCanaryStatus(StrEnum):
@@ -67,11 +75,6 @@ _UPSTREAM_CANARY_DEFINITIONS: tuple[_UpstreamCanaryDefinition, ...] = (
         expected_normalization_status=NormalizationPipelineStatus.RECORD_DERIVABLE,
         minimum_record_count=1,
     ),
-    _UpstreamCanaryDefinition(
-        dataset_id="data-gov-sa-census-marital-status",
-        expected_normalization_status=NormalizationPipelineStatus.RECORD_DERIVABLE,
-        minimum_record_count=1,
-    ),
 )
 _INITIAL_DESCRIPTOR_BY_ID = {
     descriptor.dataset_id: descriptor for descriptor in INITIAL_DATASET_DESCRIPTORS
@@ -99,6 +102,15 @@ class UpstreamCanaryCheckResult(BaseModel):
     message: str | None = None
 
 
+class UpstreamCanarySkippedSource(BaseModel):
+    """Source family skipped by the curated canary with an explicit reason."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: str
+    reason: str
+
+
 class UpstreamCanarySummary(BaseModel):
     """Auditable summary for the curated upstream canary run."""
 
@@ -112,6 +124,7 @@ class UpstreamCanarySummary(BaseModel):
     dataset_ids_checked: tuple[str, ...]
     detects: tuple[str, ...] = Field(default_factory=tuple)
     does_not_detect: tuple[str, ...] = Field(default_factory=tuple)
+    skipped_sources: tuple[UpstreamCanarySkippedSource, ...] = Field(default_factory=tuple)
     checks: tuple[UpstreamCanaryCheckResult, ...] = Field(default_factory=tuple)
 
 
@@ -123,6 +136,7 @@ async def run_upstream_canary(
     """Run live fetch-plus-normalization checks for the curated upstream subset."""
 
     selected_definitions = _select_canary_definitions(dataset_ids)
+    skipped_sources = _skipped_sources_for_default_run() if dataset_ids is None else ()
     connector_resolver = build_default_connector_resolver(
         source_config=runtime_config.source,
     )
@@ -168,6 +182,7 @@ async def run_upstream_canary(
             "freshness SLA violations for every dataset",
             "all possible parser regressions that do not affect the curated canary datasets",
         ),
+        skipped_sources=skipped_sources,
         checks=tuple(checks),
     )
 
@@ -192,6 +207,28 @@ def _select_canary_definitions(
             )
         selected.append(definition)
     return tuple(selected)
+
+
+def _skipped_sources_for_default_run() -> tuple[UpstreamCanarySkippedSource, ...]:
+    if any(
+        descriptor.source == "data-gov-sa"
+        and descriptor.coverage_status is DatasetCoverageStatus.QUERYABLE
+        for descriptor in INITIAL_DATASET_DESCRIPTORS
+    ):
+        return ()
+
+    log_event(
+        LOGGER,
+        logging.INFO,
+        "canary: no queryable data.gov.sa dataset registered, skipping",
+        source="data-gov-sa",
+    )
+    return (
+        UpstreamCanarySkippedSource(
+            source="data-gov-sa",
+            reason=DATA_GOV_SA_NO_QUERYABLE_DATASET_REASON,
+        ),
+    )
 
 
 async def _run_one_canary_check(

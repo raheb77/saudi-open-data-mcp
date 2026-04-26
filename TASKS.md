@@ -11,5 +11,8 @@
 ## Still Intentionally Open
 
 - CI builds the Docker image but does not yet run a post-build container startup smoke.
-- The upstream canary covers one curated dataset per current source family, not the full catalog.
+- The upstream canary covers curated queryable datasets for SAMA, `stats.gov.sa`,
+  and Ministry of Finance, not the full catalog.
+- No queryable `data.gov.sa` dataset is registered yet; the canary intentionally
+  skips `data.gov.sa` until a `queryable` data.gov.sa descriptor exists.
 - Backup/restore, retention, and public release publication remain operator/release-process responsibilities rather than automated repo workflows.
