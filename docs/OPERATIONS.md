@@ -65,6 +65,13 @@ Curated live upstream drift detection is explicit rather than folded into the st
 - A canary failure means the curated approved route, response shape, or normalization contract drifted for one of those dataset ids.
 - The canary is not a full catalog-wide health check.
 
+Rate limiting is deliberately process-local in this internal alpha:
+
+- `preview_dataset` uses an in-memory sliding-window limiter inside the running MCP process.
+- The limiter coordinates concurrent calls within that process, but it does not share state across workers, containers, hosts, or restarts.
+- Scaling the service horizontally creates one independent limiter per process. Treat it as source-protection backpressure, not a global client quota.
+- Do not configure or depend on Redis, an external rate-limit store, or distributed quota state for this cycle.
+
 Registry bootstrap/update behavior is now explicit for persistent deployments:
 
 - startup inserts any missing seeded dataset descriptors
