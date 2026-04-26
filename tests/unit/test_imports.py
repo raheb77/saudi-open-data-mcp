@@ -289,6 +289,32 @@ def test_policies_resource_types_import_cleanly() -> None:
     assert PoliciesResource.__name__ == "PoliciesResource"
 
 
+def test_no_circular_import() -> None:
+    root = Path(__file__).resolve().parents[2]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                f"sys.path.insert(0, {str(root / 'src')!r}); "
+                "import saudi_open_data_mcp; "
+                "import saudi_open_data_mcp.storage.snapshots; "
+                "import saudi_open_data_mcp.connectors.data_gov_sa; "
+                "import saudi_open_data_mcp.connectors.sama; "
+                "import saudi_open_data_mcp.connectors.stats_gov_sa; "
+                "import saudi_open_data_mcp.connectors.mof"
+            ),
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+
+
 def test_storage_and_connector_modules_import_cleanly_in_fresh_interpreter() -> None:
     root = Path(__file__).resolve().parents[2]
     result = subprocess.run(

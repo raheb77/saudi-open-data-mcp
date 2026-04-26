@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TextIO
 from urllib.parse import quote
 
-from ..connectors.base import RawPayload, SnapshotMetadata
+from ..contracts import RawPayload, SnapshotMetadata
 
 CURRENT_SNAPSHOT_STORAGE_SCHEMA_VERSION = 1
 LEGACY_SNAPSHOT_STORAGE_SCHEMA_VERSION = 0

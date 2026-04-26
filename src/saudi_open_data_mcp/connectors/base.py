@@ -6,12 +6,16 @@ import asyncio
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
-from typing import Any, Protocol
 from urllib.parse import urljoin, urlsplit
 
 import httpx
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
+from saudi_open_data_mcp.contracts import (
+    RawPayload,
+    RawPayloadSnapshotWriter,
+    SnapshotMetadata,
+)
 from saudi_open_data_mcp.observability import get_logger, get_metrics, log_event
 
 from .errors import (
@@ -26,6 +30,16 @@ from .errors import (
 LOGGER = get_logger(__name__)
 _FOLLOWABLE_REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
 _MAX_SAFE_REDIRECT_HOPS = 5
+__all__ = [
+    "Connector",
+    "ConnectorIdentity",
+    "DatasetCatalog",
+    "DatasetCatalogEntry",
+    "RawPayload",
+    "RawPayloadSnapshotWriter",
+    "RequestPolicy",
+    "SnapshotMetadata",
+]
 
 
 class RequestPolicy(BaseModel):
@@ -62,38 +76,6 @@ class DatasetCatalog(BaseModel):
 
     source: str
     entries: tuple[DatasetCatalogEntry, ...] = ()
-
-
-class RawPayload(BaseModel):
-    """Typed raw connector output."""
-
-    source: str
-    dataset_id: str
-    content: dict[str, Any] = Field(default_factory=dict)
-    snapshot_metadata: SnapshotMetadata | None = None
-
-
-class SnapshotMetadata(BaseModel):
-    """Versioned snapshot metadata persisted alongside raw payload content."""
-
-    storage_schema_version: int = Field(default=1, ge=0)
-    raw_format_id: str | None = None
-    raw_format_version: int | None = Field(default=None, ge=1)
-
-    @model_validator(mode="after")
-    def _validate_format_version_pairing(self) -> "SnapshotMetadata":
-        if (self.raw_format_id is None) != (self.raw_format_version is None):
-            raise ValueError(
-                "snapshot raw_format_id and raw_format_version must be set together"
-            )
-        return self
-
-
-class RawPayloadSnapshotWriter(Protocol):
-    """Minimal protocol for optional raw payload snapshot persistence."""
-
-    def write_snapshot(self, payload: RawPayload) -> object:
-        """Persist a raw payload snapshot."""
 
 
 class Connector(ABC):
