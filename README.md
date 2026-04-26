@@ -4,6 +4,18 @@
 
 <!-- mcp-name: io.github.raheb77/saudi-open-data-mcp -->
 
+## Quickstart
+
+```bash
+git clone https://github.com/raheb77/saudi-open-data-mcp.git
+cd saudi-open-data-mcp
+uv sync
+export HTTP_AUTH_TOKEN=<your-token>
+uv run saudi-open-data-mcp check-startup
+uv run saudi-open-data-mcp refresh
+uv run saudi-open-data-mcp query sama-money-supply --limit 5
+```
+
 The project is not just an MCP wrapper around upstream websites. Its value is in the layers underneath MCP:
 
 - source isolation through explicit connectors
