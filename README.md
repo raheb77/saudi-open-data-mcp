@@ -299,10 +299,12 @@ set. `--format` remains `json` for the read/health/config commands, while
 python src/saudi_open_data_mcp/cli.py list
 python src/saudi_open_data_mcp/cli.py query sama-pos-weekly --filter week_end_date=2024-01-13 --limit 5
 python src/saudi_open_data_mcp/cli.py preview stats-gov-sa-cpi-headline-monthly
+python src/saudi_open_data_mcp/cli.py download sama-money-supply
 python src/saudi_open_data_mcp/cli.py export sama-money-supply-weekly --output money_supply.json
 python src/saudi_open_data_mcp/cli.py export sama-money-supply-weekly --format excel --output money_supply.xml
 python src/saudi_open_data_mcp/cli.py export sama-money-supply-weekly --format pdf --output money_supply.pdf
 python src/saudi_open_data_mcp/cli.py health mof-budget-balance-quarterly
+python src/saudi_open_data_mcp/cli.py refresh --dataset sama-money-supply
 python src/saudi_open_data_mcp/cli.py refresh --include-optional
 python src/saudi_open_data_mcp/cli.py config
 ```

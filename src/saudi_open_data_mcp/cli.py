@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -40,6 +40,14 @@ JSON_FORMAT = "json"
 EXCEL_FORMAT = ExportArtifactFormat.EXCEL.value
 PDF_FORMAT = ExportArtifactFormat.PDF.value
 DOTENV_FILENAME = ".env"
+SNAPSHOT_MISSING_NEXT_STEP_HINT = "\n".join(
+    (
+        "No snapshots found. To populate the hot set, run:",
+        "  saudi-open-data-mcp refresh",
+        "Or for a single dataset:",
+        "  saudi-open-data-mcp refresh --dataset <dataset_id>",
+    )
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -134,6 +142,14 @@ def build_parser() -> argparse.ArgumentParser:
     _add_output_arguments(preview_parser)
     preview_parser.set_defaults(command="preview")
 
+    download_parser = subparsers.add_parser(
+        "download",
+        help="Run the current download_dataset path for one dataset_id.",
+    )
+    download_parser.add_argument("dataset_id", help="Exact canonical dataset_id.")
+    _add_output_arguments(download_parser)
+    download_parser.set_defaults(command="download")
+
     export_parser = subparsers.add_parser(
         "export",
         help=(
@@ -164,6 +180,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--include-optional",
         action="store_true",
         help="Include the current optional Tier B hot-set dataset ids.",
+    )
+    refresh_parser.add_argument(
+        "--dataset",
+        dest="dataset_id",
+        default=None,
+        help="Refresh one exact dataset_id through the current preview_dataset path.",
     )
     _add_output_arguments(refresh_parser)
     refresh_parser.set_defaults(command="refresh")
@@ -206,6 +228,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "list",
         "query",
         "preview",
+        "download",
         "health",
         "refresh",
         "upstream-canary",
@@ -231,6 +254,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         config = _load_config_or_exit(parser)
         _create_server_or_exit(parser, config)
         print("saudi-open-data-mcp startup wiring and registry bootstrap are valid.")
+        _emit_no_snapshots_hint_if_needed(config.snapshot_dir, stream=sys.stdout)
         return 0
 
     if args.command == "run-http":
@@ -353,6 +377,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             quiet=args.quiet,
             output_format=args.format,
         )
+        _emit_snapshot_missing_hint_if_needed(payload)
         return 0
 
     if args.command == "preview":
@@ -372,6 +397,27 @@ def main(argv: Sequence[str] | None = None) -> int:
             quiet=args.quiet,
             output_format=args.format,
         )
+        _emit_snapshot_missing_hint_if_needed(payload)
+        return 0
+
+    if args.command == "download":
+        config = _load_config_or_exit(parser)
+        app = _create_server_or_exit(parser, config)
+        payload = asyncio.run(
+            _invoke_tool_payload(
+                app,
+                tool_name="download_dataset",
+                arguments={"dataset_id": args.dataset_id},
+            )
+        )
+        _write_payload_or_exit(
+            parser,
+            payload=payload,
+            output_path=args.output,
+            quiet=args.quiet,
+            output_format=args.format,
+        )
+        _emit_snapshot_missing_hint_if_needed(payload)
         return 0
 
     if args.command == "health":
@@ -394,8 +440,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "refresh":
+        if args.include_optional and args.dataset_id is not None:
+            parser.error("--dataset cannot be combined with --include-optional")
         config = _load_config_or_exit(parser)
         app = _create_server_or_exit(parser, config)
+        if args.dataset_id is not None:
+            payload = asyncio.run(
+                _invoke_tool_payload(
+                    app,
+                    tool_name="preview_dataset",
+                    arguments={"dataset_id": args.dataset_id},
+                )
+            )
+            _write_payload_or_exit(
+                parser,
+                payload=payload,
+                output_path=args.output,
+                quiet=args.quiet,
+                output_format=args.format,
+            )
+            _emit_snapshot_missing_hint_if_needed(payload)
+            return 0
+
         payload = asyncio.run(
             _invoke_tool_payload(
                 app,
@@ -588,6 +654,49 @@ async def _invoke_tool_payload(
     tools = await app.get_tools()
     tool_result = await tools[tool_name].run(arguments)
     return tool_result.structured_content
+
+
+def _emit_no_snapshots_hint_if_needed(
+    snapshot_dir: Path,
+    *,
+    stream: TextIO,
+) -> None:
+    """Emit the first-run recovery hint when the snapshot directory is empty."""
+
+    if _snapshot_dir_has_snapshots(snapshot_dir):
+        return
+    _emit_snapshot_missing_hint(stream=stream)
+
+
+def _snapshot_dir_has_snapshots(snapshot_dir: Path) -> bool:
+    """Return whether the runtime snapshot directory contains any JSON snapshots."""
+
+    return any(path.is_file() for path in snapshot_dir.rglob("*.json"))
+
+
+def _emit_snapshot_missing_hint_if_needed(payload: dict[str, Any]) -> None:
+    """Emit the first-run recovery hint for snapshot-blocked JSON command results."""
+
+    if not _payload_reports_missing_snapshot(payload):
+        return
+    _emit_snapshot_missing_hint(stream=sys.stderr)
+
+
+def _payload_reports_missing_snapshot(payload: dict[str, Any]) -> bool:
+    """Return whether a structured tool payload is blocked by missing snapshots."""
+
+    if payload.get("status") in {"snapshot_missing", "artifact_missing"}:
+        return True
+    return (
+        payload.get("resolution_outcome") == "fail_closed"
+        and payload.get("freshness_status") == "missing"
+    )
+
+
+def _emit_snapshot_missing_hint(*, stream: TextIO) -> None:
+    """Write the concise first-run snapshot recovery hint."""
+
+    stream.write(SNAPSHOT_MISSING_NEXT_STEP_HINT + "\n")
 
 
 def _config_payload(config: RuntimeConfig) -> dict[str, Any]:

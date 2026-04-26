@@ -53,6 +53,8 @@ The current baseline now includes:
 
 - a thin CLI was added over the same core tool surface
 - the CLI is now the governed institutional export path
+- CLI snapshot-missing paths now keep JSON payloads unchanged while emitting a
+  first-run `refresh` hint for empty or missing local snapshots
 - the dashboard package exists for UI review and live-core evaluation, but it
   remains optional and subordinate to the governed backend/core
 - `server.json` describes repository-level MCP metadata for the

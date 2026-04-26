@@ -59,6 +59,27 @@ def test_cli_check_startup_subcommand_returns_success() -> None:
     assert cli_module.main(["check-startup"]) == 0
 
 
+def test_cli_check_startup_suggests_refresh_when_no_snapshots(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config = RuntimeConfig(
+        registry_path=tmp_path / "registry.sqlite",
+        snapshot_dir=tmp_path / "snapshots",
+        cache_dir=tmp_path / "cache",
+    )
+
+    monkeypatch.setattr(cli_module, "load_config", lambda: config)
+    monkeypatch.setattr(cli_module, "create_server", lambda runtime_config=None: object())
+
+    assert cli_module.main(["check-startup"]) == 0
+
+    captured = capsys.readouterr()
+    assert "startup wiring and registry bootstrap are valid" in captured.out
+    assert cli_module.SNAPSHOT_MISSING_NEXT_STEP_HINT in captured.out
+
+
 def test_cli_run_http_dispatches_to_server(monkeypatch) -> None:
     calls: list[dict[str, object]] = []
 
@@ -447,6 +468,33 @@ def test_cli_query_rejects_positional_and_flag_dataset_id_together(capsys) -> No
     assert "provide either dataset_id or --dataset-id, not both" in captured.err
 
 
+def test_cli_query_suggests_refresh_when_snapshot_is_missing(
+    monkeypatch,
+    capsys,
+) -> None:
+    app = _DummyToolApp(
+        {
+            "query_dataset": _DummyToolRunner(
+                {
+                    "status": "snapshot_missing",
+                    "dataset_id": "sama-money-supply",
+                    "coverage_status": "unavailable",
+                    "source": "sama",
+                }
+            )
+        }
+    )
+    monkeypatch.setattr(cli_module, "load_config", lambda: RuntimeConfig())
+    monkeypatch.setattr(cli_module, "create_server", lambda runtime_config=None: app)
+
+    exit_code = cli_module.main(["query", "sama-money-supply"])
+
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["status"] == "snapshot_missing"
+    assert cli_module.SNAPSHOT_MISSING_NEXT_STEP_HINT in captured.err
+
+
 def test_cli_health_invokes_health_tool(
     monkeypatch,
     capsys,
@@ -505,6 +553,62 @@ def test_cli_preview_invokes_preview_tool(
     assert json.loads(captured.out)["coverage_status"] == "queryable"
 
 
+def test_cli_preview_suggests_refresh_when_missing_snapshot_fails_closed(
+    monkeypatch,
+    capsys,
+) -> None:
+    app = _DummyToolApp(
+        {
+            "preview_dataset": _DummyToolRunner(
+                {
+                    "status": "failed",
+                    "dataset_id": "stats-gov-sa-cpi-headline-monthly",
+                    "coverage_status": "unavailable",
+                    "resolution_outcome": "fail_closed",
+                    "freshness_status": "missing",
+                }
+            )
+        }
+    )
+    monkeypatch.setattr(cli_module, "load_config", lambda: RuntimeConfig())
+    monkeypatch.setattr(cli_module, "create_server", lambda runtime_config=None: app)
+
+    exit_code = cli_module.main(["preview", "stats-gov-sa-cpi-headline-monthly"])
+
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["resolution_outcome"] == "fail_closed"
+    assert cli_module.SNAPSHOT_MISSING_NEXT_STEP_HINT in captured.err
+
+
+def test_cli_download_suggests_refresh_when_artifact_is_missing(
+    monkeypatch,
+    capsys,
+) -> None:
+    app = _DummyToolApp(
+        {
+            "download_dataset": _DummyToolRunner(
+                {
+                    "status": "artifact_missing",
+                    "dataset_id": "sama-money-supply",
+                    "reason": "no_local_snapshot",
+                    "local_snapshot_exists": False,
+                }
+            )
+        }
+    )
+    monkeypatch.setattr(cli_module, "load_config", lambda: RuntimeConfig())
+    monkeypatch.setattr(cli_module, "create_server", lambda runtime_config=None: app)
+
+    exit_code = cli_module.main(["download", "sama-money-supply"])
+
+    assert exit_code == 0
+    assert app.calls["download_dataset"] == [{"dataset_id": "sama-money-supply"}]
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["status"] == "artifact_missing"
+    assert cli_module.SNAPSHOT_MISSING_NEXT_STEP_HINT in captured.err
+
+
 def test_cli_refresh_invokes_materialize_tool(
     monkeypatch,
     capsys,
@@ -529,6 +633,44 @@ def test_cli_refresh_invokes_materialize_tool(
     assert app.calls["materialize_hot_set"] == [{"include_optional": True}]
     captured = capsys.readouterr()
     assert json.loads(captured.out)["materialized_count"] == 6
+
+
+def test_cli_refresh_dataset_uses_single_dataset_preview_path(
+    monkeypatch,
+    capsys,
+) -> None:
+    app = _DummyToolApp(
+        {
+            "preview_dataset": _DummyToolRunner(
+                {
+                    "status": "limited",
+                    "dataset_id": "sama-money-supply",
+                    "coverage_status": "limited",
+                    "resolution_outcome": "refresh_then_serve",
+                }
+            )
+        }
+    )
+    monkeypatch.setattr(cli_module, "load_config", lambda: RuntimeConfig())
+    monkeypatch.setattr(cli_module, "create_server", lambda runtime_config=None: app)
+
+    exit_code = cli_module.main(["refresh", "--dataset", "sama-money-supply"])
+
+    assert exit_code == 0
+    assert app.calls["preview_dataset"] == [{"dataset_id": "sama-money-supply"}]
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["resolution_outcome"] == "refresh_then_serve"
+
+
+def test_cli_refresh_rejects_dataset_with_include_optional(capsys) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        cli_module.main(
+            ["refresh", "--dataset", "sama-money-supply", "--include-optional"]
+        )
+
+    assert excinfo.value.code == 2
+    captured = capsys.readouterr()
+    assert "--dataset cannot be combined with --include-optional" in captured.err
 
 
 def test_cli_export_writes_query_result_to_output_file_and_respects_quiet(
