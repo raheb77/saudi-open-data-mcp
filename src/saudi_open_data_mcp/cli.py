@@ -203,8 +203,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run the current materialize_hot_set path.",
         epilog=(
             "example:\n"
-            "  saudi-open-data-mcp refresh                        # materialize the Tier A hot set\n"
-            "  saudi-open-data-mcp refresh --dataset sama-money-supply  # refresh one dataset"
+            "  saudi-open-data-mcp refresh                       # Tier A hot set\n"
+            "  saudi-open-data-mcp refresh --dataset sama-money-supply"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

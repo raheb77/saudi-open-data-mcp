@@ -68,6 +68,55 @@ This separation exists for operational reasons, not style:
 
 ## Three-Layer Architecture
 
+```mermaid
+graph TD
+    subgraph "Layer 3: AI-Facing Tool Layer"
+        CLI["cli.py"]
+        SRV["server.py"]
+        TOOLS["tools/"]
+        RES["resources/"]
+    end
+
+    subgraph "Layer 2: Normalization & Contract Layer"
+        NORM["normalization/"]
+        REG["registry/ (SQLite)"]
+        STORE["storage/"]
+    end
+
+    subgraph "Layer 1: Data Access Layer"
+        CONN["connectors/"]
+        SAMA["SAMA"]
+        STATS["stats.gov.sa"]
+        MOF["MoF"]
+        DGOV["data.gov.sa"]
+    end
+
+    subgraph "Cross-cutting"
+        OBS["observability/"]
+        SEC["security/"]
+        CFG["config.py"]
+    end
+
+    CLI --> SRV
+    SRV --> TOOLS
+    SRV --> RES
+    TOOLS --> NORM
+    TOOLS --> REG
+    RES --> REG
+    NORM --> STORE
+    STORE --> CONN
+    CONN --> SAMA
+    CONN --> STATS
+    CONN --> MOF
+    CONN --> DGOV
+
+    OBS -.-> SRV
+    OBS -.-> CONN
+    SEC -.-> SRV
+    CFG -.-> SRV
+    CFG -.-> CONN
+```
+
 ### 1. Data Access Layer
 
 Purpose:
