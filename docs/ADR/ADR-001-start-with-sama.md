@@ -1,7 +1,8 @@
 # ADR-001: Start with SAMA as the only source in v0.1
 
-- Status: Accepted
+- Status: Accepted (partially superseded by ADR-002 and ADR-004)
 - Date: YYYY-MM-DD
+- Updated: 2026-04-27 — DuckDB references below are historical. DuckDB was never used in the codebase and has been removed from the project tooling list.
 
 ## Context
 
@@ -21,7 +22,7 @@ The first release also has fixed technical constraints:
 - FastMCP 2.x
 - `httpx` only
 - Pydantic v2
-- DuckDB instead of pandas in v0.1
+- ~~DuckDB instead of pandas in v0.1~~ (removed — DuckDB was never used; the normalization pipeline uses Pydantic models directly)
 - SQLite for registry metadata
 - no LLM dependency in the core path
 - approved official sources only
@@ -160,7 +161,12 @@ Tradeoff:
 - user query flexibility is lost
 - deterministic typed behavior is preserved
 
-## Why SQLite and DuckDB Are Sufficient for MVP
+## Why SQLite Is Sufficient for MVP
+
+> **Note (v0.4.0):** This section originally described both SQLite and DuckDB.
+> DuckDB was planned as a local analytical helper but was never used in the
+> codebase. The normalization pipeline uses Pydantic models directly. DuckDB
+> has been removed from the project tooling list.
 
 SQLite is sufficient for the registry because registry data in v0.1 is small, structured, and local:
 
@@ -169,17 +175,10 @@ SQLite is sufficient for the registry because registry data in v0.1 is small, st
 - caveats
 - health metadata
 
-DuckDB is sufficient for local analytical helpers because the MVP needs deterministic local analysis without adding a dataframe dependency:
-
-- inspect cached or snapshotted payloads
-- support local analytical workflows near the data
-- avoid pandas in v0.1
-
-This split keeps operational roles clear:
+The storage split keeps operational roles clear:
 
 - SQLite is the metadata source of truth
-- DuckDB is a local analytical helper
-- file storage keeps raw snapshots separate from both
+- file storage keeps raw snapshots separate from registry metadata
 
 ## Why Both STDIO and Streamable HTTP Are Included from the Start
 
@@ -203,7 +202,7 @@ The accepted tradeoffs are explicit:
 
 - choose one real source instead of broad source coverage
 - choose deterministic typed outputs instead of more permissive natural-language behavior
-- choose SQLite plus DuckDB plus file snapshots instead of a larger storage stack
+- choose SQLite plus file snapshots instead of a larger storage stack
 - choose transport parity now instead of adding HTTP later
 
 These are not claims of universal optimality. They are scope decisions aligned to the MVP goal.
