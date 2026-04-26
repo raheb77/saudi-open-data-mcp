@@ -135,7 +135,6 @@ Required mechanisms:
 
 The repository also includes supporting modules that cut across these layers:
 
-- `health/`
 - `observability/`
 - `security/`
 - `config.py`
@@ -225,30 +224,6 @@ Enforcement:
 - metadata reads go through registry-facing interfaces
 - normalized record flow remains separate from registry metadata flow
 
-### `health/`
-
-Current status:
-
-- `health/` remains intentionally minimal in the current baseline.
-- dataset health responses are currently driven by registry-backed health metadata plus local snapshot freshness evidence
-
-Responsibilities:
-
-- define deterministic health-oriented models and helper logic where used
-- keep health-related types out of MCP transport code
-
-Must not:
-
-- claim live source reachability checks or connector probing that the current runtime does not implement
-- become a generic metadata store
-- return MCP responses directly
-
-Enforcement:
-
-- persisted health state stays in `registry/`
-- snapshot freshness evaluation stays outside transport code
-- current dataset health outputs remain deterministic and registry-backed
-
 ### `tools/` and `resources/`
 
 Responsibilities:
@@ -266,7 +241,7 @@ Must not:
 
 Enforcement:
 
-- constructor or module-level dependencies are limited to internal orchestration helpers, registry-facing interfaces, and typed outputs from `normalization/`, `registry/`, and `health/`
+- constructor or module-level dependencies are limited to internal orchestration helpers, registry-facing interfaces, and typed outputs from `normalization/` and `registry/`
 - pytest architecture checks should fail if MCP modules import `connectors/`
 - contract tests should fail if MCP outputs stop matching typed contracts
 
@@ -363,12 +338,11 @@ These are architectural rules, not preferences.
 
 ### Allowed
 
-- `tools/` may depend on internal application interfaces, registry-facing interfaces, and typed outputs defined in `normalization/`, `registry/`, and `health/`.
+- `tools/` may depend on internal application interfaces, registry-facing interfaces, and typed outputs defined in `normalization/` and `registry/`.
 - `connectors/` may access external official sources.
 - `normalization/` may consume raw connector outputs and produce typed canonical models.
 - `registry/` may store dataset descriptors, schema versions, caveats, and health-related metadata.
 - `storage/` may manage file cache, snapshots, and freshness evaluation helpers.
-- `health/` may define deterministic health-related types and helpers; persisted health state remains in `registry/`.
 - `server.py` may wire transports and register tools/resources, but must not contain business logic.
 - `observability/`, `security/`, and `config.py` may provide cross-cutting support without owning core business flows.
 
@@ -417,7 +391,7 @@ Examples:
 
 - A record retrieval tool depends on normalized data flow and may also read registry metadata to include schema version or dataset caveats.
 - A dataset discovery resource may depend on registry metadata only and never touch raw source retrieval.
-- A health-focused tool may query registry health metadata produced through `health/` without fetching fresh raw payloads, depending on the use case definition.
+- A health-focused tool may query registry health metadata and local snapshot freshness evidence without fetching fresh raw payloads, depending on the use case definition.
 
 The rule is explicit: connectors fetch raw source payloads; normalization transforms raw payloads into canonical typed outputs; registry stores dataset descriptors and metadata; MCP tools orchestrate registry lookups and normalized data access through internal application logic and typed interfaces.
 

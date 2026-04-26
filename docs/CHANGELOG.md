@@ -34,6 +34,9 @@ The current baseline now includes:
 - HTTP auth moved to an explicit bearer-token plus role/capability model
 - current roles are `viewer`, `operator`, and `admin`
 - structured `audit.*` logging was added for important governed operations
+- removed the unused top-level `health/` placeholder package; dataset-level
+  health remains in `tools/health.py` backed by registry metadata and local
+  snapshot freshness evidence
 - result metadata became more explicit around:
   - `data_origin`
   - `freshness_status`

@@ -18,7 +18,6 @@ Keep changes inside the approved repository layout under `src/saudi_open_data_mc
 - `normalization/`
 - `registry/`
 - `storage/`
-- `health/`
 - `tools/`
 - `resources/`
 - `observability/`
