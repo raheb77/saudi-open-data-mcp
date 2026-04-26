@@ -88,6 +88,24 @@ def test_load_config_respects_valid_official_base_url_overrides(
     assert getattr(config.source, expected_field) == expected_url
 
 
+def test_data_gov_sa_base_url_validation(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DATA_GOV_SA_BASE_URL", "https://data.gov.sa")
+    assert load_config().source.data_gov_sa_base_url == "https://data.gov.sa"
+
+    monkeypatch.setenv("DATA_GOV_SA_BASE_URL", "https://OPEN.DATA.GOV.SA/")
+    assert load_config().source.data_gov_sa_base_url == "https://open.data.gov.sa"
+
+    invalid_values = (
+        "http://open.data.gov.sa",
+        "https://127.0.0.1",
+        "https://evil.example.org",
+    )
+    for value in invalid_values:
+        monkeypatch.setenv("DATA_GOV_SA_BASE_URL", value)
+        with pytest.raises(RuntimeConfigurationError, match="DATA_GOV_SA_BASE_URL"):
+            load_config()
+
+
 @pytest.mark.parametrize(
     ("env_name", "value"),
     (

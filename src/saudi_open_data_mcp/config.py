@@ -40,7 +40,7 @@ VALID_LOG_LEVELS = frozenset(
 _SOURCE_BASE_URL_ALLOWED_HOSTS = {
     "sama_base_url": frozenset({"www.sama.gov.sa"}),
     "stats_gov_sa_base_url": frozenset({"www.stats.gov.sa"}),
-    "data_gov_sa_base_url": frozenset({"open.data.gov.sa"}),
+    "data_gov_sa_base_url": frozenset({"data.gov.sa", "open.data.gov.sa"}),
     "mof_base_url": frozenset({"www.mof.gov.sa"}),
 }
 _SOURCE_BASE_URL_ENV_NAMES = {
