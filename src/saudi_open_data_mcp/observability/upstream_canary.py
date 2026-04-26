@@ -100,6 +100,7 @@ class UpstreamCanaryCheckResult(BaseModel):
     failure_stage: UpstreamCanaryFailureStage | None = None
     error_type: str | None = None
     message: str | None = None
+    degradation_reason: str | None = None
 
 
 class UpstreamCanarySkippedSource(BaseModel):
@@ -109,6 +110,17 @@ class UpstreamCanarySkippedSource(BaseModel):
 
     source: str
     reason: str
+
+
+class UpstreamCanaryHealthStatusChange(BaseModel):
+    """Dataset health_status transition persisted from one canary check."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    dataset_id: str
+    previous_health_status: DatasetHealthStatus | None
+    new_health_status: DatasetHealthStatus
+    degradation_reason: str | None = None
 
 
 class UpstreamCanarySummary(BaseModel):
@@ -125,6 +137,9 @@ class UpstreamCanarySummary(BaseModel):
     detects: tuple[str, ...] = Field(default_factory=tuple)
     does_not_detect: tuple[str, ...] = Field(default_factory=tuple)
     skipped_sources: tuple[UpstreamCanarySkippedSource, ...] = Field(default_factory=tuple)
+    health_status_changes: tuple[UpstreamCanaryHealthStatusChange, ...] = Field(
+        default_factory=tuple
+    )
     checks: tuple[UpstreamCanaryCheckResult, ...] = Field(default_factory=tuple)
 
 
@@ -144,6 +159,7 @@ async def run_upstream_canary(
     repository = RegistryRepository(runtime_config.registry_path)
     bootstrap_registry(repository)
     checks: list[UpstreamCanaryCheckResult] = []
+    health_status_changes: list[UpstreamCanaryHealthStatusChange] = []
 
     for definition in selected_definitions:
         check = await _run_one_canary_check(
@@ -151,7 +167,9 @@ async def run_upstream_canary(
             connector_resolver=connector_resolver,
             normalization_pipeline=normalization_pipeline,
         )
-        _persist_canary_health_outcome(repository, check)
+        health_status_change = _persist_canary_health_outcome(repository, check)
+        if health_status_change is not None:
+            health_status_changes.append(health_status_change)
         checks.append(check)
 
     failed_dataset_count = sum(
@@ -183,6 +201,7 @@ async def run_upstream_canary(
             "all possible parser regressions that do not affect the curated canary datasets",
         ),
         skipped_sources=skipped_sources,
+        health_status_changes=tuple(health_status_changes),
         checks=tuple(checks),
     )
 
@@ -343,6 +362,11 @@ def _failed_canary_result(
     record_count: int | None = None,
 ) -> UpstreamCanaryCheckResult:
     response_metadata = _response_metadata(raw_payload) if raw_payload is not None else None
+    degradation_reason = _canary_degradation_reason(
+        failure_stage=failure_stage,
+        error_type=error_type,
+        message=message,
+    )
     return UpstreamCanaryCheckResult(
         dataset_id=descriptor.dataset_id,
         source=descriptor.source,
@@ -362,13 +386,18 @@ def _failed_canary_result(
         failure_stage=failure_stage,
         error_type=error_type,
         message=message,
+        degradation_reason=degradation_reason,
     )
 
 
 def _persist_canary_health_outcome(
     repository: RegistryRepository,
     check: UpstreamCanaryCheckResult,
-) -> None:
+) -> UpstreamCanaryHealthStatusChange | None:
+    previous_health = repository.get_health(check.dataset_id)
+    previous_health_status = (
+        previous_health.health_status if previous_health is not None else None
+    )
     health_status = (
         DatasetHealthStatus.HEALTHY
         if check.status is UpstreamCanaryStatus.PASSED
@@ -380,6 +409,33 @@ def _persist_canary_health_outcome(
             health_status=health_status,
         )
     )
+    if previous_health_status is health_status:
+        return None
+    return UpstreamCanaryHealthStatusChange(
+        dataset_id=check.dataset_id,
+        previous_health_status=previous_health_status,
+        new_health_status=health_status,
+        degradation_reason=(
+            check.degradation_reason
+            if health_status is DatasetHealthStatus.DEGRADED
+            else None
+        ),
+    )
+
+
+def _canary_degradation_reason(
+    *,
+    failure_stage: UpstreamCanaryFailureStage,
+    error_type: str,
+    message: str,
+) -> str:
+    return f"{failure_stage.value}: {error_type}: {message}"
+
+
+def upstream_canary_exit_code(summary: UpstreamCanarySummary) -> int:
+    """Return the CLI exit code for a completed canary summary."""
+
+    return 0 if summary.status is UpstreamCanaryStatus.PASSED else 2
 
 
 def _response_metadata(raw_payload: RawPayload) -> dict[str, Any]:

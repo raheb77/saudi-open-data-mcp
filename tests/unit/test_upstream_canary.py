@@ -16,7 +16,7 @@ from saudi_open_data_mcp.observability.upstream_canary import (
     UpstreamCanaryStatus,
     run_upstream_canary,
 )
-from saudi_open_data_mcp.registry.models import DatasetHealthStatus
+from saudi_open_data_mcp.registry.models import DatasetHealthStatus, HealthMetadata
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 
 
@@ -135,9 +135,48 @@ async def test_upstream_canary_reports_pass_when_curated_live_check_is_record_de
     assert summary.checks[0].status is UpstreamCanaryStatus.PASSED
     assert summary.checks[0].record_count == 1
     assert summary.checks[0].normalization_status == "record_derivable"
+    assert summary.health_status_changes[0].dataset_id == "mof-budget-balance-quarterly"
+    assert (
+        summary.health_status_changes[0].previous_health_status
+        is DatasetHealthStatus.UNKNOWN
+    )
+    assert summary.health_status_changes[0].new_health_status is DatasetHealthStatus.HEALTHY
+    assert summary.health_status_changes[0].degradation_reason is None
     descriptor = repository.get_dataset("mof-budget-balance-quarterly")
     assert descriptor is not None
     assert descriptor.health_status is DatasetHealthStatus.HEALTHY
+
+
+@pytest.mark.asyncio
+async def test_upstream_canary_omits_health_change_when_status_already_current(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runtime_config = RuntimeConfig(
+        registry_path=tmp_path / "registry.sqlite",
+        snapshot_dir=tmp_path / "snapshots",
+        cache_dir=tmp_path / "cache",
+    )
+    repository = RegistryRepository(runtime_config.registry_path)
+    repository.upsert_health(
+        HealthMetadata(
+            dataset_id="mof-budget-balance-quarterly",
+            health_status=DatasetHealthStatus.HEALTHY,
+        )
+    )
+    monkeypatch.setattr(
+        canary_module,
+        "build_default_connector_resolver",
+        lambda source_config: _Resolver(_PassingConnector()),
+    )
+
+    summary = await run_upstream_canary(
+        runtime_config,
+        dataset_ids=("mof-budget-balance-quarterly",),
+    )
+
+    assert summary.status is UpstreamCanaryStatus.PASSED
+    assert summary.health_status_changes == ()
 
 
 @pytest.mark.asyncio
@@ -167,6 +206,14 @@ async def test_upstream_canary_reports_failure_when_live_payload_is_not_record_d
     assert summary.checks[0].status is UpstreamCanaryStatus.FAILED
     assert summary.checks[0].failure_stage is UpstreamCanaryFailureStage.NORMALIZATION
     assert summary.checks[0].error_type == "UnexpectedNormalizationStatus"
+    assert summary.checks[0].degradation_reason is not None
+    assert summary.health_status_changes[0].dataset_id == "mof-budget-balance-quarterly"
+    assert (
+        summary.health_status_changes[0].previous_health_status
+        is DatasetHealthStatus.UNKNOWN
+    )
+    assert summary.health_status_changes[0].new_health_status is DatasetHealthStatus.DEGRADED
+    assert summary.health_status_changes[0].degradation_reason is not None
     descriptor = repository.get_dataset("mof-budget-balance-quarterly")
     assert descriptor is not None
     assert descriptor.health_status is DatasetHealthStatus.DEGRADED

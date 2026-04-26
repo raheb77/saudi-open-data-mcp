@@ -30,11 +30,84 @@ jobs:
         run: mkdir -p artifacts
 
       - name: Run curated upstream canary
+        id: run-canary
         env:
           REGISTRY_PATH: /tmp/upstream-canary-registry.sqlite
           SNAPSHOT_DIR: /tmp/upstream-canary-snapshots
           CACHE_DIR: /tmp/upstream-canary-cache
-        run: uv run python src/saudi_open_data_mcp/cli.py upstream-canary --output artifacts/upstream-canary.json
+        run: |
+          set +e
+          uv run python src/saudi_open_data_mcp/cli.py upstream-canary --output artifacts/upstream-canary.json
+          canary_exit_code=$?
+          set -e
+          echo "exit_code=${canary_exit_code}" >> "$GITHUB_OUTPUT"
+          if [ "$canary_exit_code" -eq 1 ]; then
+            echo "upstream canary failed before producing a trustworthy summary" >&2
+            exit 1
+          fi
+          if [ "$canary_exit_code" -eq 2 ]; then
+            echo "upstream canary drift detected; preserving artifact without failing CI"
+          fi
+
+      - name: Report canary summary
+        if: always()
+        env:
+          CANARY_EXIT_CODE: ${{ steps.run-canary.outputs.exit_code }}
+        run: |
+          uv run python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary_path = Path("artifacts/upstream-canary.json")
+          lines = [
+              "## Upstream Canary",
+              "",
+              f"- CLI exit code: {os.environ.get('CANARY_EXIT_CODE', 'not-run')}",
+          ]
+          if not summary_path.exists():
+              lines.append("- Summary artifact: missing")
+          else:
+              summary = json.loads(summary_path.read_text())
+              lines.extend(
+                  [
+                      f"- Canary status: {summary.get('status')}",
+                      f"- Checked datasets: {summary.get('checked_dataset_count', 0)}",
+                      f"- Failed datasets: {summary.get('failed_dataset_count', 0)}",
+                  ]
+              )
+              skipped_sources = summary.get("skipped_sources", [])
+              if skipped_sources:
+                  skipped = ", ".join(
+                      f"{item.get('source')} ({item.get('reason')})"
+                      for item in skipped_sources
+                  )
+                  lines.append(f"- Skipped sources: {skipped}")
+              changes = summary.get("health_status_changes", [])
+              if changes:
+                  lines.extend(
+                      [
+                          "",
+                          "| Dataset | Previous | New | Degradation reason |",
+                          "| --- | --- | --- | --- |",
+                      ]
+                  )
+                  for change in changes:
+                      reason = change.get("degradation_reason") or ""
+                      lines.append(
+                          "| {dataset} | {previous} | {new} | {reason} |".format(
+                              dataset=change.get("dataset_id"),
+                              previous=change.get("previous_health_status"),
+                              new=change.get("new_health_status"),
+                              reason=reason.replace("|", "\\|"),
+                          )
+                      )
+              else:
+                  lines.append("- Health status changes: none")
+
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as summary_file:
+              summary_file.write("\n".join(lines) + "\n")
+          PY
 
       - name: Upload canary artifact
         if: always()

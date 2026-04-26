@@ -184,12 +184,12 @@ def test_cli_upstream_canary_returns_success_when_all_checks_pass(
             checked_dataset_count=1,
             passed_dataset_count=1,
             failed_dataset_count=0,
-            dataset_ids_checked=("data-gov-sa-census-marital-status",),
+            dataset_ids_checked=("mof-budget-balance-quarterly",),
             checks=(
                 UpstreamCanaryCheckResult(
-                    dataset_id="data-gov-sa-census-marital-status",
-                    source="data-gov-sa",
-                    source_locator=DATA_GOV_SA_SOURCE_LOCATOR,
+                    dataset_id="mof-budget-balance-quarterly",
+                    source="mof",
+                    source_locator="/en/financialreport/2025/Pages/default.aspx",
                     status=UpstreamCanaryStatus.PASSED,
                     expected_normalization_status="record_derivable",
                     minimum_record_count=1,
@@ -197,7 +197,9 @@ def test_cli_upstream_canary_returns_success_when_all_checks_pass(
                     record_count=1,
                     response_status_code=200,
                     response_content_type="application/json",
-                    response_url="https://open.data.gov.sa/example.json",
+                    response_url=(
+                        "https://www.mof.gov.sa/en/financialreport/2025/Pages/default.aspx"
+                    ),
                 ),
             ),
         )
@@ -225,12 +227,12 @@ def test_cli_upstream_canary_returns_failure_when_any_check_fails(
             checked_dataset_count=1,
             passed_dataset_count=0,
             failed_dataset_count=1,
-            dataset_ids_checked=("data-gov-sa-census-marital-status",),
+            dataset_ids_checked=("mof-budget-balance-quarterly",),
             checks=(
                 UpstreamCanaryCheckResult(
-                    dataset_id="data-gov-sa-census-marital-status",
-                    source="data-gov-sa",
-                    source_locator=DATA_GOV_SA_SOURCE_LOCATOR,
+                    dataset_id="mof-budget-balance-quarterly",
+                    source="mof",
+                    source_locator="/en/financialreport/2025/Pages/default.aspx",
                     status=UpstreamCanaryStatus.FAILED,
                     expected_normalization_status="record_derivable",
                     minimum_record_count=1,
@@ -247,8 +249,28 @@ def test_cli_upstream_canary_returns_failure_when_any_check_fails(
     exit_code = cli_module.main(["upstream-canary"])
 
     captured = capsys.readouterr()
-    assert exit_code == 1
+    assert exit_code == 2
     assert json.loads(captured.out)["status"] == "failed"
+
+
+def test_cli_upstream_canary_returns_broken_exit_when_summary_cannot_be_built(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config = RuntimeConfig()
+
+    async def _run_canary(runtime_config, dataset_ids=None) -> UpstreamCanarySummary:
+        raise RuntimeError("registry unavailable")
+
+    monkeypatch.setattr(cli_module, "load_config", lambda: config)
+    monkeypatch.setattr(cli_module, "run_upstream_canary", _run_canary)
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli_module.main(["upstream-canary"])
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 1
+    assert "failed before producing a summary" in captured.err
 
 
 def test_cli_run_http_loads_http_auth_token_from_local_dotenv(

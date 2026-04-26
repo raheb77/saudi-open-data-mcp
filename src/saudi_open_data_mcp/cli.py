@@ -22,8 +22,8 @@ from saudi_open_data_mcp.config import (
     load_config,
 )
 from saudi_open_data_mcp.observability.upstream_canary import (
-    UpstreamCanaryStatus,
     run_upstream_canary,
+    upstream_canary_exit_code,
 )
 from saudi_open_data_mcp.security.http_auth import build_http_auth_middleware
 from saudi_open_data_mcp.security.http_readiness import build_http_readiness_middleware
@@ -480,16 +480,22 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "upstream-canary":
         config = _load_config_or_exit(parser)
-        summary = asyncio.run(
-            run_upstream_canary(
-                config,
-                dataset_ids=(
-                    tuple(args.dataset_ids)
-                    if args.dataset_ids is not None
-                    else None
-                ),
+        try:
+            summary = asyncio.run(
+                run_upstream_canary(
+                    config,
+                    dataset_ids=(
+                        tuple(args.dataset_ids)
+                        if args.dataset_ids is not None
+                        else None
+                    ),
+                )
             )
-        )
+        except Exception as exc:
+            parser.exit(
+                1,
+                f"upstream canary failed before producing a summary: {exc}\n",
+            )
         _write_payload_or_exit(
             parser,
             payload=summary.model_dump(mode="json"),
@@ -497,7 +503,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             quiet=args.quiet,
             output_format=args.format,
         )
-        return 0 if summary.status is UpstreamCanaryStatus.PASSED else 1
+        return upstream_canary_exit_code(summary)
 
     parser.error("unsupported command")
     return 2
