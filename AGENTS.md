@@ -61,7 +61,6 @@ If there is any conflict between the general repository guidance in this file an
 - pytest
 - pytest-asyncio
 - respx
-- DuckDB
 - SQLite
 
 ## Local Checks
