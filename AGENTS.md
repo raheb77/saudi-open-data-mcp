@@ -48,6 +48,12 @@ Do not add service packages, prompt packages, or alternate architectural areas.
 - do not add fake examples, fake benchmarks, or half-implemented business logic
 - keep `README.md`, `AGENTS.md`, `docs/CHANGELOG.md`, `TASKS.md`, and `server.json` aligned when changing supported surfaces or runtime posture
 
+## Temporary v0.4.0 Hardening Context
+
+For the v0.4.0 hardening cycle, all agents must also read `AGENTS_TASK_CONTEXT.md` before making changes.
+
+If there is any conflict between the general repository guidance in this file and the temporary hardening-cycle rules in `AGENTS_TASK_CONTEXT.md`, the task prompt must explicitly state which section overrides which.
+
 ## Tooling
 
 - Python 3.12
