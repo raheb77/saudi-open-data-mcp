@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import importlib.metadata
 import json
 import os
 import sys
@@ -53,12 +54,22 @@ SNAPSHOT_MISSING_NEXT_STEP_HINT = "\n".join(
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI parser."""
 
+    try:
+        _pkg_version = importlib.metadata.version("saudi-open-data-mcp")
+    except importlib.metadata.PackageNotFoundError:
+        _pkg_version = "0.4.0a1"
+
     parser = argparse.ArgumentParser(
         prog="saudi-open-data-mcp",
         description=(
             "Thin non-interactive CLI over the current MCP core. Data commands emit "
             "JSON to stdout by default."
         ),
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"saudi-open-data-mcp {_pkg_version}",
     )
     subparsers = parser.add_subparsers(dest="command")
 
