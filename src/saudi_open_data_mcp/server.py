@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
+from importlib.metadata import PackageNotFoundError, version
 
 from fastmcp import FastMCP
 
@@ -31,6 +32,19 @@ from .tools.query import DatasetQueryTool
 from .tools.search import DatasetSearchTool
 
 LOGGER = get_logger(__name__)
+MCP_SERVER_NAME = "Saudi Open Data MCP"
+MCP_SERVER_DESCRIPTION = (
+    "MCP server for Saudi government open data (SAMA, GASTAT, MoF, data.gov.sa) "
+    "- internal alpha."
+)
+PACKAGE_NAME = "saudi-open-data-mcp"
+
+
+def _server_version() -> str:
+    try:
+        return version(PACKAGE_NAME)
+    except PackageNotFoundError:
+        return "0.4.0a1"
 
 
 def _build_server_lifespan(
@@ -118,7 +132,9 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
         search_tool = DatasetSearchTool(repository)
 
         app = FastMCP(
-            runtime_config.app_name,
+            name=MCP_SERVER_NAME,
+            instructions=MCP_SERVER_DESCRIPTION,
+            version=_server_version(),
             lifespan=_build_server_lifespan(
                 refresh_service=refresh_service,
                 runtime_config=runtime_config,

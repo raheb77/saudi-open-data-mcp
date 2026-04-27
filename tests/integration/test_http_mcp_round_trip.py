@@ -16,7 +16,12 @@ from saudi_open_data_mcp.security.http_readiness import (
     HTTP_STARTUP_PATH,
     build_http_readiness_middleware,
 )
-from saudi_open_data_mcp.server import create_server
+from saudi_open_data_mcp.server import (
+    MCP_SERVER_DESCRIPTION,
+    MCP_SERVER_NAME,
+    _server_version,
+    create_server,
+)
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 
 HTTP_AUTH_TOKEN = "0123456789abcdef0123456789abcdef"
@@ -129,6 +134,10 @@ def test_run_http_path_supports_real_mcp_query_dataset_round_trip(
             initialize_response.json()["result"]["protocolVersion"]
             == MCP_PROTOCOL_VERSION
         )
+        initialize_result = initialize_response.json()["result"]
+        assert initialize_result["serverInfo"]["name"] == MCP_SERVER_NAME
+        assert initialize_result["serverInfo"]["version"] == _server_version()
+        assert initialize_result["instructions"] == MCP_SERVER_DESCRIPTION
         session_id = initialize_response.headers["mcp-session-id"]
 
         initialized_response = client.post(
