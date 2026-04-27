@@ -229,6 +229,12 @@ async def test_server_registers_current_mcp_surface(
         "query_dataset",
         "search_datasets",
     }
+    for tool in tools.values():
+        parameter_properties = tool.parameters["properties"]
+        for parameter_name, parameter_schema in parameter_properties.items():
+            assert parameter_schema.get("description"), (
+                f"{tool.name}.{parameter_name} is missing an MCP input description"
+            )
 
     catalog_payload = json.loads(await resources["resource://catalog"].read())
     observability_payload = json.loads(await resources["resource://observability"].read())

@@ -17,6 +17,13 @@ from .resources.policies import PoliciesResource
 from .storage.snapshots import SnapshotStore
 from .tools.download import DatasetDownloadTool
 from .tools.health import DatasetHealthTool
+from .tools.input_schema import (
+    DatasetIdInput,
+    IncludeOptionalInput,
+    QueryFiltersInput,
+    QueryLimitInput,
+    SearchQueryInput,
+)
 from .tools.materialize import HotSetMaterializationTool, TierABackgroundRefreshService
 from .tools.metadata import DatasetMetadataTool
 from .tools.preview import DatasetPreviewTool
@@ -152,7 +159,7 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
             name="dataset_metadata",
             description="Exact registry metadata lookup by dataset_id.",
         )
-        def dataset_metadata(dataset_id: str) -> dict:
+        def dataset_metadata(dataset_id: DatasetIdInput) -> dict:
             return metadata_tool.get_dataset_metadata(dataset_id).model_dump(mode="json")
 
         @app.tool(
@@ -162,7 +169,7 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
                 "with local snapshot freshness evidence when available."
             ),
         )
-        def dataset_health(dataset_id: str) -> dict:
+        def dataset_health(dataset_id: DatasetIdInput) -> dict:
             return health_tool.get_dataset_health(dataset_id).model_dump(mode="json")
 
         @app.tool(
@@ -172,7 +179,7 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
                 "Local-only; no remote fetch."
             ),
         )
-        def download_dataset(dataset_id: str) -> dict:
+        def download_dataset(dataset_id: DatasetIdInput) -> dict:
             return download_tool.get_dataset_download(dataset_id).model_dump(mode="json")
 
         @app.tool(
@@ -182,7 +189,9 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
                 "Tier B remains opt-in via include_optional."
             ),
         )
-        async def materialize_hot_set(include_optional: bool = False) -> dict:
+        async def materialize_hot_set(
+            include_optional: IncludeOptionalInput = False,
+        ) -> dict:
             return (
                 await materialize_tool.materialize_hot_set(include_optional=include_optional)
             ).model_dump(mode="json")
@@ -195,9 +204,9 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
             ),
         )
         def query_dataset(
-            dataset_id: str,
-            filters: dict[str, str | int | float | bool | None] | None = None,
-            limit: int | None = None,
+            dataset_id: DatasetIdInput,
+            filters: QueryFiltersInput = None,
+            limit: QueryLimitInput = None,
         ) -> dict:
             return query_tool.query_dataset(
                 dataset_id,
@@ -212,7 +221,7 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
                 "substring matching only."
             ),
         )
-        def search_datasets(query: str) -> dict:
+        def search_datasets(query: SearchQueryInput) -> dict:
             return search_tool.search_datasets(query).model_dump(mode="json")
 
         @app.tool(
@@ -221,7 +230,7 @@ def create_server(config: RuntimeConfig | None = None) -> FastMCP:
                 "Fetch and preview a dataset for an exact registry dataset_id."
             ),
         )
-        async def preview_dataset(dataset_id: str) -> dict:
+        async def preview_dataset(dataset_id: DatasetIdInput) -> dict:
             return (await preview_tool.preview_dataset(dataset_id)).model_dump(mode="json")
 
     except Exception as exc:
