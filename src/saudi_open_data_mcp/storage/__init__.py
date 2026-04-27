@@ -1,6 +1,5 @@
 """Storage helpers."""
 
-from .cache import CacheStore
 from .freshness import (
     SnapshotFreshnessReason,
     SnapshotFreshnessResult,
@@ -10,7 +9,6 @@ from .freshness import (
 from .snapshots import SnapshotStore
 
 __all__ = [
-    "CacheStore",
     "SnapshotFreshnessReason",
     "SnapshotFreshnessResult",
     "SnapshotFreshnessStatus",

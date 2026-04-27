@@ -40,6 +40,8 @@ The current baseline now includes:
 - registry `health_status` now updates from materialization, preview refresh,
   stale-fallback, and upstream-canary outcomes instead of remaining permanently
   `unknown`
+- removed the unused `CacheStore` placeholder; runtime persistence uses the
+  registry repository and snapshot storage paths instead
 - result metadata became more explicit around:
   - `data_origin`
   - `freshness_status`
