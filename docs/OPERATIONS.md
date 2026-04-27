@@ -60,7 +60,7 @@ Startup probing for the internal container path is intentionally narrow:
 
 Curated live upstream drift detection is explicit rather than folded into the startup probe:
 
-- `python src/saudi_open_data_mcp/cli.py upstream-canary` runs a live fetch-plus-normalization canary for one curated dataset per current source family.
+- The upstream canary currently checks curated live datasets for the queryable source families and temporarily skips data.gov.sa until a queryable dataset is registered for that source.
 - The scheduled GitHub Actions `upstream-canary` workflow runs that command on a timer and on manual dispatch.
 - A canary failure means the curated approved route, response shape, or normalization contract drifted for one of those dataset ids.
 - The canary is not a full catalog-wide health check.
