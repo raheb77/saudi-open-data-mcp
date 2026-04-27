@@ -1,7 +1,9 @@
 """Arabic text helpers for normalization."""
 
+import unicodedata
+
 
 def normalize_arabic_text(text: str) -> str:
-    """Normalize whitespace without changing semantic content."""
+    """Normalize Arabic text without changing semantic content."""
 
-    return " ".join(text.split())
+    return unicodedata.normalize("NFC", " ".join(text.split()))
