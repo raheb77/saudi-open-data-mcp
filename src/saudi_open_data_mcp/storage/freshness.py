@@ -15,10 +15,11 @@ implicitly fresh or stale.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 from typing import Self
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -74,6 +75,8 @@ UNKNOWN_FRESHNESS_UPDATE_FREQUENCIES: frozenset[UpdateFrequency] = frozenset(
         UpdateFrequency.UNSPECIFIED,
     }
 )
+RIYADH_TIMEZONE = ZoneInfo("Asia/Riyadh")
+RIYADH_WEEKEND_DAYS = frozenset({4, 5})
 
 
 def has_defined_freshness_window(update_frequency: UpdateFrequency | None) -> bool:
@@ -133,8 +136,11 @@ def evaluate_snapshot_freshness(
         )
 
     assert update_frequency is not None
-    freshness_window = _freshness_window(update_frequency)
-    if snapshot_age <= freshness_window:
+    if _snapshot_is_within_freshness_window(
+        modified_at=modified_at,
+        reference_time=evaluated_at,
+        update_frequency=update_frequency,
+    ):
         status = SnapshotFreshnessStatus.FRESH
         reason = SnapshotFreshnessReason.WITHIN_EXPECTED_WINDOW
     else:
@@ -181,3 +187,35 @@ def _freshness_window(update_frequency: UpdateFrequency) -> timedelta:
     raise ValueError(
         f"freshness window is not defined for update frequency '{update_frequency.value}'"
     )
+
+
+def _snapshot_is_within_freshness_window(
+    *,
+    modified_at: datetime,
+    reference_time: datetime,
+    update_frequency: UpdateFrequency,
+) -> bool:
+    if update_frequency is UpdateFrequency.DAILY:
+        return _riyadh_business_days_elapsed(modified_at, reference_time) <= 1
+    return max(reference_time - modified_at, timedelta(0)) <= _freshness_window(
+        update_frequency
+    )
+
+
+def _riyadh_business_days_elapsed(start: datetime, end: datetime) -> int:
+    start_date = start.astimezone(RIYADH_TIMEZONE).date()
+    end_date = end.astimezone(RIYADH_TIMEZONE).date()
+    if end_date <= start_date:
+        return 0
+
+    elapsed = 0
+    current = start_date + timedelta(days=1)
+    while current <= end_date:
+        if _is_riyadh_business_day(current):
+            elapsed += 1
+        current += timedelta(days=1)
+    return elapsed
+
+
+def _is_riyadh_business_day(value: date) -> bool:
+    return value.weekday() not in RIYADH_WEEKEND_DAYS
