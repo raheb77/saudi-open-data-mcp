@@ -23,8 +23,8 @@ prompts run.
 | **Wave 1** | Sequential foundation work. Prompts 1 through 4: CI, security debt, dead-code removal, state-path hardening. |
 | **Wave 2** | Parallel pair. Agent A (Prompt 5: runtime hardening) and Agent B (Prompt 6: docs/CLI/narrative consistency). |
 | **Wave 3** | Sequential follow-up. Prompts 8 and 9: policies resource, CacheStore removal, final cleanup. |
-| **Wave 4** | Deferred. Saudi-context work (PDPL, licensing, Arabic/TZ). Only runs before institutional review; not part of the v0.4.0 alpha. |
-| **Prompt 10** | Final audit pass. Security and release-gate review after Waves 1-3. |
+| **Wave 4** | Included before the current review. Saudi-context work (PDPL, licensing, Arabic/TZ) is present for institutional-readiness evaluation in the v0.4.0 alpha state. |
+| **Prompt 10** | Final audit pass. Security and release-gate review after Waves 1-4. |
 
 ## Dashboard Build Phases
 
@@ -45,7 +45,7 @@ Tiers classify datasets and work items by priority and operational readiness.
 | **Tier A** | Core hot-set datasets with background refresh support. Currently the safe SAMA subset. Used in `refresh`, `materialize_hot_set`, and the container runtime refresh loop. |
 | **Tier B** | Optional datasets included only when `--include-optional` is passed to `refresh`. Not part of background refresh in the current baseline. |
 | **Tier 1** | (Hardening cycle only) Highest-priority security debt items resolved in Prompts 2/2A+2B. See `AGENTS_TASK_CONTEXT.md` section 5. |
-| **Tier 4** | (Hardening cycle only) Deferred Saudi-context concerns (PDPL, licensing, Arabic+TZ). Mapped to Wave 4. |
+| **Tier 4** | (Hardening cycle only) Saudi-context concerns (PDPL, licensing, Arabic+TZ). Completed in Wave 4 before institutional-readiness review. |
 
 ## Deprecated Terms
 
@@ -53,4 +53,4 @@ Tiers classify datasets and work items by priority and operational readiness.
 |---|---|---|
 | DuckDB | **Removed.** | Listed in ADR-001 and the original AGENTS.md tooling section but never used in code. Removed during the v0.4.0 hardening cycle. |
 | `health/` package | **Deleted.** | Existed as a disconnected placeholder. Removed in Wave 1 (Prompt 3). |
-| `CacheStore` | **Pending removal.** | `storage/cache.py` is path-computation only. Scheduled for deletion in Wave 3 (Prompt 9). |
+| `CacheStore` | **Removed.** | The unused `storage/cache.py` placeholder was deleted in Wave 3 (Prompt 9). Runtime persistence uses the registry repository and snapshot storage paths. |

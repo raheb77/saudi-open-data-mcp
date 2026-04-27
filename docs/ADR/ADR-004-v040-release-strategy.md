@@ -34,7 +34,7 @@ with limited parallelism within waves:
 | Wave 1 | Sequential | Prompts 1-4: CI hardening, security debt (Tier 1), dead-code removal, state-path hardening |
 | Wave 2 | Parallel (2 agents) | Agent A: Prompt 5 (runtime hardening) / Agent B: Prompt 6 (docs, CLI, narrative consistency) |
 | Wave 3 | Sequential | Prompts 8-9: policies resource, CacheStore removal, final cleanup |
-| Wave 4 | Deferred | Tier 4: PDPL, licensing, Arabic/TZ — only before Saudi institutional review |
+| Wave 4 | Included before institutional review | Tier 4: PDPL, licensing, Arabic/TZ |
 | Prompt 10 | Final | Security audit and release-gate review |
 
 Agents may not perform work assigned to a later wave. The boundary is enforced
@@ -50,9 +50,9 @@ subject to relitigation in commits or PR descriptions.
 | D-01 | Release = internal/evaluator alpha | No "production-ready" claims in any docs or metadata |
 | D-03 | Delete `health/` package | Directory removed; references cleaned from AGENTS.md and ARCHITECTURE.md |
 | D-04 | Delete `CacheStore` placeholder | Removed from `storage/` exports (Wave 3) |
-| D-05 | `resource://policies` stays hardcoded | Data-driven refactor deferred to Wave 3 |
+| D-05 | `resource://policies` stays hardcoded | Data-driven refactor deferred post-v0.4.0 in issue #3 |
 | D-06 | Prompt 2 splits if >5 core files or shared Protocol changes | Agent self-reports file count before edits |
-| D-08 | Tier 4 deferred to Wave 4 | No Saudi-specific compliance docs in Waves 1-3 |
+| D-08 | Tier 4 belongs to Wave 4 | Saudi-specific compliance docs and Arabic/TZ tests are included after the technical hardening waves |
 
 Decisions D-02, D-07, D-09, and D-10 were either resolved inline during cycle
 planning or consolidated into other decisions.
@@ -94,5 +94,5 @@ accurate. v0.4.0 hardens the implementation without changing the policy.
 - Security debt (Tier 1) is resolved in-cycle rather than deferred.
 - Documentation overclaims are corrected to match actual implementation state.
 - Wave-based execution prevents cross-agent conflicts and scope creep.
-- Saudi-context compliance work (PDPL, licensing) is explicitly deferred to
-  Wave 4, keeping Waves 1-3 focused on technical correctness.
+- Saudi-context compliance work (PDPL, licensing) was added in Wave 4 after
+  Waves 1-3 stayed focused on technical correctness.

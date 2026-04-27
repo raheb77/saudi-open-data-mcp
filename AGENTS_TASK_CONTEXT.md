@@ -13,7 +13,7 @@
 - **Name:** `saudi-open-data-mcp`
 - **Purpose:** MCP server exposing Saudi government open data (SAMA, data.gov.sa, GASTAT, MoF) to AI agents.
 - **Owner:** Raheb Almutairi (`raheb77` on GitHub).
-- **Current version:** 0.3.x baseline → targeting **0.4.0 alpha**.
+- **Current version:** targeting **0.4.0a1** internal/evaluator alpha.
 - **Release type for this cycle:** **Internal / evaluator alpha.** Not a public live-data product. Do not write copy or commits implying production reliability for live upstream data.
 
 ---
@@ -70,9 +70,9 @@ Three layers. The boundary is **enforced by AST-based contract tests**, not just
 | CI | GitHub Actions | Lint + typecheck + test + build + dashboard + docker |
 
 **Things that are NOT in the stack despite appearances:**
-- ❌ DuckDB — listed in `AGENTS.md:59` and `ADR-001` but **zero code uses it**. Will be removed in this cycle.
-- ❌ A working `CacheStore` — `storage/cache.py` is path-computation only. Will be removed in this cycle.
-- ❌ A wired `health/` package — exists but disconnected. **Decision: delete.**
+- ❌ DuckDB — listed historically in ADR-001 but **zero code uses it**. Removed from the active stack in this cycle.
+- ❌ A working `CacheStore` — the unused `storage/cache.py` placeholder was removed in this cycle.
+- ❌ A wired `health/` package — the disconnected placeholder package was deleted. Dataset-level health remains in `tools/health.py`.
 
 ---
 
@@ -110,10 +110,10 @@ These decisions are LOCKED for v0.4.0. Do not relitigate in commits or PR descri
 |---|---|---|
 | D-01 | Release = internal/evaluator alpha | No "production-ready" claims in README/docs/server.json |
 | D-03 | **Delete** `health/` package | Remove the directory + update `AGENTS.md`, `ARCHITECTURE.md` |
-| D-04 | **Delete** `CacheStore` placeholder | Remove from `storage/` + `storage/__init__.py` exports |
-| D-05 | `resource://policies` stays hardcoded for now, data-driven in Wave 3 | Don't refactor yet |
+| D-04 | **Delete** `CacheStore` placeholder | Removed from `storage/` + `storage/__init__.py` exports |
+| D-05 | `resource://policies` stays hardcoded for v0.4.0 | Data-driven refactor deferred post-v0.4.0 in issue #3 |
 | D-06 | Prompt 2 splits to 2A+2B if it touches >5 core files OR changes shared Protocols | Agent must self-report file count before edits |
-| D-08 | Tier 4 (PDPL/licensing/Arabic+TZ) deferred to Wave 4 (pre-Saudi-review) | Don't add Saudi-specific docs in Waves 1–3 |
+| D-08 | Tier 4 (PDPL/licensing/Arabic+TZ) belongs to Wave 4 | Included in the reviewed repo state before Saudi institutional review |
 
 ---
 
@@ -178,11 +178,11 @@ This cycle is partly motivated by **overclaim removal**. Concrete rules:
 
 | Wave | Status | Contents |
 |---|---|---|
-| Wave 1 (sequential) | **Active** | Prompts 1 → 2 (or 2A+2B) → 3 → 4 |
-| Wave 2 (parallel × 2 agents) | Pending | Agent A: Prompt 5 / Agent B: Prompt 6 + docs |
-| Wave 3 (sequential) | Pending | Prompts 8 → 9 |
-| Prompt 10 (audit) | Pending | Final security + release-gate review |
-| Wave 4 (deferred) | Not started | Tier 4 — only before Saudi institutional review |
+| Wave 1 (sequential) | Complete | Prompts 1 → 2 (or 2A+2B) → 3 → 4 |
+| Wave 2 (parallel × 2 agents) | Complete | Agent A: Prompt 5 / Agent B: Prompt 6 + docs |
+| Wave 3 (sequential) | Complete | Prompts 8 → 9 |
+| Prompt 10 (audit) | Complete | Final security + release-gate review |
+| Wave 4 | Complete | Tier 4 institutional-readiness artifacts included before Saudi review |
 
 An agent receiving a task must know **which Wave they are in** and refuse work that belongs to a later Wave.
 
@@ -202,13 +202,13 @@ These are recurring failure patterns in past contributions to this codebase:
 
 ## 14. Saudi-Context Awareness (Cycle-Limited)
 
-Tier 4 (PDPL, source licensing, Arabic + Asia/Riyadh tests) is **deferred** to Wave 4. However, agents in Waves 1–3 must still:
+Tier 4 (PDPL, source licensing, Arabic + Asia/Riyadh tests) was completed in Wave 4. Agents must still:
 
 - NOT introduce English-only assumptions in error messages where Arabic content may flow through (e.g., dataset titles).
 - NOT hardcode UTC where dataset semantics are local (e.g., business-day freshness windows).
 - NOT add PII collection paths. The project handles **public open data only**.
 
-If an agent encounters a clear PDPL or Arabic-handling concern, it must flag it in the PR description for Wave 4, not fix it inline.
+If an agent encounters a new PDPL or Arabic-handling concern, it must flag it for explicit follow-up rather than expanding unrelated task scope.
 
 ---
 

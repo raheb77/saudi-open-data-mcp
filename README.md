@@ -11,10 +11,15 @@ git clone https://github.com/raheb77/saudi-open-data-mcp.git
 cd saudi-open-data-mcp
 uv sync
 export HTTP_AUTH_TOKEN=<your-token>
+uv run saudi-open-data-mcp --version
 uv run saudi-open-data-mcp check-startup
-uv run saudi-open-data-mcp refresh
-uv run saudi-open-data-mcp query sama-money-supply --limit 5
+uv run saudi-open-data-mcp list
 ```
+
+Live refresh and query paths depend on current upstream source availability and
+local snapshots. For evaluation, start with the startup and catalog commands
+above; then run `uv run saudi-open-data-mcp refresh` only when testing live
+source access.
 
 The project is not just an MCP wrapper around upstream websites. Its value is in the layers underneath MCP:
 
@@ -232,7 +237,7 @@ preview_dataset({"dataset_id": "sama-money-supply"})
 - Preview now exposes explicit hybrid metadata including data origin, freshness status, and resolution outcome.
 - Query and download are local-only and do not fetch remotely when a snapshot is missing.
 - Internal HTTP serving has explicit bearer-token auth, capability checks, a canonical `/startupz` startup probe, and a `/readyz` compatibility alias with the same startup-only semantics.
-- A curated `upstream-canary` command and scheduled workflow now exercise one live approved dataset path per current source family.
+- A curated `upstream-canary` command and scheduled workflow now exercise live approved dataset paths for source families with a registered queryable canary dataset.
 - Unit, integration, contract, and smoke tests are in the repo and passing.
 
 ## What Is Intentionally Not Implemented Yet
@@ -489,7 +494,7 @@ Curated live canary contract:
   - `sama-exchange-rates-current`
   - `stats-gov-sa-cpi-headline-monthly`
   - `mof-budget-balance-quarterly`
-  - `data-gov-sa-census-marital-status`
+- `data.gov.sa` is skipped with an explicit log line until a queryable `data.gov.sa` dataset is registered; the catalog-only pilot dataset is not used as a canary target.
 - a canary failure means one of those curated approved routes drifted in reachability, response shape, or normalization behavior enough to stop producing the expected record-derivable result
 - the canary does not claim full catalog coverage, dataset freshness, or complete connector health
 
