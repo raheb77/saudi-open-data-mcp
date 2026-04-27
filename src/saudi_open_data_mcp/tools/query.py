@@ -30,12 +30,17 @@ from saudi_open_data_mcp.security.sanitization import (
     sanitize_query_filter_key,
     sanitize_query_filter_string_value,
 )
+from saudi_open_data_mcp.storage.freshness import (
+    SnapshotFreshnessStatus,
+    evaluate_snapshot_freshness,
+)
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 from saudi_open_data_mcp.tools.observation_recency import assess_observation_recency
 from saudi_open_data_mcp.tools.result_metadata import (
     ObservationRecencyAssessment,
     ResultDataOrigin,
     ResultDegradationReason,
+    ResultResolutionOutcome,
 )
 
 QueryFilterValue = str | int | float | bool | None
@@ -83,7 +88,9 @@ class DatasetQueryResult(BaseModel):
     status: DatasetQueryStatus
     coverage_status: DatasetCoverageStatus
     source: NonEmptyText | None = None
+    resolution_outcome: ResultResolutionOutcome | None = None
     data_origin: ResultDataOrigin | None = None
+    freshness_status: SnapshotFreshnessStatus | None = None
     snapshot_id: NonEmptyText | None = None
     applied_filters: dict[str, QueryFilterValue] = Field(default_factory=dict)
     limit: int | None = Field(default=None, ge=1)
@@ -102,11 +109,14 @@ class DatasetQueryResult(BaseModel):
                 raise ValueError("missing results must expose unavailable coverage_status")
             if (
                 self.source is not None
+                or self.resolution_outcome is not None
                 or self.data_origin is not None
+                or self.freshness_status is not None
                 or self.snapshot_id is not None
             ):
                 raise ValueError(
-                    "missing results must not include source, data_origin, or snapshot_id"
+                    "missing results must not include source, resolution_outcome, "
+                    "data_origin, freshness_status, or snapshot_id"
                 )
             if self.total_records_before_filter is not None:
                 raise ValueError("missing results must not include total_records_before_filter")
@@ -132,8 +142,16 @@ class DatasetQueryResult(BaseModel):
                 raise ValueError(
                     "snapshot_missing results must expose unavailable coverage_status"
                 )
+            if self.resolution_outcome is not ResultResolutionOutcome.FAIL_CLOSED:
+                raise ValueError(
+                    "snapshot_missing results must expose fail_closed resolution_outcome"
+                )
             if self.data_origin is not None:
                 raise ValueError("snapshot_missing results must not include data_origin")
+            if self.freshness_status is not SnapshotFreshnessStatus.MISSING:
+                raise ValueError(
+                    "snapshot_missing results must expose missing freshness_status"
+                )
             if self.snapshot_id is not None:
                 raise ValueError("snapshot_missing results must not include snapshot_id")
             if self.total_records_before_filter is not None:
@@ -154,8 +172,14 @@ class DatasetQueryResult(BaseModel):
                 )
             return self
 
+        if self.resolution_outcome is not ResultResolutionOutcome.SERVE_LOCAL:
+            raise ValueError("query results backed by local artifacts must expose serve_local")
         if self.data_origin is not ResultDataOrigin.LOCAL_SNAPSHOT:
             raise ValueError("query results backed by local artifacts must expose data_origin")
+        if self.freshness_status is None:
+            raise ValueError(
+                "query results backed by local artifacts must include freshness_status"
+            )
 
         if self.status is DatasetQueryStatus.LIMITED:
             if self.coverage_status not in {
@@ -254,6 +278,8 @@ class DatasetQueryResult(BaseModel):
             status=DatasetQueryStatus.SNAPSHOT_MISSING,
             coverage_status=DatasetCoverageStatus.UNAVAILABLE,
             source=descriptor.source,
+            resolution_outcome=ResultResolutionOutcome.FAIL_CLOSED,
+            freshness_status=SnapshotFreshnessStatus.MISSING,
             applied_filters=applied_filters,
             limit=limit,
         )
@@ -266,6 +292,7 @@ class DatasetQueryResult(BaseModel):
         applied_filters: dict[str, QueryFilterValue],
         limit: int | None,
         snapshot_id: str,
+        freshness_status: SnapshotFreshnessStatus,
         normalization_result: NormalizationResult | None = None,
         limitations: tuple[str, ...] | None = None,
         observation_recency: ObservationRecencyAssessment | None = None,
@@ -288,7 +315,9 @@ class DatasetQueryResult(BaseModel):
                 descriptor.coverage_status
             ),
             source=descriptor.source,
+            resolution_outcome=ResultResolutionOutcome.SERVE_LOCAL,
             data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
+            freshness_status=freshness_status,
             snapshot_id=snapshot_id,
             applied_filters=applied_filters,
             limit=limit,
@@ -308,6 +337,7 @@ class DatasetQueryResult(BaseModel):
         applied_filters: dict[str, QueryFilterValue],
         limit: int | None,
         snapshot_id: str | None,
+        freshness_status: SnapshotFreshnessStatus,
     ) -> Self:
         """Build an explicit failure result for snapshot read or normalization failure."""
 
@@ -316,7 +346,9 @@ class DatasetQueryResult(BaseModel):
             status=DatasetQueryStatus.FAILED,
             coverage_status=DatasetCoverageStatus.UNAVAILABLE,
             source=descriptor.source,
+            resolution_outcome=ResultResolutionOutcome.SERVE_LOCAL,
             data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
+            freshness_status=freshness_status,
             snapshot_id=snapshot_id,
             applied_filters=applied_filters,
             limit=limit,
@@ -338,6 +370,7 @@ class DatasetQueryResult(BaseModel):
         applied_filters: dict[str, QueryFilterValue],
         limit: int | None,
         snapshot_id: str,
+        freshness_status: SnapshotFreshnessStatus,
         observation_recency: ObservationRecencyAssessment | None = None,
     ) -> Self:
         """Build a successful local query result."""
@@ -347,7 +380,9 @@ class DatasetQueryResult(BaseModel):
             status=DatasetQueryStatus.SUCCESS,
             coverage_status=DatasetCoverageStatus.QUERYABLE,
             source=descriptor.source,
+            resolution_outcome=ResultResolutionOutcome.SERVE_LOCAL,
             data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
+            freshness_status=freshness_status,
             snapshot_id=snapshot_id,
             applied_filters=applied_filters,
             limit=limit,
@@ -415,12 +450,14 @@ class DatasetQueryTool:
             _audit_query_result(result)
             return result
 
-        snapshot_id: str | None = None
+        freshness = evaluate_snapshot_freshness(
+            source=descriptor.source,
+            dataset_id=descriptor.source_locator,
+            snapshot_store=self._snapshot_store,
+            update_frequency=descriptor.update_frequency,
+        )
+        snapshot_id = freshness.snapshot_id
         try:
-            snapshot_id = self._snapshot_store.snapshot_id(
-                descriptor.source,
-                descriptor.source_locator,
-            )
             raw_payload = self._snapshot_store.read_snapshot(
                 descriptor.source,
                 descriptor.source_locator,
@@ -451,10 +488,17 @@ class DatasetQueryTool:
                 message=public_message,
                 applied_filters=normalized_filters,
                 limit=normalized_limit,
+                freshness_status=freshness.status,
                 snapshot_id=snapshot_id,
             )
             _audit_query_result(result)
             return result
+
+        if snapshot_id is None:
+            snapshot_id = self._snapshot_store.snapshot_id(
+                descriptor.source,
+                descriptor.source_locator,
+            )
 
         normalization_result = self._normalization_pipeline.normalize(
             raw_payload,
@@ -469,6 +513,7 @@ class DatasetQueryTool:
                 applied_filters=normalized_filters,
                 limit=normalized_limit,
                 snapshot_id=snapshot_id,
+                freshness_status=freshness.status,
             )
             _audit_query_result(result)
             return result
@@ -480,6 +525,7 @@ class DatasetQueryTool:
                 applied_filters=normalized_filters,
                 limit=normalized_limit,
                 snapshot_id=snapshot_id,
+                freshness_status=freshness.status,
             )
             _audit_query_result(result)
             return result
@@ -499,6 +545,7 @@ class DatasetQueryTool:
                     REGISTRY_COVERAGE_RESTRICTS_QUERYABLE_QUERY_LIMITATION,
                 ),
                 snapshot_id=snapshot_id,
+                freshness_status=freshness.status,
                 observation_recency=observation_recency,
             )
             _audit_query_result(result)
@@ -523,6 +570,7 @@ class DatasetQueryTool:
             applied_filters=normalized_filters,
             limit=normalized_limit,
             snapshot_id=snapshot_id,
+            freshness_status=freshness.status,
             observation_recency=observation_recency,
         )
         _audit_query_result(result)
@@ -611,6 +659,16 @@ def _audit_query_result(result: DatasetQueryResult) -> None:
         source=result.source,
         coverage_status=result.coverage_status.value,
         data_origin=result.data_origin.value if result.data_origin is not None else None,
+        resolution_outcome=(
+            result.resolution_outcome.value
+            if result.resolution_outcome is not None
+            else None
+        ),
+        freshness_status=(
+            result.freshness_status.value
+            if result.freshness_status is not None
+            else None
+        ),
         filter_keys=tuple(sorted(result.applied_filters)),
         limit=result.limit,
         total_records_before_filter=result.total_records_before_filter,

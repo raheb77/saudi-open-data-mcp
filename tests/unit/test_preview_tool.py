@@ -598,6 +598,9 @@ async def test_sama_pos_weekly_fresh_snapshot_is_served_as_queryable_html_previe
     assert result.data_origin is PreviewDataOrigin.LOCAL_SNAPSHOT
     assert result.freshness_status is SnapshotFreshnessStatus.FRESH
     assert result.limitations == ()
+    assert result.observation_recency is not None
+    assert result.observation_recency.latest_observation == "2026-03-07"
+    assert result.observation_recency.latest_observation_field == "week_end_date"
     assert result.records[0].fields["week_start_date"] == "2026-03-01"
     assert result.records[0].fields["week_end_date"] == "2026-03-07"
     assert result.records[0].fields["transaction_count"] == 1234

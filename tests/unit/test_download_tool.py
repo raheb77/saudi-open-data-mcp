@@ -23,7 +23,10 @@ from saudi_open_data_mcp.tools.download import (
     DatasetDownloadStatus,
     DatasetDownloadTool,
 )
-from saudi_open_data_mcp.tools.result_metadata import ResultDataOrigin
+from saudi_open_data_mcp.tools.result_metadata import (
+    ResultDataOrigin,
+    ResultResolutionOutcome,
+)
 
 
 def _descriptor(dataset_id: str = "sama-money-supply") -> DatasetDescriptor:
@@ -53,10 +56,14 @@ def test_get_dataset_download_returns_explicit_missing_result_for_unknown_datase
     assert isinstance(result, DatasetDownloadResult)
     assert result.status is DatasetDownloadStatus.MISSING
     assert result.reason is DatasetDownloadReason.DATASET_NOT_IN_REGISTRY
+    assert result.coverage_status is DatasetCoverageStatus.UNAVAILABLE
     assert result.local_snapshot_exists is False
     assert result.source is None
+    assert result.resolution_outcome is None
     assert result.data_origin is None
     assert result.freshness_status is None
+    assert result.degradation_reason is None
+    assert result.observation_recency is None
     assert result.freshness is None
 
 
@@ -73,10 +80,14 @@ def test_get_dataset_download_returns_explicit_missing_local_artifact(
 
     assert result.status is DatasetDownloadStatus.ARTIFACT_MISSING
     assert result.reason is DatasetDownloadReason.NO_LOCAL_SNAPSHOT
+    assert result.coverage_status is DatasetCoverageStatus.UNAVAILABLE
     assert result.dataset_id == descriptor.dataset_id
     assert result.local_snapshot_exists is False
     assert result.source == "sama"
+    assert result.resolution_outcome is ResultResolutionOutcome.FAIL_CLOSED
     assert result.data_origin is None
+    assert result.degradation_reason is None
+    assert result.observation_recency is None
     assert result.freshness is not None
     assert result.freshness_status is SnapshotFreshnessStatus.MISSING
     assert result.freshness.dataset_id == descriptor.dataset_id
@@ -102,10 +113,14 @@ def test_get_dataset_download_uses_source_locator_not_canonical_dataset_id_for_l
 
     assert result.status is DatasetDownloadStatus.ARTIFACT_MISSING
     assert result.reason is DatasetDownloadReason.NO_LOCAL_SNAPSHOT
+    assert result.coverage_status is DatasetCoverageStatus.UNAVAILABLE
     assert result.dataset_id == descriptor.dataset_id
     assert result.local_snapshot_exists is False
     assert result.freshness is not None
+    assert result.resolution_outcome is ResultResolutionOutcome.FAIL_CLOSED
     assert result.data_origin is None
+    assert result.degradation_reason is None
+    assert result.observation_recency is None
     assert result.freshness_status is SnapshotFreshnessStatus.MISSING
     assert result.freshness.artifact_present is False
 
@@ -133,10 +148,14 @@ def test_get_dataset_download_returns_available_local_artifact_result(
 
     assert result.status is DatasetDownloadStatus.AVAILABLE
     assert result.reason is DatasetDownloadReason.LOCAL_SNAPSHOT_AVAILABLE
+    assert result.coverage_status is descriptor.coverage_status
     assert result.dataset_id == descriptor.dataset_id
     assert result.local_snapshot_exists is True
     assert result.source == "sama"
+    assert result.resolution_outcome is ResultResolutionOutcome.SERVE_LOCAL
     assert result.data_origin is ResultDataOrigin.LOCAL_SNAPSHOT
+    assert result.degradation_reason is None
+    assert result.observation_recency is None
     assert result.freshness is not None
     assert result.freshness_status is SnapshotFreshnessStatus.FRESH
     assert result.freshness.dataset_id == descriptor.dataset_id
@@ -168,10 +187,14 @@ def test_get_dataset_download_keeps_available_result_when_freshness_is_stale(
 
     assert result.status is DatasetDownloadStatus.AVAILABLE
     assert result.reason is DatasetDownloadReason.LOCAL_SNAPSHOT_AVAILABLE
+    assert result.coverage_status is descriptor.coverage_status
     assert result.dataset_id == descriptor.dataset_id
     assert result.local_snapshot_exists is True
     assert result.source == "sama"
+    assert result.resolution_outcome is ResultResolutionOutcome.SERVE_LOCAL
     assert result.data_origin is ResultDataOrigin.LOCAL_SNAPSHOT
+    assert result.degradation_reason is None
+    assert result.observation_recency is None
     assert result.freshness is not None
     assert result.freshness_status is SnapshotFreshnessStatus.STALE
     assert result.freshness.dataset_id == descriptor.dataset_id

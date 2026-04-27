@@ -29,6 +29,7 @@ from saudi_open_data_mcp.registry.models import (
     UpdateFrequency,
 )
 from saudi_open_data_mcp.registry.repository import RegistryRepository
+from saudi_open_data_mcp.storage.freshness import SnapshotFreshnessStatus
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
 from saudi_open_data_mcp.tools.query import (
     QUERY_SNAPSHOT_READ_FAILURE_MESSAGE,
@@ -41,6 +42,7 @@ from saudi_open_data_mcp.tools.result_metadata import (
     ObservationRecencyStatus,
     ResultDataOrigin,
     ResultDegradationReason,
+    ResultResolutionOutcome,
 )
 
 
@@ -488,6 +490,11 @@ def test_query_dataset_returns_explicit_missing_result_for_unknown_dataset(
     assert result.coverage_status is DatasetCoverageStatus.UNAVAILABLE
     assert result.dataset_id == "missing-dataset"
     assert result.source is None
+    assert result.resolution_outcome is None
+    assert result.data_origin is None
+    assert result.freshness_status is None
+    assert result.degradation_reason is None
+    assert result.observation_recency is None
     assert result.total_records_before_filter is None
     assert result.matched_records == ()
 
@@ -507,6 +514,11 @@ def test_query_dataset_returns_explicit_snapshot_missing_result(
     assert result.coverage_status is DatasetCoverageStatus.UNAVAILABLE
     assert result.dataset_id == descriptor.dataset_id
     assert result.source == descriptor.source
+    assert result.resolution_outcome is ResultResolutionOutcome.FAIL_CLOSED
+    assert result.data_origin is None
+    assert result.freshness_status is SnapshotFreshnessStatus.MISSING
+    assert result.degradation_reason is None
+    assert result.observation_recency is None
     assert result.total_records_before_filter is None
     assert result.matched_records == ()
 
@@ -532,6 +544,9 @@ def test_query_dataset_uses_source_locator_not_canonical_dataset_id_for_snapshot
     assert result.coverage_status is DatasetCoverageStatus.UNAVAILABLE
     assert result.dataset_id == descriptor.dataset_id
     assert result.source == descriptor.source
+    assert result.resolution_outcome is ResultResolutionOutcome.FAIL_CLOSED
+    assert result.data_origin is None
+    assert result.freshness_status is SnapshotFreshnessStatus.MISSING
 
 
 def test_query_dataset_returns_local_canonical_records_for_supported_json_snapshot(

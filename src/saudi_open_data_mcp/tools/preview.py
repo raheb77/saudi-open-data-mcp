@@ -45,9 +45,12 @@ from saudi_open_data_mcp.storage.freshness import (
     has_defined_freshness_window,
 )
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
+from saudi_open_data_mcp.tools.observation_recency import assess_observation_recency
 from saudi_open_data_mcp.tools.result_metadata import (
+    ObservationRecencyAssessment,
     ResultDataOrigin,
     ResultDegradationReason,
+    ResultResolutionOutcome,
 )
 
 LOGGER = get_logger(__name__)
@@ -80,15 +83,7 @@ class PreviewFailureStage(StrEnum):
     NORMALIZATION = "normalization"
 
 
-class PreviewResolutionOutcome(StrEnum):
-    """How preview resolved between local snapshots and live refresh."""
-
-    SERVE_LOCAL = "serve_local"
-    REFRESH_THEN_SERVE = "refresh_then_serve"
-    SERVE_STALE_WITH_NOTICE = "serve_stale_with_notice"
-    FAIL_CLOSED = "fail_closed"
-
-
+PreviewResolutionOutcome = ResultResolutionOutcome
 PreviewDataOrigin = ResultDataOrigin
 
 
@@ -196,6 +191,7 @@ class DatasetPreviewResult(BaseModel):
     snapshot_id: str | None = None
     failure_stage: PreviewFailureStage | None = None
     degradation_reason: ResultDegradationReason | None = None
+    observation_recency: ObservationRecencyAssessment | None = None
     snapshot_modified_at: datetime | None = None
     resolution_notice: str | None = None
     records: tuple[CanonicalRecord, ...] = Field(default_factory=tuple)
@@ -217,6 +213,7 @@ class DatasetPreviewResult(BaseModel):
                 or self.snapshot_id is not None
                 or self.failure_stage is not None
                 or self.degradation_reason is not None
+                or self.observation_recency is not None
                 or self.snapshot_modified_at is not None
                 or self.resolution_notice is not None
             ):
@@ -233,6 +230,7 @@ class DatasetPreviewResult(BaseModel):
                 or self.freshness_status is not None
                 or self.snapshot_id is not None
                 or self.degradation_reason is not None
+                or self.observation_recency is not None
                 or self.snapshot_modified_at is not None
                 or self.resolution_notice is not None
             ):
@@ -289,6 +287,8 @@ class DatasetPreviewResult(BaseModel):
                 raise ValueError("failed preview results must not include records or limitations")
             if self.degradation_reason is not None:
                 raise ValueError("failed preview results must not include degradation_reason")
+            if self.observation_recency is not None:
+                raise ValueError("failed preview results must not include observation_recency")
             return self
 
         if self.failure is not None:
@@ -621,6 +621,15 @@ class DatasetPreviewTool:
                 canonical_dataset_id=descriptor.dataset_id,
             ),
         )
+        observation_recency = (
+            assess_observation_recency(
+                records=normalization_result.records,
+                update_frequency=descriptor.update_frequency,
+                reference_date=freshness.reference_time.date(),
+            )
+            if normalization_result.status is NormalizationPipelineStatus.RECORD_DERIVABLE
+            else None
+        )
 
         if normalization_result.status is NormalizationPipelineStatus.FAILED:
             return DatasetPreviewResult(
@@ -670,6 +679,7 @@ class DatasetPreviewTool:
                     if degradation_reason is not None
                     else ResultDegradationReason.NORMALIZATION_LIMITED
                 ),
+                observation_recency=observation_recency,
                 snapshot_modified_at=freshness.snapshot_modified_at,
                 resolution_notice=resolution_notice,
                 limitations=(REGISTRY_COVERAGE_RESTRICTS_QUERYABLE_PREVIEW_LIMITATION,),
@@ -694,6 +704,7 @@ class DatasetPreviewTool:
                 if normalization_result.status is NormalizationPipelineStatus.LIMITED
                 else None
             ),
+            observation_recency=observation_recency,
             snapshot_modified_at=freshness.snapshot_modified_at,
             resolution_notice=resolution_notice,
             records=normalization_result.records,

@@ -10,7 +10,11 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from saudi_open_data_mcp.observability import log_audit_event
-from saudi_open_data_mcp.registry.models import DatasetDescriptor, NonEmptyText
+from saudi_open_data_mcp.registry.models import (
+    DatasetCoverageStatus,
+    DatasetDescriptor,
+    NonEmptyText,
+)
 from saudi_open_data_mcp.registry.repository import RegistryRepository
 from saudi_open_data_mcp.security.sanitization import sanitize_dataset_id
 from saudi_open_data_mcp.storage.freshness import (
@@ -19,7 +23,12 @@ from saudi_open_data_mcp.storage.freshness import (
     evaluate_snapshot_freshness,
 )
 from saudi_open_data_mcp.storage.snapshots import SnapshotStore
-from saudi_open_data_mcp.tools.result_metadata import ResultDataOrigin
+from saudi_open_data_mcp.tools.result_metadata import (
+    ObservationRecencyAssessment,
+    ResultDataOrigin,
+    ResultDegradationReason,
+    ResultResolutionOutcome,
+)
 
 
 class DatasetDownloadStatus(StrEnum):
@@ -46,28 +55,38 @@ class DatasetDownloadResult(BaseModel):
     dataset_id: NonEmptyText
     status: DatasetDownloadStatus
     reason: DatasetDownloadReason
+    coverage_status: DatasetCoverageStatus
     local_snapshot_exists: bool
     source: NonEmptyText | None = None
+    resolution_outcome: ResultResolutionOutcome | None = None
     data_origin: ResultDataOrigin | None = None
     freshness_status: SnapshotFreshnessStatus | None = None
+    degradation_reason: ResultDegradationReason | None = None
+    observation_recency: ObservationRecencyAssessment | None = None
     freshness: SnapshotFreshnessResult | None = None
 
     @model_validator(mode="after")
     def _validate_consistency(self) -> Self:
         if self.status is DatasetDownloadStatus.MISSING:
+            if self.coverage_status is not DatasetCoverageStatus.UNAVAILABLE:
+                raise ValueError("missing results must expose unavailable coverage_status")
             if self.reason is not DatasetDownloadReason.DATASET_NOT_IN_REGISTRY:
                 raise ValueError("missing results require dataset_not_in_registry")
             if self.local_snapshot_exists:
                 raise ValueError("missing results must not claim a local snapshot")
             if (
                 self.source is not None
+                or self.resolution_outcome is not None
                 or self.data_origin is not None
                 or self.freshness_status is not None
+                or self.degradation_reason is not None
+                or self.observation_recency is not None
                 or self.freshness is not None
             ):
                 raise ValueError(
-                    "missing results must not include source, data_origin, freshness_status, "
-                    "or freshness"
+                    "missing results must not include source, resolution_outcome, "
+                    "data_origin, freshness_status, degradation_reason, "
+                    "observation_recency, or freshness"
                 )
             return self
 
@@ -87,6 +106,14 @@ class DatasetDownloadResult(BaseModel):
             raise ValueError("freshness.artifact_present must match local_snapshot_exists")
 
         if self.status is DatasetDownloadStatus.ARTIFACT_MISSING:
+            if self.coverage_status is not DatasetCoverageStatus.UNAVAILABLE:
+                raise ValueError(
+                    "artifact_missing results must expose unavailable coverage_status"
+                )
+            if self.resolution_outcome is not ResultResolutionOutcome.FAIL_CLOSED:
+                raise ValueError(
+                    "artifact_missing results must expose fail_closed resolution_outcome"
+                )
             if self.reason is not DatasetDownloadReason.NO_LOCAL_SNAPSHOT:
                 raise ValueError("artifact_missing results require no_local_snapshot reason")
             if self.local_snapshot_exists:
@@ -99,8 +126,17 @@ class DatasetDownloadResult(BaseModel):
                 raise ValueError(
                     "artifact_missing results must not claim freshness artifact evidence"
                 )
+            if self.degradation_reason is not None or self.observation_recency is not None:
+                raise ValueError(
+                    "artifact_missing results must not include degradation_reason or "
+                    "observation_recency"
+                )
             return self
 
+        if self.coverage_status is DatasetCoverageStatus.UNAVAILABLE:
+            raise ValueError("available results must expose registry coverage_status")
+        if self.resolution_outcome is not ResultResolutionOutcome.SERVE_LOCAL:
+            raise ValueError("available results must expose serve_local resolution_outcome")
         if self.reason is not DatasetDownloadReason.LOCAL_SNAPSHOT_AVAILABLE:
             raise ValueError("available results require local_snapshot_available reason")
         if not self.local_snapshot_exists:
@@ -111,6 +147,10 @@ class DatasetDownloadResult(BaseModel):
             raise ValueError("available results must not carry missing freshness evidence")
         if not self.freshness.artifact_present:
             raise ValueError("available results must carry positive freshness artifact evidence")
+        if self.degradation_reason is not None or self.observation_recency is not None:
+            raise ValueError(
+                "available results must not include degradation_reason or observation_recency"
+            )
         return self
 
     @classmethod
@@ -121,6 +161,7 @@ class DatasetDownloadResult(BaseModel):
             dataset_id=dataset_id,
             status=DatasetDownloadStatus.MISSING,
             reason=DatasetDownloadReason.DATASET_NOT_IN_REGISTRY,
+            coverage_status=DatasetCoverageStatus.UNAVAILABLE,
             local_snapshot_exists=False,
         )
 
@@ -136,8 +177,10 @@ class DatasetDownloadResult(BaseModel):
             dataset_id=descriptor.dataset_id,
             status=DatasetDownloadStatus.ARTIFACT_MISSING,
             reason=DatasetDownloadReason.NO_LOCAL_SNAPSHOT,
+            coverage_status=DatasetCoverageStatus.UNAVAILABLE,
             local_snapshot_exists=False,
             source=descriptor.source,
+            resolution_outcome=ResultResolutionOutcome.FAIL_CLOSED,
             freshness_status=freshness.status,
             freshness=freshness,
         )
@@ -154,8 +197,10 @@ class DatasetDownloadResult(BaseModel):
             dataset_id=descriptor.dataset_id,
             status=DatasetDownloadStatus.AVAILABLE,
             reason=DatasetDownloadReason.LOCAL_SNAPSHOT_AVAILABLE,
+            coverage_status=descriptor.coverage_status,
             local_snapshot_exists=True,
             source=descriptor.source,
+            resolution_outcome=ResultResolutionOutcome.SERVE_LOCAL,
             data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
             freshness_status=freshness.status,
             freshness=freshness,
@@ -232,9 +277,20 @@ def _audit_download_result(result: DatasetDownloadResult) -> None:
         result_status=result.status.value,
         dataset_id=result.dataset_id,
         source=result.source,
+        coverage_status=result.coverage_status.value,
+        resolution_outcome=(
+            result.resolution_outcome.value
+            if result.resolution_outcome is not None
+            else None
+        ),
         data_origin=(
             result.data_origin.value
             if result.data_origin is not None
+            else None
+        ),
+        degradation_reason=(
+            result.degradation_reason.value
+            if result.degradation_reason is not None
             else None
         ),
         reason=result.reason.value,

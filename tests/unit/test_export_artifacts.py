@@ -13,6 +13,7 @@ from pypdf import PdfReader
 
 from saudi_open_data_mcp.normalization.pipeline import CanonicalRecord
 from saudi_open_data_mcp.registry.models import DatasetCoverageStatus
+from saudi_open_data_mcp.storage.freshness import SnapshotFreshnessStatus
 from saudi_open_data_mcp.tools.export_artifacts import (
     render_query_result_excel_artifact,
     render_query_result_pdf_artifact,
@@ -22,6 +23,7 @@ from saudi_open_data_mcp.tools.result_metadata import (
     ObservationRecencyAssessment,
     ObservationRecencyStatus,
     ResultDataOrigin,
+    ResultResolutionOutcome,
 )
 
 
@@ -31,7 +33,9 @@ def _success_result() -> DatasetQueryResult:
         status="success",
         coverage_status=DatasetCoverageStatus.QUERYABLE,
         source="mof",
+        resolution_outcome=ResultResolutionOutcome.SERVE_LOCAL,
         data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
+        freshness_status=SnapshotFreshnessStatus.FRESH,
         applied_filters={"observation_quarter": "2025-Q4"},
         limit=10,
         total_records_before_filter=2,
@@ -104,7 +108,9 @@ def test_render_query_result_artifacts_include_observation_recency_metadata() ->
         status="success",
         coverage_status=DatasetCoverageStatus.QUERYABLE,
         source="stats-gov-sa",
+        resolution_outcome=ResultResolutionOutcome.SERVE_LOCAL,
         data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
+        freshness_status=SnapshotFreshnessStatus.FRESH,
         applied_filters={"observation_month": "2025-12"},
         limit=10,
         total_records_before_filter=1,
@@ -164,7 +170,9 @@ def test_render_query_result_excel_artifact_cleans_empty_filter_presentation() -
         status="limited",
         coverage_status=DatasetCoverageStatus.LIMITED,
         source="stats-gov-sa",
+        resolution_outcome=ResultResolutionOutcome.SERVE_LOCAL,
         data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
+        freshness_status=SnapshotFreshnessStatus.STALE,
         applied_filters={},
         limit=None,
         degradation_reason="normalization_limited",
@@ -191,7 +199,9 @@ def test_render_query_result_pdf_artifact_keeps_degraded_status_visible() -> Non
         status="limited",
         coverage_status=DatasetCoverageStatus.LIMITED,
         source="stats-gov-sa",
+        resolution_outcome=ResultResolutionOutcome.SERVE_LOCAL,
         data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
+        freshness_status=SnapshotFreshnessStatus.STALE,
         applied_filters={},
         limit=None,
         degradation_reason="normalization_limited",
@@ -235,7 +245,9 @@ def test_render_query_result_pdf_artifact_preserves_arabic_record_content() -> N
         status="success",
         coverage_status=DatasetCoverageStatus.QUERYABLE,
         source="stats-gov-sa",
+        resolution_outcome=ResultResolutionOutcome.SERVE_LOCAL,
         data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
+        freshness_status=SnapshotFreshnessStatus.FRESH,
         applied_filters={"series_name": "الرقم القياسي العام"},
         limit=10,
         total_records_before_filter=1,
@@ -285,7 +297,9 @@ def test_render_query_result_pdf_artifact_preserves_arabic_limited_notes() -> No
         status="limited",
         coverage_status=DatasetCoverageStatus.LIMITED,
         source="sama",
+        resolution_outcome=ResultResolutionOutcome.SERVE_LOCAL,
         data_origin=ResultDataOrigin.LOCAL_SNAPSHOT,
+        freshness_status=SnapshotFreshnessStatus.STALE,
         applied_filters={},
         limit=None,
         degradation_reason="normalization_limited",

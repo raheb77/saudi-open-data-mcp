@@ -22,6 +22,15 @@ class ResultDegradationReason(StrEnum):
     STALE_FALLBACK_AFTER_REFRESH_FAILURE = "stale_fallback_after_refresh_failure"
 
 
+class ResultResolutionOutcome(StrEnum):
+    """Consistent result resolution metadata across data-returning tools."""
+
+    SERVE_LOCAL = "serve_local"
+    REFRESH_THEN_SERVE = "refresh_then_serve"
+    SERVE_STALE_WITH_NOTICE = "serve_stale_with_notice"
+    FAIL_CLOSED = "fail_closed"
+
+
 class ObservationRecencyStatus(StrEnum):
     """Explicit analyst-facing recency status for the latest normalized observation."""
 

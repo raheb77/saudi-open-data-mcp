@@ -44,6 +44,14 @@ DATA_GOV_SA_SOURCE_LOCATOR = (
     "/ar/datasets/view/104380ce-60b6-46bc-ba0a-6d5e10ac46cb/"
     "preview/parsed/Census%20Marital%20Status%20CSV.json"
 )
+CANONICAL_DATA_TOOL_PROVENANCE_FIELDS = {
+    "coverage_status",
+    "resolution_outcome",
+    "data_origin",
+    "freshness_status",
+    "degradation_reason",
+    "observation_recency",
+}
 
 
 def _report_url() -> str:
@@ -307,10 +315,18 @@ async def test_server_registers_current_mcp_surface(
         {"dataset_id": "sama-money-supply"}
     )
     assert download_result.structured_content["dataset_id"] == "sama-money-supply"
+    assert (
+        CANONICAL_DATA_TOOL_PROVENANCE_FIELDS
+        <= download_result.structured_content.keys()
+    )
     assert download_result.structured_content["status"] == "artifact_missing"
     assert download_result.structured_content["reason"] == "no_local_snapshot"
+    assert download_result.structured_content["coverage_status"] == "unavailable"
+    assert download_result.structured_content["resolution_outcome"] == "fail_closed"
     assert download_result.structured_content["local_snapshot_exists"] is False
     assert download_result.structured_content["source"] == "sama"
+    assert download_result.structured_content["degradation_reason"] is None
+    assert download_result.structured_content["observation_recency"] is None
     assert download_result.structured_content["freshness"]["status"] == "missing"
     assert download_result.structured_content["freshness"]["reason"] == "no_snapshot"
     assert download_result.structured_content["freshness"]["artifact_present"] is False
@@ -321,9 +337,18 @@ async def test_server_registers_current_mcp_surface(
         {"dataset_id": "sama-money-supply"}
     )
     assert missing_query_result.structured_content["dataset_id"] == "sama-money-supply"
+    assert (
+        CANONICAL_DATA_TOOL_PROVENANCE_FIELDS
+        <= missing_query_result.structured_content.keys()
+    )
     assert missing_query_result.structured_content["status"] == "snapshot_missing"
     assert missing_query_result.structured_content["coverage_status"] == "unavailable"
+    assert missing_query_result.structured_content["resolution_outcome"] == "fail_closed"
+    assert missing_query_result.structured_content["data_origin"] is None
+    assert missing_query_result.structured_content["freshness_status"] == "missing"
     assert missing_query_result.structured_content["source"] == "sama"
+    assert missing_query_result.structured_content["degradation_reason"] is None
+    assert missing_query_result.structured_content["observation_recency"] is None
     assert missing_query_result.structured_content["matched_records"] == []
 
     _write_snapshot_with_mtime(
@@ -345,8 +370,15 @@ async def test_server_registers_current_mcp_surface(
         }
     )
     assert filtered_query_result.structured_content["dataset_id"] == "sama-money-supply"
+    assert (
+        CANONICAL_DATA_TOOL_PROVENANCE_FIELDS
+        <= filtered_query_result.structured_content.keys()
+    )
     assert filtered_query_result.structured_content["status"] == "limited"
     assert filtered_query_result.structured_content["coverage_status"] == "catalog_only"
+    assert filtered_query_result.structured_content["resolution_outcome"] == "serve_local"
+    assert filtered_query_result.structured_content["data_origin"] == "local_snapshot"
+    assert filtered_query_result.structured_content["freshness_status"] is not None
     assert filtered_query_result.structured_content["source"] == "sama"
     assert filtered_query_result.structured_content["applied_filters"] == {
         "period": "2026-02"
@@ -396,6 +428,10 @@ async def test_server_registers_current_mcp_surface(
 
     preview_result = await tools["preview_dataset"].run(
         {"dataset_id": "sama-money-supply"}
+    )
+    assert (
+        CANONICAL_DATA_TOOL_PROVENANCE_FIELDS
+        <= preview_result.structured_content.keys()
     )
     assert preview_result.structured_content["status"] == "limited"
     assert preview_result.structured_content["dataset_id"] == "sama-money-supply"
@@ -621,8 +657,12 @@ async def test_server_missing_dataset_lookup_stays_explicit(
         "reason": "dataset_not_in_registry",
         "local_snapshot_exists": False,
         "source": None,
+        "coverage_status": "unavailable",
+        "resolution_outcome": None,
         "data_origin": None,
         "freshness_status": None,
+        "degradation_reason": None,
+        "observation_recency": None,
         "freshness": None,
     }
     assert query_result.structured_content == {
@@ -630,7 +670,9 @@ async def test_server_missing_dataset_lookup_stays_explicit(
         "status": "missing",
         "coverage_status": "unavailable",
         "source": None,
+        "resolution_outcome": None,
         "data_origin": None,
+        "freshness_status": None,
         "snapshot_id": None,
         "observation_recency": None,
         "applied_filters": {},
@@ -652,6 +694,7 @@ async def test_server_missing_dataset_lookup_stays_explicit(
         "snapshot_id": None,
         "failure_stage": None,
         "degradation_reason": None,
+        "observation_recency": None,
         "snapshot_modified_at": None,
         "resolution_notice": None,
         "records": [],
