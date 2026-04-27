@@ -3,7 +3,7 @@
   "name": "io.github.raheb77/saudi-open-data-mcp",
   "title": "Saudi Open Data MCP",
   "description": "Internal/evaluator alpha MCP server for governed Saudi open-data access.",
-  "version": "0.4.0-alpha",
+  "version": "0.4.0a1",
   "websiteUrl": "https://github.com/raheb77/saudi-open-data-mcp#readme",
   "repository": {
     "url": "https://github.com/raheb77/saudi-open-data-mcp",
