@@ -38,6 +38,9 @@ class PoliciesResource:
     def read(self) -> DataSurfacePolicySummary:
         """Return the current narrow decision on query vs preview semantics."""
 
+        # TODO(#3): Keep resource://policies hardcoded for v0.4.0, then make it
+        # data-driven from registered tool metadata.
+        # https://github.com/raheb77/saudi-open-data-mcp/issues/3
         return DataSurfacePolicySummary(
             decision="keep_current_surface",
             summary=(
