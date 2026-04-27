@@ -20,7 +20,16 @@ def test_dockerfile_pins_reproducible_runtime_build_path() -> None:
         "/opt/venv/bin/pip install --no-cache-dir --require-hashes "
         "-r /app/requirements-runtime.txt"
     ) in dockerfile
-    assert 'ENTRYPOINT ["saudi-open-data-mcp"]' in dockerfile
+    assert (
+        'ENTRYPOINT ["python", "-m", "saudi_open_data_mcp.docker_entrypoint"]'
+        in dockerfile
+    )
+    assert "addgroup --gid 10001 saudi-open-data-mcp" in dockerfile
+    assert "adduser --uid 10001 --gid 10001" in dockerfile
+    assert (
+        "Starts as root only to repair mounted state-volume ownership, then drops "
+        "to uid/gid 10001."
+    ) in dockerfile
 
 
 def test_compose_defaults_keep_internal_runtime_contract_explicit() -> None:
