@@ -6,14 +6,33 @@ dist/
 wheels/
 .uv-cache/
 *.egg-info
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
 
 # Virtual environments
 .venv
 .artifact-venv
 
 .env
+.env.*
+!.env.example
 
 .local/
+artifacts/
+snapshots/
+exports/
+reports/
+cache/
+logs/
+*.sqlite
+*.sqlite3
+*.db
+*.db-*
+*.sqlite-*
+*.log
 /.playwright-mcp/
 
 # Frontend-generated files

@@ -24,7 +24,7 @@ from saudi_open_data_mcp.security.http_auth import (
     require_http_bearer_token,
 )
 
-VALID_HTTP_AUTH_TOKEN = "0123456789abcdef0123456789abcdef"
+VALID_HTTP_AUTH_TOKEN = "local-test-auth-token-000000000000"
 WEAK_PLACEHOLDER_HTTP_AUTH_TOKEN = "change-me-change-me-change-me-change-me"
 
 

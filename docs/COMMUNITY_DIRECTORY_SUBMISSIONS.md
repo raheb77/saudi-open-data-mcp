@@ -22,7 +22,7 @@ saudi-open-data-mcp run-stdio
 
 - GitHub link: https://github.com/raheb77/saudi-open-data-mcp
 - Package index link, if the matching release is live: https://pypi.org/project/saudi-open-data-mcp/
-- Screenshot path: `artifacts/mcp-inspector-connected-tools.png`
+- Screenshot path: `docs/assets/mcp-inspector-connected-tools.png`
 - Tags:
   - mcp
   - mcp-server
@@ -197,4 +197,4 @@ Checklist:
 - Keep wording technically serious and non-hypey
 - Do not add unsupported claims
 - Keep the description and positioning statement consistent across all directories
-- Use the screenshot at `artifacts/mcp-inspector-connected-tools.png`
+- Use the screenshot at `docs/assets/mcp-inspector-connected-tools.png`

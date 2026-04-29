@@ -122,7 +122,7 @@ Useful local commands:
 ```bash
 uv run --no-editable saudi-open-data-mcp check-startup
 uv run --no-editable saudi-open-data-mcp run-stdio
-HTTP_AUTH_TOKEN=0123456789abcdef0123456789abcdef uv run --no-editable saudi-open-data-mcp run-http --host 127.0.0.1 --port 8000
+HTTP_AUTH_TOKEN="$(openssl rand -hex 32)" uv run --no-editable saudi-open-data-mcp run-http --host 127.0.0.1 --port 8000
 ```
 
 Useful local exports:

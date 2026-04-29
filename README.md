@@ -10,7 +10,7 @@
 git clone https://github.com/raheb77/saudi-open-data-mcp.git
 cd saudi-open-data-mcp
 uv sync --no-editable
-export HTTP_AUTH_TOKEN=0123456789abcdef0123456789abcdef
+export HTTP_AUTH_TOKEN="$(openssl rand -hex 32)"
 uv run --no-editable saudi-open-data-mcp --version
 uv run --no-editable saudi-open-data-mcp check-startup
 uv run --no-editable saudi-open-data-mcp list
@@ -296,7 +296,7 @@ The supported local development path is the local console script through
 ```bash
 uv run --no-editable saudi-open-data-mcp check-startup
 uv run --no-editable saudi-open-data-mcp run-stdio
-HTTP_AUTH_TOKEN=0123456789abcdef0123456789abcdef uv run --no-editable saudi-open-data-mcp run-http --host 127.0.0.1 --port 8000
+HTTP_AUTH_TOKEN="$(openssl rand -hex 32)" uv run --no-editable saudi-open-data-mcp run-http --host 127.0.0.1 --port 8000
 ```
 
 After activating `.venv`, the same console script is available without `uv run`:
@@ -304,7 +304,7 @@ After activating `.venv`, the same console script is available without `uv run`:
 ```bash
 saudi-open-data-mcp check-startup
 saudi-open-data-mcp run-stdio
-HTTP_AUTH_TOKEN=0123456789abcdef0123456789abcdef saudi-open-data-mcp run-http --host 127.0.0.1 --port 8000
+HTTP_AUTH_TOKEN="$(openssl rand -hex 32)" saudi-open-data-mcp run-http --host 127.0.0.1 --port 8000
 ```
 
 The same CLI also provides a thin non-interactive local façade over
@@ -433,7 +433,7 @@ Direct container run example:
 docker build -t saudi-open-data-mcp .
 docker run --rm \
   -p 127.0.0.1:8000:8000 \
-  -e HTTP_AUTH_TOKEN=0123456789abcdef0123456789abcdef \
+  -e HTTP_AUTH_TOKEN="$(openssl rand -hex 32)" \
   -v saudi-open-data-mcp-data:/var/lib/saudi-open-data-mcp \
   saudi-open-data-mcp
 ```
@@ -577,7 +577,7 @@ REST surface. `/mcp` is an MCP endpoint, not a normal browser page.
 1. Start the HTTP MCP server in one shell:
 
 ```bash
-HTTP_AUTH_TOKEN=0123456789abcdef0123456789abcdef \
+export HTTP_AUTH_TOKEN="$(openssl rand -hex 32)"
 uv run --no-editable saudi-open-data-mcp run-http --host 127.0.0.1 --port 8000
 ```
 
@@ -590,7 +590,7 @@ curl -s http://127.0.0.1:8000/startupz
 3. In MCP Inspector, connect to the Streamable HTTP URL
    `http://127.0.0.1:8000/mcp`.
 4. If auth is enabled, add
-   `Authorization: Bearer 0123456789abcdef0123456789abcdef`.
+   `Authorization: Bearer <the value of HTTP_AUTH_TOKEN>`.
 5. Try safe calls such as `resource://catalog`, `search_datasets({"query":
    "money"})`, `dataset_metadata({"dataset_id": "sama-money-supply-weekly"})`,
    and `dataset_health({"dataset_id": "sama-money-supply-weekly"})`.
@@ -607,6 +607,7 @@ Programmatic MCP-aware test example:
 
 ```python
 import asyncio
+import os
 
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
@@ -616,7 +617,7 @@ async def main() -> None:
     async with Client(
         transport=StreamableHttpTransport(
             "http://127.0.0.1:8000/mcp",
-            headers={"Authorization": "Bearer 0123456789abcdef0123456789abcdef"},
+            headers={"Authorization": f"Bearer {os.environ['HTTP_AUTH_TOKEN']}"},
         )
     ) as client:
         result = await client.call_tool(

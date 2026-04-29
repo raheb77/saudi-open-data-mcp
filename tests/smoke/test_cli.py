@@ -46,7 +46,7 @@ DATA_GOV_SA_SOURCE_LOCATOR = (
     "/ar/datasets/view/104380ce-60b6-46bc-ba0a-6d5e10ac46cb/"
     "preview/parsed/Census%20Marital%20Status%20CSV.json"
 )
-VALID_HTTP_AUTH_TOKEN = "0123456789abcdef0123456789abcdef"
+VALID_HTTP_AUTH_TOKEN = "local-test-auth-token-000000000000"
 DOTENV_HTTP_AUTH_TOKEN = "fedcba9876543210fedcba9876543210"
 WEAK_HTTP_AUTH_TOKEN = "change-me-change-me-change-me-change-me"
 

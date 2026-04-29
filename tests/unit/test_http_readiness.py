@@ -16,7 +16,7 @@ from saudi_open_data_mcp.security.http_readiness import (
     build_http_readiness_middleware,
 )
 
-VALID_HTTP_AUTH_TOKEN = "0123456789abcdef0123456789abcdef"
+VALID_HTTP_AUTH_TOKEN = "local-test-auth-token-000000000000"
 
 
 async def _ok(_) -> JSONResponse:
