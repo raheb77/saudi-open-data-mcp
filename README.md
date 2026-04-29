@@ -9,17 +9,17 @@
 ```bash
 git clone https://github.com/raheb77/saudi-open-data-mcp.git
 cd saudi-open-data-mcp
-uv sync
-export HTTP_AUTH_TOKEN=<your-token>
-uv run saudi-open-data-mcp --version
-uv run saudi-open-data-mcp check-startup
-uv run saudi-open-data-mcp list
+uv sync --no-editable
+export HTTP_AUTH_TOKEN=0123456789abcdef0123456789abcdef
+uv run --no-editable saudi-open-data-mcp --version
+uv run --no-editable saudi-open-data-mcp check-startup
+uv run --no-editable saudi-open-data-mcp list
 ```
 
 Live refresh and query paths depend on current upstream source availability and
 local snapshots. For evaluation, start with the startup and catalog commands
-above; then run `uv run saudi-open-data-mcp refresh` only when testing live
-source access.
+above; then run `uv run --no-editable saudi-open-data-mcp refresh` only when
+testing live source access.
 
 The project is not just an MCP wrapper around upstream websites. Its value is in the layers underneath MCP:
 
@@ -209,13 +209,13 @@ Concise example of the current surface:
 resource://catalog
 resource://observability
 resource://policies
-dataset_metadata({"dataset_id": "sama-money-supply"})
-dataset_health({"dataset_id": "sama-money-supply"})
-download_dataset({"dataset_id": "sama-money-supply"})
+dataset_metadata({"dataset_id": "sama-money-supply-weekly"})
+dataset_health({"dataset_id": "sama-money-supply-weekly"})
+download_dataset({"dataset_id": "sama-money-supply-weekly"})
 materialize_hot_set({"include_optional": false})
-query_dataset({"dataset_id": "sama-money-supply", "filters": {"period": "2026-01"}, "limit": 5})
+query_dataset({"dataset_id": "sama-money-supply-weekly", "filters": {"week_end_date": "2024-01-13"}, "limit": 5})
 search_datasets({"query": "money"})
-preview_dataset({"dataset_id": "sama-money-supply"})
+preview_dataset({"dataset_id": "sama-money-supply-weekly"})
 ```
 
 ## What Works Now
@@ -257,47 +257,49 @@ Another important limitation: `query_dataset` only works on local snapshots that
 
 ## Local Setup
 
-This repo uses a `src/` layout. For the current phase, the source-tree CLI
-remains the supported local development path; local commands do not require
-manually setting `PYTHONPATH`.
+This repo uses a `src/` layout. `uv sync --no-editable` installs the local
+package and exposes the `saudi-open-data-mcp` console script through
+`uv run --no-editable`; local commands do not require manually setting
+`PYTHONPATH`.
 
 Install and sync with `uv`:
 
 ```bash
-uv sync
+uv sync --no-editable
 ```
 
-Then either activate the local environment:
+Then either use `uv run --no-editable` as shown below or activate the local environment:
 
 ```bash
 source .venv/bin/activate
 ```
 
-or call the tools from `.venv/bin/...` explicitly.
+or call the installed tools from `.venv/bin/...` explicitly.
 
 Lint:
 
 ```bash
-ruff check .
+uv run --no-editable ruff check .
 ```
 
 Tests:
 
 ```bash
-pytest
+uv run --no-editable pytest
 ```
 
 ## Local Run
 
-The supported local development activation path is the source-tree CLI:
+The supported local development path is the local console script through
+`uv run --no-editable`:
 
 ```bash
-python src/saudi_open_data_mcp/cli.py check-startup
-python src/saudi_open_data_mcp/cli.py run-stdio
-HTTP_AUTH_TOKEN=0123456789abcdef0123456789abcdef python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
+uv run --no-editable saudi-open-data-mcp check-startup
+uv run --no-editable saudi-open-data-mcp run-stdio
+HTTP_AUTH_TOKEN=0123456789abcdef0123456789abcdef uv run --no-editable saudi-open-data-mcp run-http --host 127.0.0.1 --port 8000
 ```
 
-The installed package also exposes the `saudi-open-data-mcp` console script:
+After activating `.venv`, the same console script is available without `uv run`:
 
 ```bash
 saudi-open-data-mcp check-startup
@@ -305,7 +307,7 @@ saudi-open-data-mcp run-stdio
 HTTP_AUTH_TOKEN=0123456789abcdef0123456789abcdef saudi-open-data-mcp run-http --host 127.0.0.1 --port 8000
 ```
 
-The same source-tree CLI also provides a thin non-interactive local façade over
+The same CLI also provides a thin non-interactive local façade over
 the current core operations. These commands emit structured JSON by default and
 support `--output` for file writes. `--quiet` only applies when `--output` is
 set. `--format` remains `json` for the read/health/config commands, while
@@ -313,17 +315,17 @@ set. `--format` remains `json` for the read/health/config commands, while
 `query_dataset` result:
 
 ```bash
-python src/saudi_open_data_mcp/cli.py list
-python src/saudi_open_data_mcp/cli.py query sama-pos-weekly --filter week_end_date=2024-01-13 --limit 5
-python src/saudi_open_data_mcp/cli.py preview stats-gov-sa-cpi-headline-monthly
-python src/saudi_open_data_mcp/cli.py download sama-money-supply
-python src/saudi_open_data_mcp/cli.py export sama-money-supply-weekly --output money_supply.json
-python src/saudi_open_data_mcp/cli.py export sama-money-supply-weekly --format excel --output money_supply.xml
-python src/saudi_open_data_mcp/cli.py export sama-money-supply-weekly --format pdf --output money_supply.pdf
-python src/saudi_open_data_mcp/cli.py health mof-budget-balance-quarterly
-python src/saudi_open_data_mcp/cli.py refresh --dataset sama-money-supply
-python src/saudi_open_data_mcp/cli.py refresh --include-optional
-python src/saudi_open_data_mcp/cli.py config
+uv run --no-editable saudi-open-data-mcp list
+uv run --no-editable saudi-open-data-mcp query sama-pos-weekly --filter week_end_date=2024-01-13 --limit 5
+uv run --no-editable saudi-open-data-mcp preview stats-gov-sa-cpi-headline-monthly
+uv run --no-editable saudi-open-data-mcp download sama-money-supply-weekly
+uv run --no-editable saudi-open-data-mcp export sama-money-supply-weekly --output money_supply.json
+uv run --no-editable saudi-open-data-mcp export sama-money-supply-weekly --format excel --output money_supply.xml
+uv run --no-editable saudi-open-data-mcp export sama-money-supply-weekly --format pdf --output money_supply.pdf
+uv run --no-editable saudi-open-data-mcp health mof-budget-balance-quarterly
+uv run --no-editable saudi-open-data-mcp refresh --dataset sama-money-supply-weekly
+uv run --no-editable saudi-open-data-mcp refresh --include-optional
+uv run --no-editable saudi-open-data-mcp config
 ```
 
 The Excel artifact is an Excel-compatible XML workbook with visible metadata and
@@ -331,9 +333,8 @@ records worksheets. The PDF artifact is a metadata-first text PDF that keeps
 status, origin, freshness, and limitations explicit instead of adding
 decorative reporting layers.
 
-Use the source-tree CLI or the local helper scripts for development and local
-host integration. The packaged console script exists for installed-package
-usage, but source-tree invocation remains the primary contributor workflow.
+Use the local console script or helper scripts for development and local host
+integration.
 
 `run-stdio` remains the primary local host/operator path for Claude Desktop and
 other command-based MCP hosts.
@@ -490,7 +491,7 @@ Startup/readiness contract:
 
 Curated live canary contract:
 
-- `python src/saudi_open_data_mcp/cli.py upstream-canary` performs a live connector fetch plus normalization on:
+- `uv run --no-editable saudi-open-data-mcp upstream-canary` performs a live connector fetch plus normalization on:
   - `sama-exchange-rates-current`
   - `stats-gov-sa-cpi-headline-monthly`
   - `mof-budget-balance-quarterly`
@@ -568,29 +569,41 @@ Current limitation to keep explicit: local host registration remains stdio
 through the source-tree CLI. The official container serving path is HTTP, not a
 desktop stdio-host replacement.
 
-## HTTP Testing Notes
+## Try manually with MCP Inspector
 
 HTTP is the official internal container serving mode, but it is not a plain
-REST surface. Use an MCP-aware client against `/mcp`.
+REST surface. `/mcp` is an MCP endpoint, not a normal browser page.
 
-For machine-friendly internal startup checks, use `GET /startupz`. `GET /readyz`
-is kept as a compatibility alias with the same startup-only payload.
-
-Start the server in one shell:
+1. Start the HTTP MCP server in one shell:
 
 ```bash
-HTTP_AUTH_TOKEN=0123456789abcdef0123456789abcdef python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
+HTTP_AUTH_TOKEN=0123456789abcdef0123456789abcdef \
+uv run --no-editable saudi-open-data-mcp run-http --host 127.0.0.1 --port 8000
 ```
+
+2. Check the startup probe from another shell:
+
+```bash
+curl -s http://127.0.0.1:8000/startupz
+```
+
+3. In MCP Inspector, connect to the Streamable HTTP URL
+   `http://127.0.0.1:8000/mcp`.
+4. If auth is enabled, add
+   `Authorization: Bearer 0123456789abcdef0123456789abcdef`.
+5. Try safe calls such as `resource://catalog`, `search_datasets({"query":
+   "money"})`, `dataset_metadata({"dataset_id": "sama-money-supply-weekly"})`,
+   and `dataset_health({"dataset_id": "sama-money-supply-weekly"})`.
 
 Naive probing can look broken even when the server is healthy:
 
 - `GET /` can return `404`
-- `GET /mcp` without the expected MCP headers can return `406`
-- `GET /startupz` should return `200` with a narrow startup-only payload
+- `GET /mcp` without the expected MCP headers may return `406`, which is expected
+- `GET /startupz` is the health/startup probe and should return `200` with a narrow startup-only payload
 
 That behavior is expected for the current streamable HTTP setup. Browser or `curl` checks are useful only as a negative smoke test here, not as a real MCP session test.
 
-Minimal MCP-aware test example:
+Programmatic MCP-aware test example:
 
 ```python
 import asyncio
@@ -608,7 +621,7 @@ async def main() -> None:
     ) as client:
         result = await client.call_tool(
             "dataset_metadata",
-            {"dataset_id": "sama-money-supply"},
+            {"dataset_id": "sama-money-supply-weekly"},
         )
         print(result.structured_content)
 

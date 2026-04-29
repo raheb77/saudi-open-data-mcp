@@ -36,7 +36,7 @@ regeneration.
 
 **Symptom**
 
-- `python src/saudi_open_data_mcp/cli.py check-startup` exits with an error
+- `uv run --no-editable saudi-open-data-mcp check-startup` exits with an error
 - `run-http` exits immediately
 - `docker compose up` shows the container restarting
 - `GET /startupz` never becomes ready
@@ -55,7 +55,7 @@ regeneration.
 **Quick checks**
 
 ```bash
-python src/saudi_open_data_mcp/cli.py check-startup
+uv run --no-editable saudi-open-data-mcp check-startup
 docker compose logs app
 ```
 
@@ -175,9 +175,9 @@ docker compose logs app
 **Quick checks**
 
 ```bash
-python src/saudi_open_data_mcp/cli.py preview <dataset_id>
-python src/saudi_open_data_mcp/cli.py health <dataset_id>
-python src/saudi_open_data_mcp/cli.py upstream-canary
+uv run --no-editable saudi-open-data-mcp preview <dataset_id>
+uv run --no-editable saudi-open-data-mcp health <dataset_id>
+uv run --no-editable saudi-open-data-mcp upstream-canary
 docker compose logs app
 ```
 
@@ -217,9 +217,9 @@ docker compose logs app
 **Quick checks**
 
 ```bash
-python src/saudi_open_data_mcp/cli.py health <dataset_id>
-python src/saudi_open_data_mcp/cli.py preview <dataset_id>
-python src/saudi_open_data_mcp/cli.py query <dataset_id> --limit 5
+uv run --no-editable saudi-open-data-mcp health <dataset_id>
+uv run --no-editable saudi-open-data-mcp preview <dataset_id>
+uv run --no-editable saudi-open-data-mcp query <dataset_id> --limit 5
 ```
 
 - confirm `SNAPSHOT_DIR` points to persistent storage
@@ -231,7 +231,7 @@ python src/saudi_open_data_mcp/cli.py query <dataset_id> --limit 5
 2. For Tier A SAMA datasets, run:
 
 ```bash
-python src/saudi_open_data_mcp/cli.py refresh
+uv run --no-editable saudi-open-data-mcp refresh
 ```
 
 3. For other supported datasets, run `preview_dataset` through the CLI or an MCP-aware client to attempt a live fetch/write through the current preview path.
@@ -252,7 +252,7 @@ python src/saudi_open_data_mcp/cli.py refresh
 
 **Symptom**
 
-- `python src/saudi_open_data_mcp/cli.py export ...` exits non-zero
+- `uv run --no-editable saudi-open-data-mcp export ...` exits non-zero
 - no output file is written
 - Excel-compatible XML or PDF export fails even though the CLI itself starts
 
@@ -269,8 +269,8 @@ python src/saudi_open_data_mcp/cli.py refresh
 **Quick checks**
 
 ```bash
-python src/saudi_open_data_mcp/cli.py query <dataset_id> --limit 5
-python src/saudi_open_data_mcp/cli.py health <dataset_id>
+uv run --no-editable saudi-open-data-mcp query <dataset_id> --limit 5
+uv run --no-editable saudi-open-data-mcp health <dataset_id>
 ```
 
 - confirm the output directory exists and is writable

@@ -70,7 +70,8 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "examples:\n"
             "  saudi-open-data-mcp list                 # list available datasets\n"
-            "  saudi-open-data-mcp query sama-money-supply --filter period=2026-01 --limit 5\n"
+            "  saudi-open-data-mcp query sama-money-supply-weekly "
+            "--filter week_end_date=2024-01-13 --limit 5\n"
             "  saudi-open-data-mcp refresh               # materialize the Tier A hot set\n"
             "  saudi-open-data-mcp check-startup          # validate wiring and exit\n"
             "\n"
@@ -156,7 +157,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run the current local-only query_dataset path for one dataset_id.",
         epilog=(
             "example:\n"
-            "  saudi-open-data-mcp query sama-money-supply --filter period=2026-01 --limit 5"
+            "  saudi-open-data-mcp query sama-money-supply-weekly "
+            "--filter week_end_date=2024-01-13 --limit 5"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -210,7 +212,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "example:\n"
             "  saudi-open-data-mcp refresh                       # Tier A hot set\n"
-            "  saudi-open-data-mcp refresh --dataset sama-money-supply"
+            "  saudi-open-data-mcp refresh --dataset sama-money-supply-weekly"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

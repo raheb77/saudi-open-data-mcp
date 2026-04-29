@@ -30,7 +30,7 @@ configured role bundle explicit; it must match the selected role.
 6. Validate startup locally with:
 
 ```bash
-python src/saudi_open_data_mcp/cli.py check-startup
+uv run --no-editable saudi-open-data-mcp check-startup
 ```
 
 7. Start the internal HTTP service with:

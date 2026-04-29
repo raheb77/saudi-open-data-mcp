@@ -114,23 +114,23 @@ The repository does not claim:
 Install:
 
 ```bash
-uv sync
+uv sync --no-editable
 ```
 
 Useful local commands:
 
 ```bash
-python src/saudi_open_data_mcp/cli.py check-startup
-python src/saudi_open_data_mcp/cli.py run-stdio
-HTTP_AUTH_TOKEN=0123456789abcdef0123456789abcdef python src/saudi_open_data_mcp/cli.py run-http --host 127.0.0.1 --port 8000
+uv run --no-editable saudi-open-data-mcp check-startup
+uv run --no-editable saudi-open-data-mcp run-stdio
+HTTP_AUTH_TOKEN=0123456789abcdef0123456789abcdef uv run --no-editable saudi-open-data-mcp run-http --host 127.0.0.1 --port 8000
 ```
 
 Useful local exports:
 
 ```bash
-python src/saudi_open_data_mcp/cli.py export sama-pos-weekly --output result.json
-python src/saudi_open_data_mcp/cli.py export sama-pos-weekly --format excel --output result.xml
-python src/saudi_open_data_mcp/cli.py export sama-pos-weekly --format pdf --output result.pdf
+uv run --no-editable saudi-open-data-mcp export sama-pos-weekly --output result.json
+uv run --no-editable saudi-open-data-mcp export sama-pos-weekly --format excel --output result.xml
+uv run --no-editable saudi-open-data-mcp export sama-pos-weekly --format pdf --output result.pdf
 ```
 
 ### Dashboard
@@ -260,7 +260,7 @@ If an evaluator wants to review the full repository:
 
 Current governed export path:
 
-- `python src/saudi_open_data_mcp/cli.py export ...`
+- `uv run --no-editable saudi-open-data-mcp export ...`
 
 Current supported governed formats:
 
